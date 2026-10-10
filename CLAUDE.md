@@ -22,6 +22,13 @@ scripts/calibration-report.sh                   # regenerate docs/CALIBRATION.md
 cargo run --release -p fs-lab --example tune -- slope=3.0      # tier 1 tuning
 cargo run --release -p fs-cli -- fit-tier2 --seasons 40 --seed 1000 \
   --out crates/fs-match/src/fitted.rs           # refit tier 2 to tier 1
+UPDATE_BINDINGS=1 cargo test -p fs-api --test bindings  # regenerate TS types
+
+# Web app (in app/; see docs/APP.md)
+npm run wasm && npm run dev                     # core to WASM, dev server
+npm run check && npm test                       # types, unit tests
+npm run build && npm run e2e                    # Playwright career test
+# Here, Playwright needs CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome
 ```
 
 ## Crates
@@ -37,8 +44,14 @@ cargo run --release -p fs-cli -- fit-tier2 --seasons 40 --seed 1000 \
 - `fs-lab`: season simulation, calibration report, tier 2 fitting,
   prediction.
 - `fs-gen`: procedural fictional world, fixed scenarios.
+- `fs-api`: the only boundary to any UI: JSON protocol, view models
+  (`dto`, mirrored to `app/src/api/generated.ts`), queries, inbox, live
+  match sessions with commentary, saves.
+- `fs-wasm`: `fs-api` session for the browser (wasm-bindgen).
 - `fs-cli`: headless runner; also built for `wasm32-wasip1`.
 - `fs-bench`: criterion benchmarks.
+- `app/`: Svelte + TypeScript UI; `app/src-tauri`: native shell (its own
+  Cargo workspace).
 
 ## Rules that keep the simulation deterministic
 
@@ -82,3 +95,12 @@ cargo run --release -p fs-cli -- fit-tier2 --seasons 40 --seed 1000 \
 - Serialised enums (`Command`, `Attr`, `Position`, `Stream`...) are
   append-only. Changing serialised types means bumping
   `snapshot::FORMAT_VERSION`.
+
+## Rules for the UI
+
+- The UI reaches the core only through `fs-api` requests. Never expose
+  core types to TypeScript; add a view model in `fs_api::dto`.
+- After changing the protocol or a view model, regenerate the bindings;
+  bump `PROTOCOL_VERSION` when old clients would break.
+- A watched match must be the match the world plays: nothing may change
+  a team's match input between `StartMatch` and `FinishMatch`.

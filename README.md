@@ -5,12 +5,14 @@ A football management game aiming to beat Football Manager on three fronts:
 more honestly), and **openness** (transparent stats, moddable data, scriptable
 scenarios).
 
-Status: **milestone 2 (season loop) complete.** The world now runs
-season after season: league calendars, promotion and relegation,
-injuries, suspensions, player development and ageing, contracts, youth
-intakes, retirements and AI squad management, on top of two calibrated
-match engines. It stays stable for decades (see
-[docs/WORLD.md](docs/WORLD.md)). There is no UI yet; that is milestone 3.
+Status: **milestone 3 (playable UI) complete.** Pick a club in a
+generated world and manage it: squad, player profiles, tactics and team
+selection, fixtures, tables and an inbox, with every match watchable in a
+2D view where you make substitutions, change tactics and shout from the
+touchline. It runs in the browser (the simulation compiled to
+WebAssembly), installs on iPad as a web app, and builds as a native macOS
+and iPad app with Tauri. Underneath, the world runs season after season
+(see [docs/WORLD.md](docs/WORLD.md)) on two calibrated match engines.
 
 | Engine | Cost per match | Use |
 | --- | --- | --- |
@@ -23,7 +25,15 @@ Both match real top-flight statistics over 40 unseen seasons; see
 ## Try it
 
 Needs Rust (the pinned version installs automatically through `rustup`)
-and Node 22 for the WebAssembly check.
+and Node 22. To play in the browser:
+
+```bash
+cargo install wasm-bindgen-cli --version 0.2.129 --locked
+cd app && npm ci && npm run wasm && npm run dev   # http://localhost:5173
+```
+
+[docs/APP.md](docs/APP.md) covers installing on iPad and the native
+macOS and iPad builds. The simulation also runs headless:
 
 ```bash
 cargo test --workspace
@@ -45,6 +55,7 @@ scripts/determinism-check.sh                             # native vs WebAssembly
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Tech stack, iPad strategy, crate layout, data model, performance budgets |
 | [docs/MATCH_ENGINE.md](docs/MATCH_ENGINE.md) | Match engine design, fidelity tiers, calibration |
 | [docs/WORLD.md](docs/WORLD.md) | Season loop: calendar, development, contracts, youth, health targets |
+| [docs/APP.md](docs/APP.md) | UI architecture, the API boundary, running on web, iPad and macOS |
 | [docs/CALIBRATION.md](docs/CALIBRATION.md) | Generated: engine statistics against real-football targets |
 
 ## Stack in one paragraph

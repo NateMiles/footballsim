@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the UI may do: only the core's own `call` command and Tauri's defaults.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -123,16 +123,21 @@ promises.
 - CLI: `fs-cli career --seasons 10` prints tables, world health and
   prospect development each season.
 
-### M3: Playable web UI
-- TypeScript UI: inbox, squad, tactics, fixtures, table, player profile.
-- Match day: 2D top-down match view (Tier 0 engine), live stats, subs and
-  shouts. The view renders from a renderer-neutral frame stream so a 3D
-  view can be added later without engine changes (see MATCH_ENGINE.md
-  section 7).
+### M3: Playable web UI (done)
+- TypeScript (Svelte) UI: new game, inbox, squad, player profile,
+  tactics and team selection, fixtures, table, saves. See APP.md.
+- Match day: 2D top-down match view with live commentary and stats,
+  substitutions, tactical changes and shouts. The view renders from a
+  renderer-neutral frame stream, so a 3D view can be added without engine
+  changes (see MATCH_ENGINE.md section 7). It is driven by the calibrated
+  tier 1 engine; tier 0 is deferred (MATCH_ENGINE.md section 6), so the
+  match you watch is exactly the match the world records.
+- One API boundary (`fs-api`): JSON requests and responses with generated
+  TypeScript types, used by every host.
 - Core compiled to WASM in a Web Worker. Runs in desktop browsers **and
   iPad Safari as an installable PWA**.
-- Tauri dev builds for macOS and your own iPad, built from your Mac with
-  Xcode. This is the first time it runs natively on the iPad.
+- Tauri 2 shell for macOS and your own iPad, built from your Mac with
+  Xcode (APP.md has the steps).
 
 ### M4: Management depth
 - Transfers and loans with the agent-based market, contracts, wages, agents.

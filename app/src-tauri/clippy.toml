@@ -1,0 +1,4 @@
+# The shell is not simulation code: the workspace rules on maps and
+# maths (../../clippy.toml) do not apply here.
+disallowed-types = []
+disallowed-methods = []

@@ -204,8 +204,15 @@ long balls, not the share of forward short passes.
 ## 6. Build order
 
 1. ~~Tier 2~~ and ~~Tier 1~~, with the calibration harness: done in M1.
-2. **Tier 0** alongside the 2D match view in M3, then re-tune tier 1 to it.
-3. Keep iterating on realism for as long as the game exists, with the
+2. ~~The 2D match view~~ in M3, driven by tier 1 (see section 7). Tier 0
+   was deferred: a watched match must be the match the world records, and
+   tier 1 is the calibrated engine. Building tier 0 first would have meant
+   either showing an uncalibrated engine or re-tuning everything before
+   anyone could play.
+3. **Tier 0** later, then re-tune tier 1 to it. The frame stream, action
+   log and live-instruction interfaces are engine-neutral, so the match
+   screen will not change.
+4. Keep iterating on realism for as long as the game exists, with the
    calibration report as the guard rail.
 
 ## 7. Renderer-neutral output (3D readiness)
@@ -213,6 +220,29 @@ long balls, not the share of forward short passes.
 The match view is 2D for now. A 3D view should be possible later without
 touching the engine, so the engine never draws anything. It emits a
 **frame stream** that any renderer can consume.
+
+### What is built (M3)
+- Tier 1 can be stepped (`tier1::LiveMatch`) and records an **action log**
+  (`fs_match::log::ActionRecord`: who did what, from which zone to which,
+  with what outcome and timing). Stepping and batch play give identical
+  results.
+- A **director** (`fs_match::view::Director`) turns the action log into
+  frames at 5 Hz: formation anchors shifted with the ball, the actors
+  moving to the play, ball arcs with height, celebrations and kick-offs.
+  `view::LiveView` combines engine and director.
+- **Instructions** (substitutions, tactic changes, touchline shouts) are
+  keyed to the engine step at which they were given
+  (`fs_match::TimedInstruction`). Replaying a match input with the same
+  instructions reproduces the watched match exactly, which is how the
+  world records it (see WORLD.md section 5).
+- Commentary is generated from the action log and match events in
+  `fs-api` (`commentary.rs`), so any future engine that emits the log
+  gets it for free.
+
+The frame contents below are the target; the current frames carry
+position, facing and pose for each player and the ball's position with
+height. Velocities, action timing and quantisation arrive with tier 0
+and replays.
 
 ### Frame stream contents
 - **Header:** pitch dimensions, team colours and kit IDs, player IDs, shirt

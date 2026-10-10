@@ -4,5 +4,5 @@ src/wasm/pkg/
 test-results/
 playwright-report/
 src-tauri/target/
-src-tauri/gen/
+src-tauri/gen/schemas/
 e2e/screenshots/

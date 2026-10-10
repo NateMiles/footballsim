@@ -39,7 +39,7 @@ world.
 
 ```
 +-------------------------------------------------------------+
-|  UI (TypeScript, Svelte or React, Vite)                     |
+|  UI (TypeScript, Svelte, Vite)                             |
 |  screens, tables, charts, 2D match renderer (PixiJS/canvas) |
 +------------------------------+------------------------------+
                                | commands / queries / events
@@ -81,10 +81,10 @@ footballsim/
     fs-ai/                   # planned: AI managers, directors, boards, agents
     fs-data/                 # planned: data-pack format, loading, validation
     fs-save/                 # planned: save/load, versioned migrations
-    fs-api/                  # planned: command/query/event API for every host
-    fs-wasm/                 # planned: wasm-bindgen wrapper around fs-api
-  app/                       # planned: TypeScript UI
-  app/src-tauri/             # planned: Tauri 2 shell (desktop + iPadOS)
+    fs-api/                  # built: request/response protocol, views, session
+    fs-wasm/                 # built: wasm-bindgen wrapper around fs-api
+  app/                       # built: Svelte + TypeScript UI (see APP.md)
+  app/src-tauri/             # built: Tauri 2 shell (desktop + iPadOS)
   data/                      # planned: base data packs
   docs/
 ```
@@ -210,12 +210,12 @@ Measurements are from the 4-core cloud build machine, not an iPad.
 | --- | --- |
 | Core language | Rust (stable) |
 | Parallelism | rayon |
-| WASM | wasm-bindgen, wasm-pack, Web Workers |
-| UI | TypeScript, Vite, Svelte or React (decide at M3), PixiJS for the match view |
+| WASM | wasm-bindgen (CLI pinned to the crate version), Web Workers |
+| UI | TypeScript, Vite, Svelte 5; Canvas2D for the match view behind a renderer interface (WebGL or 3D later) |
 | Native shell | Tauri 2 (desktop + iOS) |
 | Serialisation | serde, compact binary codec, zstd |
 | Benchmarks | criterion |
-| CI | GitHub Actions: fmt, clippy, tests, WASM build, determinism check, benchmarks |
+| CI | GitHub Actions: fmt, clippy, tests, WASM build, determinism check, calibration, web app (types, unit, e2e), native shell build |
 
 ## 11. Designing for online leagues later
 

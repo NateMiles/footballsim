@@ -62,3 +62,67 @@ jobs:
         run: |
           scripts/calibration-report.sh
           git diff --exit-code docs/CALIBRATION.md
+
+  web:
+    name: Web app (types, unit tests, build, end-to-end)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install wasm-bindgen-cli
+        working-directory: .
+        run: |
+          version=$(grep -E '^wasm-bindgen = ' Cargo.toml | sed -E 's/.*"=?([0-9.]+)".*/\1/')
+          cargo install wasm-bindgen-cli --version "$version" --locked
+      - run: npm ci
+      - run: npm run wasm
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+        env:
+          CI: "1"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-screenshots
+          path: |
+            app/e2e/screenshots
+            app/test-results
+          if-no-files-found: ignore
+
+  shell:
+    name: Native shell compiles (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      - name: Placeholder frontend
+        run: mkdir -p app/dist && echo '<!doctype html>' > app/dist/index.html
+      - working-directory: app/src-tauri
+        run: |
+          cargo fmt --check
+          cargo clippy -- -D warnings
