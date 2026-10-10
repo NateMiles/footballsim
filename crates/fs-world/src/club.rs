@@ -64,6 +64,11 @@ impl Club {
         self.lineup.as_ref()
     }
 
+    /// The tactic the manager chose, if any (as opposed to the AI's).
+    pub fn manager_tactic(&self) -> Option<Tactic> {
+        self.tactic
+    }
+
     /// The tactic the club will play: the manager's choice if set,
     /// otherwise the AI's.
     pub fn tactic(&self) -> Option<Tactic> {

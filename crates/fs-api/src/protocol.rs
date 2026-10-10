@@ -1,0 +1,209 @@
+//! The request/response protocol.
+//!
+//! Every host speaks it: the web worker (through `fs-wasm`), the Tauri
+//! shell, and later an online league server. Requests and responses are
+//! JSON objects tagged by `type`.
+
+use crate::dto::*;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+/// Protocol version. Bump when a request or response changes shape.
+pub const PROTOCOL_VERSION: u32 = 1;
+
+/// Something the UI asks for.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum Request {
+    /// Version handshake. Answered with [`Response::Hello`].
+    Hello,
+
+    /// Generate a new world (no game yet). Answered with
+    /// [`Response::ClubChoices`].
+    NewWorld { seed: u32, size: WorldSize },
+    /// Take charge of a club in the new world and start the game.
+    /// Answered with [`Response::Overview`].
+    StartCareer {
+        club: Id,
+        first_name: String,
+        last_name: String,
+    },
+    /// Answered with [`Response::Saved`].
+    Save,
+    /// Load a game from [`SaveGame::data`]. Answered with
+    /// [`Response::Overview`].
+    Load { data: String },
+
+    /// Answered with [`Response::Overview`].
+    Overview,
+    /// Answered with [`Response::Inbox`].
+    Inbox,
+    /// Mark a message read (or every message, with `None`). Answered with
+    /// [`Response::Inbox`].
+    MarkRead { id: Option<u32> },
+    /// The viewer's squad, or another club's. Answered with
+    /// [`Response::Squad`].
+    Squad { club: Option<Id> },
+    /// Answered with [`Response::Player`].
+    Player { player: Id },
+    /// Answered with [`Response::Tactics`].
+    Tactics,
+    /// Choose a tactic, or `None` to let the assistant pick. Answered with
+    /// [`Response::Tactics`].
+    SetTactic { tactic: Option<Tactic> },
+    /// Choose a lineup, or `None` to let the assistant pick. Answered with
+    /// [`Response::Tactics`].
+    SetLineup { lineup: Option<Lineup> },
+    /// A league's fixtures (the viewer's league by default), optionally
+    /// only one club's. Answered with [`Response::Fixtures`].
+    Fixtures {
+        league: Option<Id>,
+        club: Option<Id>,
+    },
+    /// Answered with [`Response::Table`].
+    Table { league: Option<Id> },
+    /// Answered with [`Response::Overview`].
+    SetWatchMatches { watch: bool },
+    /// Let the assistant handle contracts. Answered with
+    /// [`Response::Overview`].
+    SetDelegation { squad: bool },
+    /// Renew a player's contract or sign a free agent. Answered with
+    /// [`Response::Player`].
+    OfferContract { player: Id, wage: u32, years: u8 },
+    /// Answered with [`Response::Squad`].
+    ReleasePlayer { player: Id },
+
+    /// Move time on until there is something to look at: a match to
+    /// watch, new messages, or a week passed. Answered with
+    /// [`Response::Continued`].
+    Continue,
+
+    /// Start watching today's match. Answered with [`Response::LiveStart`].
+    StartMatch,
+    /// Play the watched match up to `until` seconds after kickoff.
+    /// Answered with [`Response::LiveChunk`].
+    LiveTick { until: f64 },
+    /// Give an instruction now. Answered with [`Response::LiveChunk`]
+    /// (with no new frames).
+    LiveInstruct { instruction: Instruction },
+    /// Play out the rest of the watched match, report it to the world and
+    /// finish the day. Answered with [`Response::MatchReport`].
+    FinishMatch,
+    /// Don't watch today's match: the assistant manages it. Answered with
+    /// [`Response::Overview`].
+    SkipMatch,
+}
+
+/// The core's answer.
+// One response per call, serialised straight away: size does not matter.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum Response {
+    Hello {
+        protocol: u32,
+        version: String,
+        /// Whether a game is loaded.
+        in_game: bool,
+    },
+    ClubChoices {
+        choices: ClubChoices,
+    },
+    Saved {
+        save: SaveGame,
+    },
+    Overview {
+        overview: Overview,
+    },
+    Inbox {
+        inbox: InboxView,
+    },
+    Squad {
+        squad: SquadView,
+    },
+    Player {
+        player: PlayerView,
+    },
+    Tactics {
+        tactics: TacticsView,
+    },
+    Fixtures {
+        fixtures: FixturesView,
+    },
+    Table {
+        table: TableView,
+    },
+    Continued {
+        continued: Continued,
+    },
+    LiveStart {
+        start: LiveStart,
+    },
+    LiveChunk {
+        chunk: LiveChunk,
+    },
+    MatchReport {
+        report: MatchReport,
+    },
+    Error {
+        error: ApiError,
+    },
+}
+
+/// A failed request.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiError {
+    pub code: ErrorCode,
+    /// For people.
+    pub message: String,
+}
+
+/// What kind of failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum ErrorCode {
+    /// The request could not be parsed.
+    BadRequest,
+    /// The request needs a game (or a new world) that is not loaded.
+    NoGame,
+    /// Something referred to does not exist.
+    NotFound,
+    /// The world refused the command.
+    Rejected,
+    /// No match is being watched, or the match is over.
+    NoMatch,
+    /// The save could not be read.
+    BadSave,
+}
+
+impl ApiError {
+    pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for ApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for ApiError {}
+
+impl From<fs_world::CommandError> for ApiError {
+    fn from(e: fs_world::CommandError) -> Self {
+        ApiError::new(ErrorCode::Rejected, e.to_string())
+    }
+}

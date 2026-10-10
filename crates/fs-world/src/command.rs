@@ -85,6 +85,10 @@ pub enum Command {
         first_name: String,
         last_name: String,
     },
+    /// Don't watch today's match: the assistant manages it, making the
+    /// substitutions. Like [`Command::PlayMatch`], the day's matches are
+    /// played once every watched match is accounted for.
+    SkipMatch,
 }
 
 /// An applied command, as stored in the command log.
@@ -380,15 +384,7 @@ impl World {
                 Ok(vec![Event::PlayerLeft { player, club }])
             }
             Command::PlayMatch { ref instructions } => {
-                let Actor::Manager(m) = actor else {
-                    return Err(CommandError::NotPermitted);
-                };
-                let watched = self
-                    .pending
-                    .as_ref()
-                    .and_then(|p| p.awaiting.iter().find(|w| w.manager == m))
-                    .copied()
-                    .ok_or(CommandError::NoMatchWaiting(m))?;
+                let watched = self.awaited_match(actor)?;
                 if instructions.len() > MAX_MATCH_INSTRUCTIONS {
                     return Err(CommandError::TooManyInstructions(instructions.len()));
                 }
@@ -405,15 +401,14 @@ impl World {
                     return Err(CommandError::WrongSide);
                 }
                 let pending = self.pending.as_mut().expect("checked above");
-                pending.awaiting.retain(|w| w.manager != m);
                 pending
                     .instructions
                     .insert(watched.club, instructions.clone());
-                let mut events = Vec::new();
-                if pending.awaiting.is_empty() {
-                    self.finish_match_day(&mut events);
-                }
-                Ok(events)
+                Ok(self.match_reported(watched.manager))
+            }
+            Command::SkipMatch => {
+                let watched = self.awaited_match(actor)?;
+                Ok(self.match_reported(watched.manager))
             }
             Command::SetLineup { ref lineup } => {
                 let club = self.managed_club(actor)?;
@@ -481,6 +476,30 @@ impl World {
                 Ok(vec![Event::ManagerAppointed { manager, club }])
             }
         }
+    }
+
+    /// The match `actor` is due to watch today.
+    fn awaited_match(&self, actor: Actor) -> Result<live::WatchedFixture, CommandError> {
+        let Actor::Manager(m) = actor else {
+            return Err(CommandError::NotPermitted);
+        };
+        self.pending
+            .as_ref()
+            .and_then(|p| p.awaiting.iter().find(|w| w.manager == m))
+            .copied()
+            .ok_or(CommandError::NoMatchWaiting(m))
+    }
+
+    /// Marks a manager's match as accounted for, and plays the day once
+    /// nobody else is watching.
+    fn match_reported(&mut self, manager: ManagerId) -> Vec<Event> {
+        let pending = self.pending.as_mut().expect("a pending match day");
+        pending.awaiting.retain(|w| w.manager != manager);
+        let mut events = Vec::new();
+        if pending.awaiting.is_empty() {
+            self.finish_match_day(&mut events);
+        }
+        events
     }
 
     /// Plays the rest of a pending match day, with the instructions

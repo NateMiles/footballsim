@@ -180,6 +180,29 @@ fn advancing_past_a_watched_match_lets_the_assistant_manage_it() {
 }
 
 #[test]
+fn a_skipped_match_is_managed_by_the_assistant() {
+    let (mut game, m, _) = watching_game(23);
+    let watched = advance_to_match_day(&mut game);
+    let date = game.world().date();
+    let mut input = fixture_input(game.world(), watched.league, watched.index);
+    input.home.auto_subs = true;
+    input.away.auto_subs = true;
+    let expected = fs_match::play(&input, fs_match::Tier::Event);
+    game.submit(Actor::Manager(m), Command::SkipMatch).unwrap();
+    assert_eq!(game.world().date(), date);
+    assert!(game.world().pending().is_none());
+    let fixture = &game.world().leagues()[watched.league]
+        .season()
+        .unwrap()
+        .fixtures[watched.index];
+    assert_eq!(fixture.result.as_ref().unwrap().goals, expected.goals);
+    assert_eq!(
+        game.submit(Actor::Manager(m), Command::SkipMatch),
+        Err(CommandError::NoMatchWaiting(m))
+    );
+}
+
+#[test]
 fn a_chosen_lineup_is_used_and_repaired() {
     let (mut game, m, club) = watching_game(24);
     let auto = team_sheet(game.world(), club);

@@ -1,0 +1,462 @@
+//! A session: one UI talking to one game.
+//!
+//! The session is the host side of the protocol. It owns the game (world
+//! plus command log), the viewer's inbox and any match being watched, and
+//! turns each [`Request`] into world commands and views. All changes to
+//! the world still go through `Game::submit`, so the log stays complete.
+
+use crate::dto;
+use crate::inbox::Inbox;
+use crate::live::{LiveSession, report};
+use crate::protocol::{ApiError, ErrorCode, PROTOCOL_VERSION, Request, Response};
+use crate::query;
+use crate::save;
+use fs_gen::{GenConfig, Size, generate};
+use fs_match::MatchInput;
+use fs_world::matchday::fixture_input;
+use fs_world::{Actor, ClubId, Command, Event, Game, LeagueId, Lineup, ManagerId, PlayerId, World};
+
+/// Days [`Request::Continue`] moves on at most.
+const CONTINUE_DAYS: u32 = 7;
+
+/// A game in progress, seen by one human manager.
+#[derive(Debug)]
+pub(crate) struct Career {
+    pub(crate) game: Game,
+    pub(crate) manager: ManagerId,
+    pub(crate) inbox: Inbox,
+    live: Option<(LiveSession, MatchInput)>,
+}
+
+#[derive(Debug, Default)]
+enum Stage {
+    #[default]
+    Empty,
+    /// A new world, waiting for the manager to pick a club.
+    Choosing(Box<World>),
+    Playing(Box<Career>),
+}
+
+/// The host side of the protocol.
+#[derive(Debug, Default)]
+pub struct Session {
+    stage: Stage,
+}
+
+type Result<T> = std::result::Result<T, ApiError>;
+
+fn not_found(what: &str) -> ApiError {
+    ApiError::new(ErrorCode::NotFound, format!("no such {what}"))
+}
+
+impl Session {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Handles one JSON request and returns the JSON response. Never
+    /// fails: errors become [`Response::Error`].
+    pub fn call_json(&mut self, request: &str) -> String {
+        let response = match serde_json::from_str::<Request>(request) {
+            Ok(r) => self.handle(r),
+            Err(e) => Response::Error {
+                error: ApiError::new(ErrorCode::BadRequest, e.to_string()),
+            },
+        };
+        serde_json::to_string(&response).expect("responses serialise")
+    }
+
+    /// Handles one request.
+    pub fn handle(&mut self, request: Request) -> Response {
+        self.dispatch(request)
+            .unwrap_or_else(|error| Response::Error { error })
+    }
+
+    /// The game, if one is being played.
+    pub fn game(&self) -> Option<&Game> {
+        match &self.stage {
+            Stage::Playing(c) => Some(&c.game),
+            _ => None,
+        }
+    }
+
+    fn career(&mut self) -> Result<&mut Career> {
+        match &mut self.stage {
+            Stage::Playing(c) => Ok(c),
+            _ => Err(ApiError::new(ErrorCode::NoGame, "no game loaded")),
+        }
+    }
+
+    fn dispatch(&mut self, request: Request) -> Result<Response> {
+        match request {
+            Request::Hello => Ok(Response::Hello {
+                protocol: PROTOCOL_VERSION,
+                version: env!("CARGO_PKG_VERSION").into(),
+                in_game: matches!(self.stage, Stage::Playing(_)),
+            }),
+            Request::NewWorld { seed, size } => {
+                let mut cfg = GenConfig::preset(
+                    match size {
+                        dto::WorldSize::Tiny => Size::Tiny,
+                        dto::WorldSize::Small => Size::Small,
+                        dto::WorldSize::Medium => Size::Medium,
+                    },
+                    u64::from(seed),
+                );
+                cfg.human_clubs.clear();
+                let world = generate(&cfg);
+                let choices = query::game::club_choices(&world);
+                self.stage = Stage::Choosing(Box::new(world));
+                Ok(Response::ClubChoices { choices })
+            }
+            Request::StartCareer {
+                club,
+                first_name,
+                last_name,
+            } => {
+                let Stage::Choosing(world) = std::mem::take(&mut self.stage) else {
+                    return Err(ApiError::new(ErrorCode::NoGame, "generate a world first"));
+                };
+                let mut game = Game::new(*world);
+                let appointed = game.submit(
+                    Actor::System,
+                    Command::AppointHuman {
+                        club: ClubId::new(club),
+                        first_name,
+                        last_name,
+                    },
+                );
+                let events = match appointed {
+                    Ok(e) => e,
+                    Err(e) => {
+                        // Keep the world so the manager can choose again.
+                        self.stage = Stage::Choosing(Box::new(game.into_parts().0));
+                        return Err(e.into());
+                    }
+                };
+                let Some(&Event::ManagerAppointed { manager, .. }) = events.first() else {
+                    unreachable!("AppointHuman reports the appointment");
+                };
+                let mut career = Career {
+                    game,
+                    manager,
+                    inbox: Inbox::default(),
+                    live: None,
+                };
+                career.record(&events);
+                self.stage = Stage::Playing(Box::new(career));
+                self.overview()
+            }
+            Request::Save => {
+                let c = self.career()?;
+                Ok(Response::Saved {
+                    save: save::save(c),
+                })
+            }
+            Request::Load { data } => {
+                let (game, manager, inbox) = save::load(&data)?;
+                self.stage = Stage::Playing(Box::new(Career {
+                    game,
+                    manager,
+                    inbox,
+                    live: None,
+                }));
+                self.overview()
+            }
+            Request::Overview => self.overview(),
+            Request::Inbox => Ok(Response::Inbox {
+                inbox: self.career()?.inbox.view(),
+            }),
+            Request::MarkRead { id } => {
+                let c = self.career()?;
+                c.inbox.mark_read(id);
+                Ok(Response::Inbox {
+                    inbox: c.inbox.view(),
+                })
+            }
+            Request::Squad { club } => {
+                let c = self.career()?;
+                let club = match club {
+                    Some(id) => c.existing_club(id)?,
+                    None => c.club()?,
+                };
+                Ok(Response::Squad {
+                    squad: query::club::squad(c.world(), club),
+                })
+            }
+            Request::Player { player } => {
+                let c = self.career()?;
+                let id = c.existing_player(player)?;
+                Ok(Response::Player {
+                    player: query::club::player(c.world(), id, c.club().ok()),
+                })
+            }
+            Request::Tactics => {
+                let c = self.career()?;
+                Ok(Response::Tactics {
+                    tactics: query::club::tactics(c.world(), c.club()?),
+                })
+            }
+            Request::SetTactic { tactic } => {
+                let c = self.career()?;
+                c.submit_outside_match(Command::SetTactic {
+                    tactic: tactic.map(Into::into),
+                })?;
+                Ok(Response::Tactics {
+                    tactics: query::club::tactics(c.world(), c.club()?),
+                })
+            }
+            Request::SetLineup { lineup } => {
+                let c = self.career()?;
+                c.submit_outside_match(Command::SetLineup {
+                    lineup: lineup.map(|l| Lineup {
+                        starters: l.starters.into_iter().map(PlayerId::new).collect(),
+                        bench: l.bench.into_iter().map(PlayerId::new).collect(),
+                    }),
+                })?;
+                Ok(Response::Tactics {
+                    tactics: query::club::tactics(c.world(), c.club()?),
+                })
+            }
+            Request::Fixtures { league, club } => {
+                let c = self.career()?;
+                let (league, club) = match (league, club) {
+                    (Some(l), club) => (
+                        c.existing_league(l)?,
+                        club.map(|id| c.existing_club(id)).transpose()?,
+                    ),
+                    (None, Some(id)) => {
+                        let club = c.existing_club(id)?;
+                        (c.league_of(club)?, Some(club))
+                    }
+                    (None, None) => {
+                        let club = c.club()?;
+                        (c.league_of(club)?, Some(club))
+                    }
+                };
+                Ok(Response::Fixtures {
+                    fixtures: query::competition::fixtures(c.world(), league, club),
+                })
+            }
+            Request::Table { league } => {
+                let c = self.career()?;
+                let league = match league {
+                    Some(l) => c.existing_league(l)?,
+                    None => c.league_of(c.club()?)?,
+                };
+                Ok(Response::Table {
+                    table: query::competition::table(c.world(), league),
+                })
+            }
+            Request::SetWatchMatches { watch } => {
+                self.career()?
+                    .submit_outside_match(Command::SetWatchMatches { watch })?;
+                self.overview()
+            }
+            Request::SetDelegation { squad } => {
+                self.career()?
+                    .submit_outside_match(Command::SetDelegation { squad })?;
+                self.overview()
+            }
+            Request::OfferContract {
+                player,
+                wage,
+                years,
+            } => {
+                let c = self.career()?;
+                let id = c.existing_player(player)?;
+                c.submit_outside_match(Command::OfferContract {
+                    player: id,
+                    wage,
+                    years,
+                })?;
+                Ok(Response::Player {
+                    player: query::club::player(c.world(), id, c.club().ok()),
+                })
+            }
+            Request::ReleasePlayer { player } => {
+                let c = self.career()?;
+                let id = c.existing_player(player)?;
+                c.submit_outside_match(Command::ReleasePlayer { player: id })?;
+                Ok(Response::Squad {
+                    squad: query::club::squad(c.world(), c.club()?),
+                })
+            }
+            Request::Continue => Ok(Response::Continued {
+                continued: self.career()?.continue_on()?,
+            }),
+            Request::StartMatch => {
+                let c = self.career()?;
+                let (live, start) = LiveSession::start(c.world(), c.manager)?;
+                let input = fixture_input(c.world(), live.league, live.index);
+                c.live = Some((live, input));
+                Ok(Response::LiveStart { start })
+            }
+            Request::LiveTick { until } => {
+                let (live, _) = self.career()?.live_mut()?;
+                Ok(Response::LiveChunk {
+                    chunk: live.tick(until),
+                })
+            }
+            Request::LiveInstruct { instruction } => {
+                let (live, _) = self.career()?.live_mut()?;
+                Ok(Response::LiveChunk {
+                    chunk: live.instruct(instruction)?,
+                })
+            }
+            Request::FinishMatch => Ok(Response::MatchReport {
+                report: self.career()?.finish_match()?,
+            }),
+            Request::SkipMatch => {
+                let c = self.career()?;
+                c.live = None;
+                c.submit(Command::SkipMatch)?;
+                self.overview()
+            }
+        }
+    }
+
+    fn overview(&mut self) -> Result<Response> {
+        let c = self.career()?;
+        let club = c.club()?;
+        Ok(Response::Overview {
+            overview: query::game::overview(c.world(), c.manager, club, c.inbox.unread()),
+        })
+    }
+}
+
+impl Career {
+    fn world(&self) -> &World {
+        self.game.world()
+    }
+
+    fn club(&self) -> Result<ClubId> {
+        self.world()
+            .human_club(self.manager)
+            .ok_or_else(|| ApiError::new(ErrorCode::NoGame, "you have no club"))
+    }
+
+    fn existing_club(&self, id: u32) -> Result<ClubId> {
+        let club = ClubId::new(id);
+        self.world()
+            .clubs()
+            .get(club)
+            .map(|_| club)
+            .ok_or_else(|| not_found("club"))
+    }
+
+    fn existing_league(&self, id: u32) -> Result<LeagueId> {
+        let league = LeagueId::new(id);
+        self.world()
+            .leagues()
+            .get(league)
+            .map(|_| league)
+            .ok_or_else(|| not_found("league"))
+    }
+
+    fn existing_player(&self, id: u32) -> Result<PlayerId> {
+        let player = PlayerId::new(id);
+        if self.world().players().contains(player) {
+            Ok(player)
+        } else {
+            Err(not_found("player"))
+        }
+    }
+
+    fn league_of(&self, club: ClubId) -> Result<LeagueId> {
+        self.world().clubs()[club]
+            .league()
+            .ok_or_else(|| not_found("league for this club"))
+    }
+
+    fn live_mut(&mut self) -> Result<&mut (LiveSession, MatchInput)> {
+        self.live
+            .as_mut()
+            .ok_or_else(|| ApiError::new(ErrorCode::NoMatch, "no match is being watched"))
+    }
+
+    /// Adds the events that concern the viewer to the inbox.
+    fn record(&mut self, events: &[Event]) {
+        if let Some(club) = self.game.world().human_club(self.manager) {
+            self.inbox
+                .record(self.game.world(), self.manager, club, events);
+        }
+    }
+
+    /// Submits a command as the viewer and files its events.
+    fn submit(&mut self, command: Command) -> Result<Vec<Event>> {
+        let events = self.game.submit(Actor::Manager(self.manager), command)?;
+        self.record(&events);
+        Ok(events)
+    }
+
+    /// As [`Career::submit`], refusing while a match is being watched:
+    /// the match on screen must stay the one the world will play.
+    fn submit_outside_match(&mut self, command: Command) -> Result<Vec<Event>> {
+        if self.live.is_some() {
+            return Err(ApiError::new(
+                ErrorCode::Rejected,
+                "not while a match is being watched",
+            ));
+        }
+        self.submit(command)
+    }
+
+    /// Moves time on until there is something to look at.
+    fn continue_on(&mut self) -> Result<dto::Continued> {
+        let before = self.inbox.len();
+        let mut stopped = dto::StopReason::Week;
+        if query::game::match_day(self.world(), self.manager).is_some() {
+            stopped = dto::StopReason::MatchDay;
+        } else {
+            for _ in 0..CONTINUE_DAYS {
+                let events = self
+                    .game
+                    .submit(Actor::System, Command::Advance { days: 1 })?;
+                self.record(&events);
+                if query::game::match_day(self.world(), self.manager).is_some() {
+                    stopped = dto::StopReason::MatchDay;
+                    break;
+                }
+                if self.inbox.len() > before {
+                    stopped = dto::StopReason::Messages;
+                    break;
+                }
+            }
+        }
+        Ok(dto::Continued {
+            date: query::refs::date(self.world().date()),
+            stopped,
+            new_messages: (self.inbox.len() - before) as u32,
+            match_day: query::game::match_day(self.world(), self.manager),
+        })
+    }
+
+    /// Plays out the watched match, reports it to the world, and returns
+    /// the world's record of it.
+    fn finish_match(&mut self) -> Result<dto::MatchReport> {
+        let (live, input) = self
+            .live
+            .take()
+            .ok_or_else(|| ApiError::new(ErrorCode::NoMatch, "no match is being watched"))?;
+        let (league, index) = (live.league, live.index);
+        if fixture_input(self.world(), league, index) != input {
+            return Err(ApiError::new(
+                ErrorCode::Rejected,
+                "the teams changed during the match",
+            ));
+        }
+        let (instructions, result) = live.finish();
+        self.submit(Command::PlayMatch { instructions })?;
+        let recorded = self.world().leagues()[league]
+            .season()
+            .and_then(|s| s.fixtures[index].result.as_ref())
+            .map(|r| r.goals);
+        debug_assert_eq!(
+            recorded,
+            Some(result.goals),
+            "the world replays the watched match"
+        );
+        Ok(report(self.world(), league, index, &result))
+    }
+}

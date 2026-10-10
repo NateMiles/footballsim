@@ -1,0 +1,20 @@
+//! View models: the shapes the UI receives and sends.
+//!
+//! These mirror core types rather than exposing them, so the core can
+//! change its internals without breaking any UI, and each type is shaped
+//! for a screen. TypeScript declarations for all of them are generated
+//! into `app/src/api/generated.ts` (see `tests/bindings.rs`).
+
+pub mod club;
+pub mod common;
+pub mod competition;
+pub mod game;
+pub mod inbox;
+pub mod live;
+
+pub use club::*;
+pub use common::*;
+pub use competition::*;
+pub use game::*;
+pub use inbox::*;
+pub use live::*;
