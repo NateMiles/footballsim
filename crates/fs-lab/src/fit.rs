@@ -20,6 +20,7 @@ pub fn fit_tier2(seasons: &[SeasonOutcome]) -> Coefficients {
     let mut c = Coefficients::default();
     let (mut shots, mut xg, mut on_target, mut passes, mut completed) = (0.0, 0.0, 0.0, 0.0, 0.0);
     let (mut fouls, mut yellows, mut corners, mut reds, mut teams) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    let mut injuries = 0.0;
     let mut poss_rows: Vec<([f64; 4], f64)> = Vec::new();
     for s in seasons {
         for m in &s.matches {
@@ -40,6 +41,9 @@ pub fn fit_tier2(seasons: &[SeasonOutcome]) -> Coefficients {
                 yellows += f64::from(t.yellows);
                 corners += f64::from(t.corners);
                 reds += f64::from(t.reds);
+            }
+            for side in &m.result.players {
+                injuries += side.iter().filter(|p| p.injured).count() as f64;
             }
             let ph = f64::from(m.result.stats[0].possession).clamp(0.05, 0.95);
             let input = tactics_only_input(m.tactics);
@@ -74,6 +78,7 @@ pub fn fit_tier2(seasons: &[SeasonOutcome]) -> Coefficients {
     c.yellow_per_foul = yellows / fouls.max(1.0);
     c.corners_per_team = corners / teams;
     c.reds_per_team = reds / teams;
+    c.injuries_per_team = injuries / teams;
     let [ph, ps, pd, pp] = least_squares(&poss_rows);
     c.possession_home = ph;
     c.possession_slope = ps;

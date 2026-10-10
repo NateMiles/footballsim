@@ -3,11 +3,15 @@
 //! A command is validated completely before anything changes, so a
 //! rejected command has no effect and is not recorded.
 
-use crate::ids::{ClubId, ManagerId, PlayerId};
+use crate::ids::{ClubId, LeagueId, ManagerId, PlayerId};
 use crate::manager::Control;
+use crate::people::{age_years, wage_demand};
+use crate::player::{Contract, Status};
+use crate::squad::contract_expiry;
 use crate::tick;
 use crate::world::World;
 use fs_core::GameDate;
+use fs_match::Tactic;
 use serde::{Deserialize, Serialize};
 
 /// Who issued a command.
@@ -34,6 +38,22 @@ pub enum Command {
         player: PlayerId,
         number: Option<u8>,
     },
+    /// Set the manager's club tactic, or `None` to let the assistant (the
+    /// AI) choose.
+    SetTactic { tactic: Option<Tactic> },
+    /// Offer a contract: a renewal for one of the manager's players, or a
+    /// signing for a free agent. `years` counts seasons, including the
+    /// current one when offered between July and December.
+    OfferContract {
+        player: PlayerId,
+        wage: u32,
+        years: u8,
+    },
+    /// Release one of the manager's players; they become a free agent.
+    ReleasePlayer { player: PlayerId },
+    /// Let the assistant handle contracts, releases and free-agent
+    /// signings (`true`), or take them back (`false`).
+    SetDelegation { squad: bool },
 }
 
 /// An applied command, as stored in the command log.
@@ -58,6 +78,54 @@ pub enum Event {
         player: PlayerId,
         number: Option<u8>,
     },
+    /// A match in a league with a human-managed club was played.
+    MatchPlayed {
+        league: LeagueId,
+        home: ClubId,
+        away: ClubId,
+        goals: [u8; 2],
+    },
+    /// A player at a human-managed club was injured.
+    PlayerInjured {
+        player: PlayerId,
+        club: ClubId,
+        until: GameDate,
+    },
+    /// A human-managed club's player has a contract ending soon.
+    ContractExpiring {
+        player: PlayerId,
+        club: ClubId,
+        expires: GameDate,
+    },
+    /// A player left a club (released or out of contract).
+    PlayerLeft { player: PlayerId, club: ClubId },
+    /// A player joined a club.
+    PlayerSigned { player: PlayerId, club: ClubId },
+    /// A human-managed club's player retired.
+    PlayerRetired { player: PlayerId, club: ClubId },
+    /// Academy graduates joined a human-managed club.
+    YouthIntake {
+        club: ClubId,
+        players: Vec<PlayerId>,
+    },
+    /// A league season finished.
+    SeasonEnded {
+        league: LeagueId,
+        year: i32,
+        champion: ClubId,
+    },
+    Promoted {
+        club: ClubId,
+        from: LeagueId,
+        to: LeagueId,
+    },
+    Relegated {
+        club: ClubId,
+        from: LeagueId,
+        to: LeagueId,
+    },
+    /// A human manager changed tactic.
+    TacticChanged { club: ClubId },
 }
 
 /// Why a command was rejected.
@@ -79,7 +147,22 @@ pub enum CommandError {
     InvalidSquadNumber(u8),
     #[error("squad number {number} is already worn by {holder}")]
     SquadNumberTaken { number: u8, holder: PlayerId },
+    #[error("{0} does not manage a club")]
+    NoManagedClub(ManagerId),
+    #[error("{0} has retired")]
+    Retired(PlayerId),
+    #[error("{0} is at another club")]
+    AtAnotherClub(PlayerId),
+    #[error("contracts run 1-5 seasons, not {0}")]
+    InvalidYears(u8),
+    #[error("the player wants at least {demand} a week")]
+    ContractRejected { demand: u32 },
+    #[error("the squad is full ({0} players)")]
+    SquadFull(usize),
 }
+
+/// Largest squad a club may register.
+pub const MAX_SQUAD: usize = 40;
 
 impl World {
     /// Validates and applies a command. Callers outside this crate go
@@ -98,8 +181,8 @@ impl World {
                 let mut events = Vec::with_capacity(usize::from(days));
                 for _ in 0..days {
                     self.date = self.date.add_days(1);
-                    tick::daily(self);
                     events.push(Event::DayAdvanced { date: self.date });
+                    tick::daily(self, &mut events);
                 }
                 Ok(events)
             }
@@ -136,6 +219,92 @@ impl World {
                     player,
                     number,
                 }])
+            }
+            Command::SetTactic { tactic } => {
+                let club = self.managed_club(actor)?;
+                self.clubs[club].tactic = tactic.map(Tactic::clamped);
+                Ok(vec![Event::TacticChanged { club }])
+            }
+            Command::OfferContract {
+                player,
+                wage,
+                years,
+            } => {
+                let club = self.managed_club(actor)?;
+                if !self.players.contains(player) {
+                    return Err(CommandError::UnknownPlayer(player));
+                }
+                if self.players.status(player) == Status::Retired {
+                    return Err(CommandError::Retired(player));
+                }
+                let current = self.players.club(player);
+                if current.is_some_and(|c| c != club) {
+                    return Err(CommandError::AtAnotherClub(player));
+                }
+                if !(1..=5).contains(&years) {
+                    return Err(CommandError::InvalidYears(years));
+                }
+                if current.is_none() && self.clubs[club].squad.len() >= MAX_SQUAD {
+                    return Err(CommandError::SquadFull(self.clubs[club].squad.len()));
+                }
+                let age = age_years(self.players.bio(player).birth_date, self.date) as u32;
+                let demand = wage_demand(
+                    self.players.ability(player),
+                    self.players.potential(player),
+                    age,
+                );
+                if u64::from(wage) * 10 < u64::from(demand) * 9 {
+                    return Err(CommandError::ContractRejected { demand });
+                }
+                let contract = Contract {
+                    wage,
+                    expires: contract_expiry(self.date, years),
+                };
+                if current.is_some() {
+                    self.players.contract[player.index()] = Some(contract);
+                    Ok(Vec::new())
+                } else {
+                    self.sign_player(player, club, contract);
+                    Ok(vec![Event::PlayerSigned { player, club }])
+                }
+            }
+            Command::SetDelegation { squad } => {
+                self.managed_club(actor)?;
+                if let Actor::Manager(m) = actor {
+                    self.managers[m].delegate_squad = squad;
+                }
+                Ok(Vec::new())
+            }
+            Command::ReleasePlayer { player } => {
+                let club = self.managed_club(actor)?;
+                if !self.players.contains(player) {
+                    return Err(CommandError::UnknownPlayer(player));
+                }
+                if self.players.club(player) != Some(club) {
+                    return Err(CommandError::NotYourPlayer(match actor {
+                        Actor::Manager(m) => m,
+                        Actor::System => unreachable!("managed_club rejects the system"),
+                    }));
+                }
+                self.release_player(player);
+                Ok(vec![Event::PlayerLeft { player, club }])
+            }
+        }
+    }
+
+    /// The club a human manager runs.
+    fn managed_club(&self, actor: Actor) -> Result<ClubId, CommandError> {
+        match actor {
+            Actor::System => Err(CommandError::NotPermitted),
+            Actor::Manager(m) => {
+                let mgr = self
+                    .managers
+                    .get(m)
+                    .ok_or(CommandError::UnknownManager(m))?;
+                if mgr.control != Control::Human {
+                    return Err(CommandError::NotPermitted);
+                }
+                mgr.club.ok_or(CommandError::NoManagedClub(m))
             }
         }
     }

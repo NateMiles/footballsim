@@ -11,6 +11,9 @@ publish.workspace = true
 fs-core.workspace = true
 fs-world.workspace = true
 
+[dev-dependencies]
+fs-match.workspace = true
+
 [lints]
 workspace = true
 

@@ -1,12 +1,20 @@
 //! The daily simulation step.
 //!
-//! M0 version: physical and mental recovery between matches. Training,
-//! injuries and development arrive in M2. Everything here uses integer
-//! maths and per-player RNG streams, so it parallelises without changing
-//! results.
+//! Each day, in order: calendar events (season rollover on 1 July,
+//! contract renewals on 1 June, expiry warnings on 1 January, transfer
+//! windows), the day's matches, recovery, injuries, and on the 1st of the
+//! month player development and AI tactic refreshes.
+//!
+//! Per-player passes run in parallel with per-player RNG streams, so the
+//! result does not depend on thread count.
 
 use crate::attributes::{ATTR_MAX, Attr, HiddenAttr};
-use crate::player::{CONDITION_MAX, Condition, Players};
+use crate::command::Event;
+use crate::matchday::{play_today, refresh_ai_tactics, sample_injury};
+use crate::people::{age_years, develop_month, season_year};
+use crate::player::{CONDITION_MAX, Condition, Players, Status};
+use crate::season::{current_season, rollover};
+use crate::squad::{maintain_squads, renew_contracts, warn_expiring};
 use crate::world::World;
 use fs_core::Stream;
 use fs_core::par;
@@ -15,23 +23,148 @@ use fs_core::par;
 const MORALE_BASELINE: u16 = CONDITION_MAX / 2;
 /// Sharpness never decays below this without match play.
 const SHARPNESS_FLOOR: u16 = 2_000;
+/// Chance per day of a training injury for an average player.
+const TRAINING_INJURY_RATE: f64 = 0.0008;
 
 /// Runs one day for the whole world. `world.date` is already the new day.
-pub(crate) fn daily(world: &mut World) {
+pub(crate) fn daily(world: &mut World, events: &mut Vec<Event>) {
+    let today = world.date;
+    let (_, month, day) = today.ymd();
+    if !world.leagues.is_empty() {
+        if (month, day) == (7, 1) && current_season(world).is_some_and(|y| y < season_year(today)) {
+            rollover(world, events);
+        }
+        match (month, day) {
+            (6, 1) => renew_contracts(world, events),
+            (1, 1) => warn_expiring(world, events),
+            (8, 20) | (1, 10) => maintain_squads(world, events),
+            _ => {}
+        }
+        play_today(world, events);
+    }
+    recovery(world);
+    injuries(world, events);
+    if day == 1 {
+        development(world);
+        if !world.leagues.is_empty() {
+            refresh_ai_tactics(world);
+        }
+    }
+}
+
+fn recovery(world: &mut World) {
     let seed = world.seed;
     let day = u64::from(world.date.days());
     let Players {
         condition,
         attributes,
         hidden,
+        status,
         ..
     } = &mut world.players;
-
     par::for_each_indexed_mut(condition, |i, c| {
+        if status[i] != Status::Active {
+            return;
+        }
         let mut rng = seed.derive(Stream::DailyTick, day, i as u64);
         let natural_fitness = u32::from(attributes[i].get(Attr::NaturalFitness));
         let professionalism = u32::from(hidden[i].get(HiddenAttr::Professionalism));
         recover(c, natural_fitness, professionalism, &mut rng);
+    });
+}
+
+/// Heals injuries that have run their course and causes new training
+/// injuries, more often for injury-prone or overloaded players.
+fn injuries(world: &mut World, events: &mut Vec<Event>) {
+    let seed = world.seed;
+    let today = world.date;
+    let day = u64::from(today.days());
+    let Players {
+        injury,
+        condition,
+        hidden,
+        status,
+        club,
+        ..
+    } = &mut world.players;
+    par::for_each_indexed_mut(injury, |i, inj| {
+        if inj.is_some_and(|x| x.until <= today) {
+            *inj = None;
+        }
+        if inj.is_some() || status[i] != Status::Active || club[i].is_none() {
+            return;
+        }
+        let mut rng = seed.derive(Stream::Injury, day, i as u64);
+        let proneness = f64::from(hidden[i].get(HiddenAttr::InjuryProneness)) / 1000.0;
+        let load = 1.0 + f64::from(condition[i].fatigue) / 5000.0;
+        if rng.chance(TRAINING_INJURY_RATE * (0.5 + proneness) * load) {
+            *inj = Some(sample_injury(&mut rng, today, proneness * 0.5));
+        }
+    });
+    for c in world.clubs.ids().filter(|&c| world.is_human_club(c)) {
+        for &p in &world.clubs[c].squad {
+            if let Some(inj) = world.players.injury(p)
+                && inj.since == today
+                && !events
+                    .iter()
+                    .any(|e| matches!(e, Event::PlayerInjured { player, .. } if *player == p))
+            {
+                events.push(Event::PlayerInjured {
+                    player: p,
+                    club: c,
+                    until: inj.until,
+                });
+            }
+        }
+    }
+}
+
+/// Monthly growth, plateau and decline for every active player.
+fn development(world: &mut World) {
+    let seed = world.seed;
+    let today = world.date;
+    let month = u64::from(today.days());
+    // Matches each club has played this season, for playing-time shares.
+    let mut played = vec![0u32; world.clubs.len()];
+    for (_, league) in world.leagues.iter() {
+        if let Some(s) = league.season() {
+            for row in &s.rows {
+                played[row.club.index()] = u32::from(row.played);
+            }
+        }
+    }
+    let Players {
+        attributes,
+        positions,
+        potential,
+        bio,
+        hidden,
+        status,
+        club,
+        season,
+        ..
+    } = &mut world.players;
+    par::for_each_indexed_mut(attributes, |i, attrs| {
+        if status[i] != Status::Active {
+            return;
+        }
+        let mut rng = seed.derive(Stream::Development, month, i as u64);
+        let age = age_years(bio[i].birth_date, today);
+        let professionalism = f64::from(hidden[i].get(HiddenAttr::Professionalism)) / 1000.0;
+        let playing = match club[i] {
+            None => 0.2,
+            Some(c) if played[c.index()] == 0 => 0.5,
+            Some(c) => f64::from(season[i].minutes) / (90.0 * f64::from(played[c.index()])),
+        };
+        develop_month(
+            attrs,
+            positions[i].best(),
+            potential[i],
+            age,
+            professionalism,
+            playing,
+            &mut rng,
+        );
     });
 }
 

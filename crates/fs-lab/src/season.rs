@@ -60,6 +60,7 @@ pub fn league_world(seed: u64) -> World {
         start: GameDate::from_ymd(2026, 7, 1).expect("valid date"),
         nations: 1,
         clubs_per_nation: 100,
+        clubs_per_league: 20,
         players_per_club: 25,
         free_agents: 0,
         human_clubs: Vec::new(),

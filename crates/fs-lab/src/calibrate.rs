@@ -70,6 +70,7 @@ pub fn report(seasons: &[SeasonOutcome]) -> Report {
     let (mut fouls, mut yellows, mut reds, mut corners, mut xg) = (0.0, 0.0, 0.0, 0.0, 0.0);
     let mut possessions: Vec<f64> = Vec::new();
     let mut zero_zero = 0.0;
+    let mut injuries = 0.0;
     for season in seasons {
         for m in &season.matches {
             let r = &m.result;
@@ -82,6 +83,9 @@ pub fn report(seasons: &[SeasonOutcome]) -> Report {
             }
             if r.goals == [0, 0] {
                 zero_zero += 1.0;
+            }
+            for side in &r.players {
+                injuries += side.iter().filter(|p| p.injured).count() as f64;
             }
             for t in &r.stats {
                 shots += f64::from(t.shots);
@@ -103,10 +107,20 @@ pub fn report(seasons: &[SeasonOutcome]) -> Report {
         .get(possessions.len() * 95 / 100)
         .copied()
         .unwrap_or(0.5);
-    let (mut champion, mut bottom) = (0.0, 0.0);
+    let (mut champion, mut bottom, mut top_scorer) = (0.0, 0.0, 0.0);
     for s in seasons {
         champion += f64::from(*s.points.iter().max().unwrap_or(&0));
         bottom += f64::from(*s.points.iter().min().unwrap_or(&0));
+        let mut goals: std::collections::BTreeMap<fs_core::ids::PlayerId, u32> =
+            std::collections::BTreeMap::new();
+        for m in &s.matches {
+            for side in &m.result.players {
+                for p in side {
+                    *goals.entry(p.player).or_default() += u32::from(p.goals);
+                }
+            }
+        }
+        top_scorer += f64::from(goals.values().copied().max().unwrap_or(0));
     }
     let sn = f64::max(seasons.len() as f64, 1.0);
     let check = |name, value, low, high, decimals| Check {
@@ -147,9 +161,11 @@ pub fn report(seasons: &[SeasonOutcome]) -> Report {
             check("Yellow cards per match", yellows / n, 3.0, 5.0, 2),
             check("Red cards per match", reds / n, 0.05, 0.2, 3),
             check("Corners per team", corners / (2.0 * n), 4.0, 6.0, 1),
+            check("Injuries per match", injuries / n, 0.4, 0.9, 2),
             check("95th percentile possession %", 100.0 * p95, 62.0, 72.0, 1),
             check("Champion points", champion / sn, 80.0, 95.0, 1),
             check("Bottom club points", bottom / sn, 15.0, 32.0, 1),
+            check("Top scorer goals", top_scorer / sn, 22.0, 36.0, 1),
         ]
         .into_iter()
         .chain(tactic_balance(seasons))

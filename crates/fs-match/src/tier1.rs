@@ -85,6 +85,11 @@ pub struct Params {
     pub press_effect: f64,
     /// Logit bonus near goal per step of the defending side's mentality.
     pub exposure_effect: f64,
+    /// Change in the forward-pass share per directness step.
+    pub direct_forward: f64,
+    /// Depth spread of attacking involvement in the final third; larger
+    /// values spread shots and goals beyond the strikers.
+    pub final_third_spread: f64,
     /// Extra energy drain from chasing: a side that spends the whole
     /// minute without the ball drains `1 + chase_fatigue / 2` times as fast.
     pub chase_fatigue: f64,
@@ -95,9 +100,9 @@ impl Default for Params {
     /// (docs/CALIBRATION.md).
     fn default() -> Self {
         Self {
-            skill_slope: 3.2,
+            skill_slope: 3.6,
             pass_slope: 5.5,
-            home_logit: 0.09,
+            home_logit: 0.1,
             short_base: [3.8, 3.4, 1.4, 0.8, 0.5, 0.1],
             long_base: -0.6,
             through_base: -1.7,
@@ -116,7 +121,7 @@ impl Default for Params {
             xg_free_kick: 0.055,
             on_target_base: 0.12,
             pass_secs: 3.3,
-            injury_rate: 0.000_35,
+            injury_rate: 0.0012,
             energy_drain: 0.0045,
             sub_energy: 0.74,
             forward_rate: 0.25,
@@ -127,6 +132,8 @@ impl Default for Params {
             press_effect: 0.15,
             exposure_effect: 0.12,
             chase_fatigue: 1.0,
+            final_third_spread: 0.3,
+            direct_forward: 0.0,
         }
     }
 }
@@ -168,6 +175,9 @@ type Weights = [[[f64; 11]; LANES]; BANDS];
 #[derive(Debug)]
 struct Team<'a> {
     tactic: Tactic,
+    /// How far from their usual position players join attacks in the
+    /// final third (depth, as a share of the pitch).
+    final_third_spread: f64,
     slots: [Slot; 11],
     on: [Option<usize>; 11],
     players: Vec<Player<'a>>,
@@ -182,7 +192,7 @@ struct Team<'a> {
 }
 
 impl<'a> Team<'a> {
-    fn new(sheet: &'a TeamSheet) -> Self {
+    fn new(sheet: &'a TeamSheet, final_third_spread: f64) -> Self {
         let tactic = sheet.tactic.clamped();
         let slots = tactic.formation.slots();
         let mut players = Vec::with_capacity(sheet.starters.len() + sheet.bench.len());
@@ -217,6 +227,7 @@ impl<'a> Team<'a> {
         }
         let mut team = Self {
             tactic,
+            final_third_spread,
             slots,
             on,
             players,
@@ -260,7 +271,14 @@ impl<'a> Team<'a> {
                     } else {
                         // Wider teams spread players toward the touchlines.
                         let y = 0.5 + (slot.y - 0.5) * (1.0 + 0.08 * width);
-                        let a = gauss(slot.x - xb, 0.17) * gauss(y - yl, 0.26);
+                        // Midfielders arrive late in the box: involvement
+                        // spreads further in the final third.
+                        let spread = if band >= 4 {
+                            self.final_third_spread
+                        } else {
+                            0.17
+                        };
+                        let a = gauss(slot.x - xb, spread) * gauss(y - yl, 0.26);
                         let dx = (slot.x * 0.7 + 0.04 * line).clamp(0.05, 0.9);
                         let d = gauss(dx - xb, 0.17) * gauss(slot.y - yl, 0.26);
                         (a, d)
@@ -355,7 +373,10 @@ impl<'a> Engine<'a> {
         let mut e = Self {
             p,
             rng: input.rng(),
-            teams: [Team::new(&input.home), Team::new(&input.away)],
+            teams: [
+                Team::new(&input.home, p.final_third_spread),
+                Team::new(&input.away, p.final_third_spread),
+            ],
             ball: Ball {
                 side: 0,
                 band: 2,
@@ -748,7 +769,10 @@ impl<'a> Engine<'a> {
         // Direction first: forward passes gain ground but fail more often.
         let tempo = f64::from(self.teams[att].tactic.tempo);
         let direct = f64::from(self.teams[att].tactic.directness);
-        let fwd = (self.p.forward_rate + 0.04 * self.mentality(att) + 0.03 * tempo + 0.03 * direct)
+        let fwd = (self.p.forward_rate
+            + 0.04 * self.mentality(att)
+            + 0.03 * tempo
+            + self.p.direct_forward * direct)
             .clamp(0.05, 0.6);
         let r = self.rng.unit_f64();
         let (new_band, direction_logit) = if r < fwd && band < BANDS - 1 {

@@ -48,6 +48,8 @@ pub struct Coefficients {
     pub yellow_per_foul: f64,
     pub corners_per_team: f64,
     pub reds_per_team: f64,
+    /// Expected in-match injuries per team.
+    pub injuries_per_team: f64,
     /// Possession logit for the home side: intercept (home edge).
     pub possession_home: f64,
     /// Possession logit per unit of control difference.
@@ -130,7 +132,7 @@ impl Coefficients {
             format!("[{}]", parts.join(", "))
         };
         format!(
-            "Coefficients {{\n    intercept: {:.4},\n    home: {:.4},\n    attack: {:.4},\n    control: {:.4},\n    finishing: {:.4},\n    own_tactic: {},\n    opponent_tactic: {},\n    rho: {:.3},\n    xg_per_shot: {:.4},\n    on_target_rate: {:.4},\n    passes_per_match: {:.1},\n    pass_completion: {:.4},\n    fouls_per_team: {:.3},\n    yellow_per_foul: {:.4},\n    corners_per_team: {:.3},\n    reds_per_team: {:.4},\n    possession_home: {:.4},\n    possession_slope: {:.4},\n    possession_direct: {:.4},\n    possession_press: {:.4},\n}}",
+            "Coefficients {{\n    intercept: {:.4},\n    home: {:.4},\n    attack: {:.4},\n    control: {:.4},\n    finishing: {:.4},\n    own_tactic: {},\n    opponent_tactic: {},\n    rho: {:.3},\n    xg_per_shot: {:.4},\n    on_target_rate: {:.4},\n    passes_per_match: {:.1},\n    pass_completion: {:.4},\n    fouls_per_team: {:.3},\n    yellow_per_foul: {:.4},\n    corners_per_team: {:.3},\n    reds_per_team: {:.4},\n    injuries_per_team: {:.4},\n    possession_home: {:.4},\n    possession_slope: {:.4},\n    possession_direct: {:.4},\n    possession_press: {:.4},\n}}",
             self.intercept,
             self.home,
             self.attack,
@@ -147,6 +149,7 @@ impl Coefficients {
             self.yellow_per_foul,
             self.corners_per_team,
             self.reds_per_team,
+            self.injuries_per_team,
             self.possession_home,
             self.possession_slope,
             self.possession_direct,
@@ -273,6 +276,7 @@ pub fn play_with(input: &MatchInput, c: &Coefficients) -> MatchResult {
             &mut rng,
             sheets[side],
             &skills[side],
+            c.injuries_per_team,
             side,
             goals,
             &stats[side],
@@ -344,10 +348,12 @@ fn binomial(rng: &mut Rng, n: u16, p: f64) -> u16 {
 
 /// Builds player stats for one side: minutes and substitutions, scorers,
 /// assisters and shot takers, cards.
+#[allow(clippy::too_many_arguments)] // private helper; grouping would add a one-use struct
 fn side_players(
     rng: &mut Rng,
     sheet: &TeamSheet,
     starter_skills: &[Skills],
+    injuries_per_team: f64,
     side: usize,
     goals: [u8; 2],
     stats: &TeamStats,
@@ -480,6 +486,18 @@ fn side_players(
         ps[i].goals_conceded = goals[1 - side];
     }
     ps[0].saves = stats.saves.min(255) as u8;
+    // Injuries, more likely the longer a player was on.
+    for &i in &played {
+        let share = f64::from(ps[i].minutes) / total_minutes;
+        if rng.chance(injuries_per_team * share) {
+            ps[i].injured = true;
+            events.push(MatchEvent::Injury {
+                minute: 1 + rng.below(u32::from(ps[i].minutes.max(1))) as u8,
+                side: Side::from_index(side),
+                player: ps[i].player,
+            });
+        }
+    }
     // Cards to random outfielders.
     for _ in 0..stats.yellows {
         let pick = played[1 + rng.index(played.len() - 1)];

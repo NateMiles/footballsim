@@ -52,6 +52,8 @@ fn main() {
             "expose" => p.exposure_effect = v,
             "frisk" => p.forward_risk = v,
             "chase" => p.chase_fatigue = v,
+            "spread" => p.final_third_spread = v,
+            "dfwd" => p.direct_forward = v,
             "drain" => p.energy_drain = v,
             _ => panic!("unknown {k}"),
         }

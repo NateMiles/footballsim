@@ -14,6 +14,8 @@ scripts/determinism-check.sh [--size small --days 60]  # native vs WASM hashes
 cargo bench -p fs-bench                         # world benchmarks
 cargo run --release -p fs-cli -- squad --seed 3 # look at a generated squad
 cargo run --release -p fs-cli -- run --size medium --days 30  # timing
+cargo run --release -p fs-cli -- career --seasons 10           # season loop + world health
+cargo run --release -p fs-lab --example profile_season         # medium-world day timings
 cargo run --release -p fs-cli -- match --home 0 --away 5       # match report
 cargo run --release -p fs-cli -- predict --home 0 --away 1     # Monte Carlo
 scripts/calibration-report.sh                   # regenerate docs/CALIBRATION.md
@@ -29,7 +31,9 @@ cargo run --release -p fs-cli -- fit-tier2 --seasons 40 --seed 1000 \
 - `fs-match`: match engines (tier 1 event, tier 2 statistical), team
   selection, formations.
 - `fs-world`: world state, players (column storage), commands, daily tick,
-  snapshots, fixtures, world-to-match bridge.
+  snapshots, leagues and calendar (`league`, `competition`, `season`),
+  matchdays (`matchday`), player factory and development (`people`), AI
+  squad management (`squad`). Rules are described in `docs/WORLD.md`.
 - `fs-lab`: season simulation, calibration report, tier 2 fitting,
   prediction.
 - `fs-gen`: procedural fictional world, fixed scenarios.
@@ -60,6 +64,15 @@ cargo run --release -p fs-cli -- fit-tier2 --seasons 40 --seed 1000 \
 - Tune against the default tuning seeds; the report uses seeds 5000+ so
   it stays an out-of-sample check.
 - No tactic slider may be worth more than 4 points a season either way.
+
+## Rules for the world simulation
+
+- After changing season-loop rules (development, youth, contracts,
+  retirement, squad AI), run `fs-cli career --seasons 30` and check the
+  health lines stay within the targets in `docs/WORLD.md`; the
+  `ten_seasons_keep_the_world_healthy` test enforces the core of them.
+- Generator changes alter the calibration league: rerun
+  `scripts/calibration-report.sh` and the tier 2 fit.
 
 ## Rules that keep online leagues possible
 

@@ -41,6 +41,10 @@ pub enum Stream {
     Youth = 6,
     /// Injuries.
     Injury = 7,
+    /// Monthly player development and ageing.
+    Development = 8,
+    /// Season rollover: retirements, contract decisions.
+    Season = 9,
 }
 
 impl Seed {

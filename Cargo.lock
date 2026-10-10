@@ -224,6 +224,7 @@ name = "fs-gen"
 version = "0.1.0"
 dependencies = [
  "fs-core",
+ "fs-match",
  "fs-world",
  "rayon",
 ]

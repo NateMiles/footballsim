@@ -8,6 +8,7 @@
 //! fs-cli match       [--seed N] [--home N] [--away N] [--tier 1|2]
 //! fs-cli predict     [--seed N] [--home N] [--away N] [--tier 1|2] [--runs N]
 //! fs-cli calibrate   [--seed N] [--seasons N] [--tier 1|2] [--out FILE]
+//! fs-cli career      [--size ...] [--seed N] [--seasons N]
 //! fs-cli compare-tiers [--runs N]
 //! fs-cli fit-tier2   [--seed N] [--seasons N] [--out crates/fs-match/src/fitted.rs]
 //! ```
@@ -39,7 +40,7 @@ struct Args {
     out: Option<String>,
 }
 
-const USAGE: &str = "usage: fs-cli <gen|run|squad|determinism|match|predict|calibrate|fit-tier2> \
+const USAGE: &str = "usage: fs-cli <gen|run|squad|determinism|match|predict|calibrate|compare-tiers|fit-tier2|career> \
 [--size tiny|small|medium|large] [--seed N] [--days N] [--club N] [--home N] [--away N] \
 [--tier 1|2] [--runs N] [--seasons N] [--out FILE]";
 
@@ -109,6 +110,7 @@ fn main() -> ExitCode {
         "calibrate" => return calibrate_cmd(&args),
         "fit-tier2" => return fit_cmd(&args),
         "compare-tiers" => compare_cmd(&args),
+        "career" => career_cmd(&args),
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::from(2);
@@ -491,4 +493,190 @@ fn compare_cmd(a: &Args) {
         a.runs
     );
     print!("{}", fs_lab::compare::to_markdown(&rows));
+}
+
+/// Simulates whole seasons and reports on the human manager's league and
+/// on the health of the world.
+fn career_cmd(a: &Args) {
+    use fs_world::Status;
+    use fs_world::people::{age_years, season_year};
+    let mut game = Game::new(generate(&GenConfig::preset(a.size, a.seed)));
+    // Holiday mode: the assistant handles the human club's contracts.
+    let human_manager = game.world().human_managers().next();
+    if let Some(m) = human_manager {
+        game.submit(Actor::Manager(m), Command::SetDelegation { squad: true })
+            .expect("delegate");
+    }
+    let w = game.world();
+    let human = w.human_managers().next().and_then(|m| w.managers()[m].club);
+    let league = human
+        .and_then(|c| w.clubs()[c].league())
+        .unwrap_or(fs_world::LeagueId::new(0));
+    // Track the five most promising teenagers.
+    let today = w.date();
+    let mut prospects: Vec<fs_world::PlayerId> = w
+        .players()
+        .ids()
+        .filter(|&p| {
+            w.players().club(p).is_some() && age_years(w.players().bio(p).birth_date, today) < 20.0
+        })
+        .collect();
+    prospects.sort_by_key(|&p| std::cmp::Reverse(w.players().potential(p)));
+    prospects.truncate(5);
+    let mut prospect_rows: Vec<Vec<u16>> = prospects
+        .iter()
+        .map(|&p| vec![w.players().ability(p)])
+        .collect();
+    let players_at_start = w.players().len();
+    println!(
+        "{} clubs, {} players, {} leagues. Following {}.\n",
+        w.clubs().len(),
+        w.players().len(),
+        w.leagues().len(),
+        w.leagues()[league].name
+    );
+
+    for _ in 0..a.seasons {
+        let t = Instant::now();
+        let year = season_year(game.world().date());
+        let target = fs_core::GameDate::from_ymd(year + 1, 7, 1).expect("valid date");
+        while game.world().date() < target {
+            let days = target.days_since(game.world().date()).min(366) as u16;
+            game.submit(Actor::System, Command::Advance { days })
+                .expect("advance");
+        }
+        let secs = t.elapsed().as_secs_f64();
+        let w = game.world();
+        let l = &w.leagues()[league];
+        let Some(summary) = l.history().last() else {
+            continue;
+        };
+        let club_name = |c: ClubId| &w.clubs()[c].name;
+        println!(
+            "== {}/{:02} {} ({secs:.2} s)",
+            summary.year,
+            (summary.year + 1) % 100,
+            l.name
+        );
+        let n = summary.table.len();
+        for (pos, row) in summary.table.iter().enumerate() {
+            if pos < 4 || pos + 3 >= n || Some(row.club) == human {
+                let marker = if Some(row.club) == human { "*" } else { " " };
+                println!(
+                    "  {:>2}.{marker}{:<28} {:>2}W {:>2}D {:>2}L {:>3}-{:<3} {:>3} pts",
+                    pos + 1,
+                    club_name(row.club),
+                    row.won,
+                    row.drawn,
+                    row.lost,
+                    row.scored,
+                    row.conceded,
+                    row.points()
+                );
+            } else if pos == 4 {
+                println!("      ...");
+            }
+        }
+        if let Some((p, goals)) = summary.top_scorer {
+            println!("  Top scorer: {} ({goals})", w.player_name(p));
+        }
+        // World health.
+        let today = w.date();
+        let ps = w.players();
+        let active: Vec<_> = ps
+            .ids()
+            .filter(|&p| ps.status(p) == Status::Active)
+            .collect();
+        let at_clubs: Vec<_> = active
+            .iter()
+            .copied()
+            .filter(|&p| ps.club(p).is_some())
+            .collect();
+        let ages = at_clubs
+            .iter()
+            .map(|&p| age_years(ps.bio(p).birth_date, today))
+            .sum::<f64>()
+            / at_clubs.len().max(1) as f64;
+        let sizes: Vec<usize> = w.clubs().iter().map(|(_, c)| c.squad().len()).collect();
+        let top: Vec<u16> = w.leagues()[fs_world::LeagueId::new(0)]
+            .clubs()
+            .iter()
+            .flat_map(|&c| {
+                let mut abil: Vec<u16> = w.clubs()[c]
+                    .squad()
+                    .iter()
+                    .map(|&p| ps.ability(p))
+                    .collect();
+                abil.sort_unstable_by(|a, b| b.cmp(a));
+                abil.truncate(11);
+                abil
+            })
+            .collect();
+        let top_avg = top.iter().map(|&x| f64::from(x)).sum::<f64>() / top.len().max(1) as f64;
+        println!(
+            "  World: {} active ({} at clubs, {} free), {} retired, {} created since start; mean age {:.1}; \
+             squads {}-{} (mean {:.1}); top-division best-XI ability {:.0}",
+            active.len(),
+            at_clubs.len(),
+            active.len() - at_clubs.len(),
+            ps.len() - active.len(),
+            ps.len() - players_at_start,
+            ages,
+            sizes.iter().min().unwrap_or(&0),
+            sizes.iter().max().unwrap_or(&0),
+            sizes.iter().sum::<usize>() as f64 / sizes.len().max(1) as f64,
+            top_avg
+        );
+        let mut bands = [0usize; 5];
+        let mut academy = 0;
+        let mut senior_age = 0.0;
+        for &p in &at_clubs {
+            let age = age_years(ps.bio(p).birth_date, today);
+            if age < 18.0 {
+                academy += 1;
+                continue;
+            }
+            senior_age += age;
+            bands[match age {
+                x if x < 21.0 => 0,
+                x if x < 24.0 => 1,
+                x if x < 28.0 => 2,
+                x if x < 32.0 => 3,
+                _ => 4,
+            }] += 1;
+        }
+        let seniors: usize = bands.iter().sum();
+        let pct = |n: usize| 100.0 * n as f64 / seniors.max(1) as f64;
+        println!(
+            "  First team (18+): mean age {:.1}; 18-20 {:.0}%, 21-23 {:.0}%, 24-27 {:.0}%, 28-31 {:.0}%, 32+ {:.0}%. Academy: {} players",
+            senior_age / seniors.max(1) as f64,
+            pct(bands[0]),
+            pct(bands[1]),
+            pct(bands[2]),
+            pct(bands[3]),
+            pct(bands[4]),
+            academy
+        );
+        for (row, &p) in prospect_rows.iter_mut().zip(&prospects) {
+            row.push(ps.ability(p));
+        }
+        println!();
+    }
+    let w = game.world();
+    println!("Prospects (ability by season, 0-1000; potential in brackets):");
+    for (row, &p) in prospect_rows.iter().zip(&prospects) {
+        let ps = w.players();
+        let status = if ps.status(p) == Status::Retired {
+            " retired"
+        } else {
+            ""
+        };
+        let abil: Vec<String> = row.iter().map(u16::to_string).collect();
+        println!(
+            "  {:<26} ({}) {}{status}",
+            w.player_name(p),
+            ps.potential(p),
+            abil.join(" ")
+        );
+    }
 }

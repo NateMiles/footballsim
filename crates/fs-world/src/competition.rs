@@ -1,4 +1,57 @@
-//! Competition formats.
+//! Competition formats and the match calendar.
+
+use fs_core::GameDate;
+use fs_core::date::Weekday;
+
+/// First possible league matchday of the season starting in `year`.
+pub fn season_opening(year: i32) -> GameDate {
+    let mut d = GameDate::from_ymd(year, 8, 8).expect("valid date");
+    while d.weekday() != Weekday::Saturday {
+        d = d.add_days(1);
+    }
+    d
+}
+
+/// Last possible league matchday of the season starting in `year`.
+pub fn season_closing(year: i32) -> GameDate {
+    GameDate::from_ymd(year + 1, 5, 24).expect("valid date")
+}
+
+/// Dates for `rounds` league rounds in the season starting in `year`,
+/// spread evenly over the Saturdays between the opening and closing
+/// dates. Midweek (Wednesday) rounds are added only when there are more
+/// rounds than Saturdays.
+pub fn season_dates(year: i32, rounds: usize) -> Vec<GameDate> {
+    if rounds == 0 {
+        return Vec::new();
+    }
+    let (open, close) = (season_opening(year), season_closing(year));
+    let saturdays: Vec<GameDate> = (0..)
+        .map(|w| open.add_days(7 * w))
+        .take_while(|d| *d <= close)
+        .collect();
+    let pool = if rounds <= saturdays.len() {
+        saturdays
+    } else {
+        let mut both: Vec<GameDate> = saturdays
+            .iter()
+            .flat_map(|&s| [s, s.add_days(4)])
+            .filter(|d| *d <= close)
+            .collect();
+        // Still short (very large leagues): fall back to every day.
+        if both.len() < rounds {
+            both = (0..=close.days_since(open) as u32)
+                .map(|k| open.add_days(k))
+                .collect();
+        }
+        both
+    };
+    assert!(
+        pool.len() >= rounds,
+        "cannot fit {rounds} rounds into a season"
+    );
+    (0..rounds).map(|i| pool[i * pool.len() / rounds]).collect()
+}
 
 /// A double round robin for `n` teams (circle method). Returns rounds;
 /// each round is a list of `(home, away)` team indices. Every pair meets
@@ -46,6 +99,26 @@ pub fn double_round_robin(n: usize) -> Vec<Vec<(usize, usize)>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn season_dates_fit_the_window() {
+        for rounds in [2, 18, 38, 46, 60] {
+            let d = season_dates(2026, rounds);
+            assert_eq!(d.len(), rounds);
+            assert!(
+                d.windows(2).all(|w| w[0] < w[1]),
+                "{rounds} rounds not increasing"
+            );
+            assert!(d[0] >= season_opening(2026) && *d.last().unwrap() <= season_closing(2026));
+        }
+        let d = season_dates(2026, 38);
+        assert!(d.iter().all(|x| x.weekday() == Weekday::Saturday));
+        assert!(
+            d.last().unwrap().ymd().1 == 5,
+            "38 rounds should run into May: {}",
+            d.last().unwrap()
+        );
+    }
 
     #[test]
     fn every_pair_meets_home_and_away() {

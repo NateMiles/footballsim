@@ -153,11 +153,10 @@ Code: `crates/fs-match/src/tier2.rs`, constants in `fitted.rs`.
 
 **Known limitation.** Tier 2 matches tier 1 season by season (all checks in
 `docs/CALIBRATION.md` pass), but individual fixtures can differ. The mean
-gap in win/draw/loss probability is about 3 points, and unusual teams can
-differ by up to about 17. An example is a side with an elite defence but an
-average attack. Tier 2's few team summaries cannot see every interaction
-tier 1 simulates. This is acceptable for distant leagues. The match
-predictor uses tier 1 for that reason.
+gap in win/draw/loss probability is about 2 points, and the worst of the
+ten reference fixtures differs by about 7. Tier 2's few team summaries
+cannot see every interaction tier 1 simulates. This is acceptable for
+distant leagues. The match predictor uses tier 1 for that reason.
 
 ## 5. Calibration (done)
 
@@ -176,8 +175,10 @@ statistic is checked against a target range:
 | Passes per team; completion % | 400 to 520; 78 to 85 |
 | Fouls; yellows; reds per match | 20 to 26; 3 to 5; 0.05 to 0.2 |
 | Corners per team | 4 to 6 |
+| Injuries per match (time-loss) | 0.4 to 0.9 |
 | 95th percentile possession % | 62 to 72 |
 | Champion points; bottom club points | 80 to 95; 15 to 32 |
+| Top scorer's league goals | 22 to 36 |
 | Season points per step of each tactic slider | -4 to +4 |
 
 The tactic rows matter as much as the realism rows. They caught that
@@ -193,7 +194,12 @@ Remaining known gaps:
 - Tackles per team are about half the real count. This is a stat-labelling
   gap; the contests happen but most are recorded as interceptions or loose
   balls.
-- Draw rate sits near the bottom of its range, at 22-24%.
+- Draw rate sits in the lower half of its range, at 22-24%.
+
+Added in M2: the top-scorer check (strikers took too large a share until
+midfielders were allowed to arrive in the box), the injuries check (the
+first rate was about five times too low), and directness now affects only
+long balls, not the share of forward short passes.
 
 ## 6. Build order
 

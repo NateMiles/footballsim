@@ -46,3 +46,5 @@ inherits = "release"
 opt-level = 3
 [profile.dev.package.fs-core]
 opt-level = 3
+[profile.dev.package.fs-world]
+opt-level = 3

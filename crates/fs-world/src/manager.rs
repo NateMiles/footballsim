@@ -25,4 +25,7 @@ pub struct Manager {
     pub control: Control,
     /// The club this manager runs, if employed.
     pub club: Option<ClubId>,
+    /// For a human manager: let the assistant handle contracts, releases
+    /// and free-agent signings (as the AI does for its own clubs).
+    pub delegate_squad: bool,
 }

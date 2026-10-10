@@ -5,11 +5,12 @@ A football management game aiming to beat Football Manager on three fronts:
 more honestly), and **openness** (transparent stats, moddable data, scriptable
 scenarios).
 
-Status: **milestone 1 (headless match engine) complete.** On top of the
-milestone 0 foundations (deterministic core, world generator, command log,
-saves, CI) there are now two calibrated match engines, a match predictor
-and a calibration report. There is no season loop or UI yet; the season
-loop is milestone 2.
+Status: **milestone 2 (season loop) complete.** The world now runs
+season after season: league calendars, promotion and relegation,
+injuries, suspensions, player development and ageing, contracts, youth
+intakes, retirements and AI squad management, on top of two calibrated
+match engines. It stays stable for decades (see
+[docs/WORLD.md](docs/WORLD.md)). There is no UI yet; that is milestone 3.
 
 | Engine | Cost per match | Use |
 | --- | --- | --- |
@@ -26,6 +27,7 @@ and Node 22 for the WebAssembly check.
 
 ```bash
 cargo test --workspace
+cargo run --release -p fs-cli -- career --seasons 10     # ten seasons, tables and world health
 cargo run --release -p fs-cli -- squad --seed 3          # a generated squad
 cargo run --release -p fs-cli -- match --home 0 --away 5 # one match, full report
 cargo run --release -p fs-cli -- predict --home 0 --away 1 --runs 10000
@@ -42,6 +44,7 @@ scripts/determinism-check.sh                             # native vs WebAssembly
 | [docs/PLAN.md](docs/PLAN.md) | Vision, differentiators vs FM, feature scope, roadmap |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Tech stack, iPad strategy, crate layout, data model, performance budgets |
 | [docs/MATCH_ENGINE.md](docs/MATCH_ENGINE.md) | Match engine design, fidelity tiers, calibration |
+| [docs/WORLD.md](docs/WORLD.md) | Season loop: calendar, development, contracts, youth, health targets |
 | [docs/CALIBRATION.md](docs/CALIBRATION.md) | Generated: engine statistics against real-football targets |
 
 ## Stack in one paragraph

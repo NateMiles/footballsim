@@ -114,11 +114,14 @@ promises.
 - Calibration report comparing output stats against real-football targets,
   plus tactic balance checks (docs/CALIBRATION.md).
 
-### M2: One-league world
-- Fictional world generator: one nation, 20 clubs, about 600 players.
-- Season loop: calendar, fixtures, league table, training, injuries,
-  contracts expiring, basic AI squad selection.
-- CLI: simulate ten seasons and print tables and player development.
+### M2: One-league world (done)
+- Fictional world generator: one nation, 20 clubs, about 700 players
+  including academies. Larger presets get full divisional pyramids.
+- Season loop: calendar, fixtures, league tables, promotion and
+  relegation, injuries, suspensions, development and ageing, contracts,
+  youth intakes, retirements, AI squad management (see WORLD.md).
+- CLI: `fs-cli career --seasons 10` prints tables, world health and
+  prospect development each season.
 
 ### M3: Playable web UI
 - TypeScript UI: inbox, squad, tactics, fixtures, table, player profile.

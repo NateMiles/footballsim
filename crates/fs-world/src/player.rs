@@ -37,7 +37,7 @@ pub struct PlayerBio {
 pub struct Condition {
     /// Physical freshness. 10000 is fully fit.
     pub fitness: u16,
-    /// Match sharpness. Drops without game time.
+    /// Match sharpness. Rises with game time, fades without it.
     pub sharpness: u16,
     /// Accumulated load. High fatigue raises injury risk.
     pub fatigue: u16,
@@ -59,6 +59,73 @@ impl Default for Condition {
     }
 }
 
+/// How bad an injury is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Severity {
+    Minor,
+    Moderate,
+    Serious,
+}
+
+/// A current injury.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Injury {
+    pub severity: Severity,
+    pub since: GameDate,
+    /// First day the player is available again.
+    pub until: GameDate,
+}
+
+/// A playing contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Contract {
+    /// Weekly wage.
+    pub wage: u32,
+    /// Last day of the contract (always 30 June).
+    pub expires: GameDate,
+}
+
+/// Whether a player is still playing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Status {
+    Active,
+    Retired,
+}
+
+/// Totals for the current season.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub struct SeasonStats {
+    pub appearances: u16,
+    pub starts: u16,
+    pub minutes: u32,
+    pub goals: u16,
+    pub assists: u16,
+    pub yellows: u16,
+    pub reds: u16,
+    pub clean_sheets: u16,
+    /// Sum of match ratings, for the average.
+    pub rating_sum: f32,
+}
+
+impl SeasonStats {
+    /// Average match rating, or `None` before the first appearance.
+    pub fn average_rating(&self) -> Option<f32> {
+        (self.appearances > 0).then(|| self.rating_sum / f32::from(self.appearances))
+    }
+}
+
+/// One finished season in a player's career.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct CareerSeason {
+    /// The year the season started.
+    pub year: i32,
+    pub club: Option<ClubId>,
+    /// Ability (best-position role rating, 0-1000) at the end of the
+    /// season.
+    pub ability: u16,
+    pub stats: SeasonStats,
+}
+
 /// Everything needed to create a player.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerInit {
@@ -67,24 +134,37 @@ pub struct PlayerInit {
     pub attributes: Attributes,
     pub hidden: Hidden,
     pub positions: PositionRatings,
+    /// Hidden ceiling for the best-position role rating, 0-1000.
+    pub potential: u16,
     pub condition: Condition,
+    pub contract: Option<Contract>,
     pub squad_number: Option<u8>,
 }
 
 /// All players in the world, as parallel columns.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Players {
     pub(crate) bio: Vec<PlayerBio>,
     pub(crate) club: Vec<Option<ClubId>>,
     pub(crate) attributes: Vec<Attributes>,
     pub(crate) hidden: Vec<Hidden>,
     pub(crate) positions: Vec<PositionRatings>,
+    pub(crate) potential: Vec<u16>,
     pub(crate) condition: Vec<Condition>,
+    pub(crate) injury: Vec<Option<Injury>>,
+    /// Matches still to serve.
+    pub(crate) suspension: Vec<u8>,
+    pub(crate) contract: Vec<Option<Contract>>,
     pub(crate) squad_number: Vec<Option<u8>>,
+    pub(crate) status: Vec<Status>,
+    /// Season rollovers spent without a club.
+    pub(crate) seasons_unattached: Vec<u8>,
+    pub(crate) season: Vec<SeasonStats>,
+    pub(crate) career: Vec<Vec<CareerSeason>>,
 }
 
 impl Players {
-    /// Number of players.
+    /// Number of players, retired included.
     pub fn len(&self) -> usize {
         self.bio.len()
     }
@@ -94,7 +174,7 @@ impl Players {
         self.bio.is_empty()
     }
 
-    /// Every player ID in ascending order.
+    /// Every player ID in ascending order, retired included.
     pub fn ids(&self) -> impl ExactSizeIterator<Item = PlayerId> + use<> {
         (0..self.len() as u32).map(PlayerId::new)
     }
@@ -113,8 +193,16 @@ impl Players {
         self.attributes.push(p.attributes);
         self.hidden.push(p.hidden);
         self.positions.push(p.positions);
+        self.potential.push(p.potential);
         self.condition.push(p.condition);
+        self.injury.push(None);
+        self.suspension.push(0);
+        self.contract.push(p.contract);
         self.squad_number.push(p.squad_number);
+        self.status.push(Status::Active);
+        self.seasons_unattached.push(0);
+        self.season.push(SeasonStats::default());
+        self.career.push(Vec::new());
         id
     }
 
@@ -143,14 +231,63 @@ impl Players {
         &self.positions[id.index()]
     }
 
+    /// Hidden ability ceiling, 0-1000.
+    pub fn potential(&self, id: PlayerId) -> u16 {
+        self.potential[id.index()]
+    }
+
+    /// Ability: role rating in the player's best position, 0-1000.
+    pub fn ability(&self, id: PlayerId) -> u16 {
+        let i = id.index();
+        self.positions[i].best().role_rating(&self.attributes[i])
+    }
+
     /// Current condition.
     pub fn condition(&self, id: PlayerId) -> &Condition {
         &self.condition[id.index()]
     }
 
+    /// Current injury, if any.
+    pub fn injury(&self, id: PlayerId) -> Option<&Injury> {
+        self.injury[id.index()].as_ref()
+    }
+
+    /// Matches of suspension left to serve.
+    pub fn suspension(&self, id: PlayerId) -> u8 {
+        self.suspension[id.index()]
+    }
+
+    /// Whether the player can be picked on `date`.
+    pub fn available(&self, id: PlayerId, date: GameDate) -> bool {
+        let i = id.index();
+        self.status[i] == Status::Active
+            && self.suspension[i] == 0
+            && self.injury[i].is_none_or(|inj| inj.until <= date)
+    }
+
+    /// Current contract, if any.
+    pub fn contract(&self, id: PlayerId) -> Option<&Contract> {
+        self.contract[id.index()].as_ref()
+    }
+
     /// Squad number, if assigned.
     pub fn squad_number(&self, id: PlayerId) -> Option<u8> {
         self.squad_number[id.index()]
+    }
+
+    /// Active or retired.
+    pub fn status(&self, id: PlayerId) -> Status {
+        self.status[id.index()]
+    }
+
+    /// Totals for the current season.
+    pub fn season_stats(&self, id: PlayerId) -> &SeasonStats {
+        &self.season[id.index()]
+    }
+
+    /// Finished seasons, oldest first.
+    pub fn career(&self, id: PlayerId) -> &[CareerSeason] {
+        &self.career[id.index()]
     }
 
     /// Checks that every column has the same length.
@@ -161,8 +298,16 @@ impl Players {
             self.attributes.len(),
             self.hidden.len(),
             self.positions.len(),
+            self.potential.len(),
             self.condition.len(),
+            self.injury.len(),
+            self.suspension.len(),
+            self.contract.len(),
             self.squad_number.len(),
+            self.status.len(),
+            self.seasons_unattached.len(),
+            self.season.len(),
+            self.career.len(),
         ]
         .iter()
         .all(|&l| l == n)

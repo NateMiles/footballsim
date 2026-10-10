@@ -71,9 +71,9 @@ footballsim/
   crates/
     fs-core/                 # built: IDs, attributes, RNG, maths, time, hashing
     fs-match/                # built: match engines (tiers 1 and 2), selection
-    fs-world/                # built: world state, commands, daily tick, fixtures;
-                             # later training, injuries, contracts, transfers,
-                             # finances, youth
+    fs-world/                # built: world state, commands, season loop,
+                             # injuries, development, contracts, youth;
+                             # later transfers and finances
     fs-gen/                  # built: procedural world and name generation
     fs-lab/                  # built: calibration, tier 2 fitting, prediction
     fs-cli/                  # built: headless runner
@@ -156,9 +156,9 @@ hardware.
 | Tier 0 full spatial match (watched) | Real time or faster at any playback speed; full 90 min in < 50 ms when skipped | Not built |
 | Tier 1 event-level match | < 1 ms | 0.31 ms |
 | Tier 2 statistical match | < 10 µs | 8.7 µs |
-| Daily world tick, medium world | < 50 ms | 1.2 ms (recovery only) |
-| Full matchday, all leagues, medium world | < 1 s | Not built |
-| One season in holiday mode, medium world | < 60 s | Not built |
+| Daily world tick, medium world | < 50 ms | 4 ms on quiet days; ~0.35 s on the 1st of the month |
+| Full matchday, all leagues, medium world | < 1 s | Well under 1 s (whole season 8.8 s) |
+| One season in holiday mode, medium world | < 60 s | 8.8 s |
 | Match predictor, 10,000 runs at Tier 1 | < 2 s | 0.73 s (4 threads) |
 | Player search with filters over 150k players | < 20 ms | Not built |
 

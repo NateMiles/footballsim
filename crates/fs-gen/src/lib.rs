@@ -7,12 +7,9 @@ pub mod names;
 pub mod scenario;
 
 use fs_core::{GameDate, Rng, Seed, Stream};
-use fs_world::attributes::{ATTR_MAX, Attr, HiddenAttr, Position};
-use fs_world::player::CONDITION_MAX;
-use fs_world::{
-    Attributes, Club, ClubId, Condition, Control, Foot, Hidden, Manager, NameRef, Nation, NationId,
-    PlayerBio, PlayerInit, PositionRatings, World,
-};
+use fs_world::attributes::Position;
+use fs_world::people::{Age, PlayerSpec, new_player};
+use fs_world::{Club, ClubId, Control, League, Manager, NameRef, Nation, NationId, World};
 use names::{NameStyle, STYLES};
 
 /// What to generate.
@@ -22,6 +19,9 @@ pub struct GenConfig {
     pub start: GameDate,
     pub nations: u16,
     pub clubs_per_nation: u16,
+    /// Clubs per division; each nation's clubs are split into divisions
+    /// of this size, strongest first.
+    pub clubs_per_league: u16,
     pub players_per_club: u16,
     pub free_agents: u32,
     /// Clubs (by creation index) whose managers are human.
@@ -56,18 +56,12 @@ impl GenConfig {
             start: GameDate::from_ymd(2026, 7, 1).expect("valid date"),
             nations,
             clubs_per_nation,
+            clubs_per_league: 20,
             players_per_club: 25,
             free_agents,
             human_clubs: vec![0],
         }
     }
-}
-
-/// First and last name pools for one nation.
-struct NationNames {
-    style: &'static NameStyle,
-    first: Vec<NameRef>,
-    last: Vec<NameRef>,
 }
 
 /// Positions filled, in order, when building a squad. Larger squads wrap
@@ -111,7 +105,7 @@ pub fn generate(cfg: &GenConfig) -> World {
     let mut world = World::new(cfg.seed, cfg.start);
 
     // Nations and their name pools.
-    let mut pools = Vec::with_capacity(usize::from(cfg.nations));
+    let mut styles: Vec<&NameStyle> = Vec::with_capacity(usize::from(cfg.nations));
     for n in 0..cfg.nations {
         let style = &STYLES[usize::from(n) % STYLES.len()];
         let mut nrng = cfg.seed.derive(Stream::Generation, 1, u64::from(n));
@@ -125,18 +119,20 @@ pub fn generate(cfg: &GenConfig) -> World {
         let reputation = (9_000 - i32::from(n) * 6_000 / i32::from(cfg.nations.max(1))
             + nrng.range_i32(-500, 500))
         .clamp(1_000, 10_000) as u16;
+        let first_names: Vec<NameRef> = (0..300)
+            .map(|_| world.names_mut().intern(&style.first_name(&mut nrng)))
+            .collect();
+        let last_names: Vec<NameRef> = (0..800)
+            .map(|_| world.names_mut().intern(&style.surname(&mut nrng)))
+            .collect();
         world.add_nation(Nation {
             name,
             code: code.to_uppercase(),
             reputation,
+            first_names,
+            last_names,
         });
-        let first = (0..300)
-            .map(|_| world.names_mut().intern(&style.first_name(&mut nrng)))
-            .collect();
-        let last = (0..800)
-            .map(|_| world.names_mut().intern(&style.surname(&mut nrng)))
-            .collect();
-        pools.push(NationNames { style, first, last });
+        styles.push(style);
     }
 
     // Clubs, managers and squads.
@@ -150,14 +146,14 @@ pub fn generate(cfg: &GenConfig) -> World {
                 &mut world,
                 &mut crng,
                 nation,
-                &pools[usize::from(n)],
+                styles[usize::from(n)],
                 nation_rep,
                 rank,
                 cfg.clubs_per_nation,
             );
-            let pool = &pools[usize::from(n)];
-            let first = pool.first[crng.index(pool.first.len())];
-            let last = pool.last[crng.index(pool.last.len())];
+            let nat = &world.nations()[nation];
+            let first = nat.first_names[crng.index(nat.first_names.len())];
+            let last = nat.last_names[crng.index(nat.last_names.len())];
             world.add_manager(Manager {
                 first_name: first,
                 last_name: last,
@@ -167,6 +163,7 @@ pub fn generate(cfg: &GenConfig) -> World {
                     Control::Ai
                 },
                 club: Some(club_id),
+                delegate_squad: false,
             });
             let level = i32::from(world.clubs()[club_id].reputation) / 10;
             for slot in 0..cfg.players_per_club {
@@ -177,15 +174,38 @@ pub fn generate(cfg: &GenConfig) -> World {
                 } else {
                     NationId::new(crng.below(u32::from(cfg.nations)))
                 };
-                let p = make_player(
+                let p = new_player(
+                    world.nations(),
                     &mut crng,
                     cfg.start,
-                    &pools,
-                    nationality,
-                    position,
-                    level,
-                    Some(club_id),
-                    number,
+                    PlayerSpec {
+                        nation: nationality,
+                        position,
+                        level,
+                        age: Age::Senior,
+                        club: Some(club_id),
+                        squad_number: number,
+                    },
+                );
+                world.add_player(p);
+            }
+            // The academy: about three players per year group, 15 to 17.
+            for k in 0..9u8 {
+                let position = SQUAD_TEMPLATE[crng.index(SQUAD_TEMPLATE.len())];
+                let p = new_player(
+                    world.nations(),
+                    &mut crng,
+                    cfg.start,
+                    PlayerSpec {
+                        nation,
+                        position,
+                        level,
+                        age: Age::Youth(15 + k / 3),
+                        club: Some(club_id),
+                        squad_number: u8::try_from(cfg.players_per_club + 1 + u16::from(k))
+                            .ok()
+                            .filter(|n| *n <= 99),
+                    },
                 );
                 world.add_player(p);
             }
@@ -204,21 +224,56 @@ pub fn generate(cfg: &GenConfig) -> World {
         let nation = NationId::new(frng.below(u32::from(cfg.nations)));
         let position = SQUAD_TEMPLATE[frng.index(SQUAD_TEMPLATE.len())];
         let level = frng.range_i32(150, 550);
-        let p = make_player(
-            &mut frng, cfg.start, &pools, nation, position, level, None, None,
+        let p = new_player(
+            world.nations(),
+            &mut frng,
+            cfg.start,
+            PlayerSpec {
+                nation,
+                position,
+                level,
+                age: Age::Senior,
+                club: None,
+                squad_number: None,
+            },
         );
         world.add_player(p);
     }
+
+    // Divisions: each nation's clubs, strongest first, in leagues of
+    // `clubs_per_league`.
+    let per = usize::from(cfg.clubs_per_league.max(2));
+    let mut first_club = 0;
+    for n in 0..cfg.nations {
+        let nation = NationId::new(u32::from(n));
+        let clubs: Vec<ClubId> = (first_club..first_club + usize::from(cfg.clubs_per_nation))
+            .map(|c| ClubId::new(c as u32))
+            .collect();
+        first_club += usize::from(cfg.clubs_per_nation);
+        for (level, chunk) in clubs.chunks(per).enumerate() {
+            let name = format!(
+                "{} {} Division",
+                world.nations()[nation].name,
+                ORDINALS.get(level).copied().unwrap_or("Lower")
+            );
+            world.add_league(League::new(name, nation, level as u8 + 1, 3), chunk);
+        }
+    }
+    fs_world::season::start_first_season(&mut world);
 
     debug_assert_eq!(world.check_invariants(), Ok(()));
     world
 }
 
+const ORDINALS: [&str; 10] = [
+    "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth",
+];
+
 fn add_club(
     world: &mut World,
     rng: &mut Rng,
     nation: NationId,
-    pool: &NationNames,
+    style: &NameStyle,
     nation_rep: i32,
     rank: u16,
     clubs: u16,
@@ -238,139 +293,25 @@ fn add_club(
         "Real",
         "Olympic",
     ];
-    let town = pool.style.town(rng);
+    let town = style.town(rng);
     let suffix = SUFFIXES[rng.index(SUFFIXES.len())];
     let name = match suffix {
         "Real" | "Sporting" | "Dynamo" | "Olympic" => format!("{suffix} {town}"),
         _ => format!("{town} {suffix}"),
     };
-    // Reputation falls from the top of the national pyramid to the bottom.
-    let drop = i32::from(rank) * nation_rep * 7 / (10 * i32::from(clubs.max(1)));
+    // Reputation falls down the national pyramid at a fixed rate per
+    // place, as if the nation had 100 clubs: a 20-club world is a top
+    // division, not a whole country squeezed into one league.
+    let _ = clubs;
+    let drop = i32::from(rank) * nation_rep * 7 / 1000;
     let reputation = (nation_rep - drop + rng.range_i32(-400, 400)).clamp(200, 10_000) as u16;
     world.add_club(Club::new(name, town, nation, reputation))
-}
-
-fn clamp_attr(x: f64) -> u16 {
-    x.round().clamp(1.0, f64::from(ATTR_MAX)) as u16
-}
-
-#[allow(clippy::too_many_arguments)]
-fn make_player(
-    rng: &mut Rng,
-    start: GameDate,
-    pools: &[NationNames],
-    nation: NationId,
-    position: Position,
-    level: i32,
-    club: Option<ClubId>,
-    squad_number: Option<u8>,
-) -> PlayerInit {
-    let pool = &pools[nation.index()];
-    let age = rng.normal(25.5, 4.2).round().clamp(16.0, 38.0) as i32;
-    let (y, m, d) = start.ymd();
-    let birth_year = y - age - 1;
-    let birth = GameDate::from_ymd(birth_year, m, d.min(28))
-        .expect("valid birth date")
-        .add_days(rng.below(365));
-
-    // Overall ability on the 0-1000 scale. Young players have not peaked;
-    // veterans have begun to decline physically.
-    let mut ability = rng.normal(f64::from(level) * 0.85 + 60.0, 70.0);
-    if age < 24 {
-        ability -= f64::from(24 - age) * 22.0;
-    }
-    let ability = ability.clamp(60.0, 950.0);
-
-    let key = position.key_attributes();
-    let secondary = position.secondary_attributes();
-    let is_gk = position == Position::Goalkeeper;
-    let mut attributes = Attributes::default();
-    for attr in Attr::ALL {
-        let weight = if key.contains(&attr) {
-            1.12
-        } else if secondary.contains(&attr) {
-            0.95
-        } else if attr.group() == "goalkeeping" {
-            if is_gk { 0.8 } else { 0.12 }
-        } else if is_gk && attr.group() == "technical" {
-            0.45
-        } else {
-            0.72
-        };
-        let mut value = rng.normal(ability * weight, 55.0);
-        if attr.group() == "physical" && age > 30 && attr != Attr::Strength {
-            value -= f64::from(age - 30) * 18.0;
-        }
-        attributes.set(attr, clamp_attr(value));
-    }
-
-    let mut hidden = Hidden::default();
-    for h in HiddenAttr::ALL {
-        hidden.set(h, clamp_attr(rng.normal(500.0, 160.0)));
-    }
-
-    let mut positions = PositionRatings::default();
-    positions.set(position, 20);
-    for &n in position.neighbours() {
-        if rng.chance(0.6) {
-            positions.set(n, 8 + rng.below(10) as u8);
-        }
-    }
-
-    let foot = {
-        let left_sided = matches!(
-            position,
-            Position::DefenderLeft
-                | Position::WingBackLeft
-                | Position::MidfielderLeft
-                | Position::AttackingMidLeft
-        );
-        let roll = rng.unit_f64();
-        let left_p = if left_sided { 0.65 } else { 0.18 };
-        if roll < left_p {
-            Foot::Left
-        } else if roll < left_p + 0.07 {
-            Foot::Both
-        } else {
-            Foot::Right
-        }
-    };
-    let tall = matches!(position, Position::Goalkeeper | Position::DefenderCentre);
-    let height = rng
-        .normal(if tall { 188.0 } else { 179.0 }, 6.0)
-        .round()
-        .clamp(160.0, 205.0);
-    let weight = (height - 105.0 + rng.normal(0.0, 4.0))
-        .round()
-        .clamp(55.0, 105.0);
-
-    PlayerInit {
-        bio: PlayerBio {
-            first_name: pool.first[rng.index(pool.first.len())],
-            last_name: pool.last[rng.index(pool.last.len())],
-            birth_date: birth,
-            nation,
-            foot,
-            height_cm: height as u8,
-            weight_kg: weight as u8,
-        },
-        club,
-        attributes,
-        hidden,
-        positions,
-        condition: Condition {
-            fitness: CONDITION_MAX - rng.below(800) as u16,
-            sharpness: 4_000 + rng.below(4_000) as u16,
-            fatigue: rng.below(1_000) as u16,
-            morale: 4_500 + rng.below(1_000) as u16,
-        },
-        squad_number,
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fs_world::attributes::Attr;
 
     #[test]
     fn tiny_world_is_consistent() {
@@ -378,10 +319,21 @@ mod tests {
         let world = generate(&cfg);
         assert_eq!(world.check_invariants(), Ok(()));
         assert_eq!(world.clubs().len(), 20);
-        assert_eq!(world.players().len(), 20 * 25 + 50);
+        // 25 seniors and a 9-player academy per club, plus free agents.
+        assert_eq!(world.players().len(), 20 * (25 + 9) + 50);
         assert_eq!(world.human_managers().count(), 1);
         let first_club = &world.clubs()[ClubId::new(0)];
-        assert_eq!(first_club.squad().len(), 25);
+        assert_eq!(first_club.squad().len(), 34);
+        assert_eq!(world.leagues().len(), 1);
+        assert_eq!(
+            world.leagues()[fs_world::LeagueId::new(0)].clubs().len(),
+            20
+        );
+        assert!(
+            world.leagues()[fs_world::LeagueId::new(0)]
+                .season()
+                .is_some()
+        );
     }
 
     #[test]
