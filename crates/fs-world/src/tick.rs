@@ -10,6 +10,7 @@
 
 use crate::attributes::{ATTR_MAX, Attr, HiddenAttr};
 use crate::command::Event;
+use crate::ids::ClubId;
 use crate::matchday::{play_today, refresh_ai_tactics, sample_injury};
 use crate::people::{age_years, develop_month, season_year};
 use crate::player::{CONDITION_MAX, Condition, Players, Status};
@@ -18,6 +19,8 @@ use crate::squad::{maintain_squads, renew_contracts, warn_expiring};
 use crate::world::World;
 use fs_core::Stream;
 use fs_core::par;
+use fs_match::TimedInstruction;
+use std::collections::BTreeMap;
 
 /// Morale drifts back toward this value.
 const MORALE_BASELINE: u16 = CONDITION_MAX / 2;
@@ -26,25 +29,38 @@ const SHARPNESS_FLOOR: u16 = 2_000;
 /// Chance per day of a training injury for an average player.
 const TRAINING_INJURY_RATE: f64 = 0.0008;
 
-/// Runs one day for the whole world. `world.date` is already the new day.
-pub(crate) fn daily(world: &mut World, events: &mut Vec<Event>) {
+/// The first part of a day, before any match: calendar business.
+/// `world.date` is already the new day.
+pub(crate) fn morning(world: &mut World, events: &mut Vec<Event>) {
     let today = world.date;
     let (_, month, day) = today.ymd();
+    if world.leagues.is_empty() {
+        return;
+    }
+    if (month, day) == (7, 1) && current_season(world).is_some_and(|y| y < season_year(today)) {
+        rollover(world, events);
+    }
+    match (month, day) {
+        (6, 1) => renew_contracts(world, events),
+        (1, 1) => warn_expiring(world, events),
+        (8, 20) | (1, 10) => maintain_squads(world, events),
+        _ => {}
+    }
+}
+
+/// The rest of the day: the matches (with any live instructions), then
+/// recovery, injuries and monthly development.
+pub(crate) fn afternoon(
+    world: &mut World,
+    events: &mut Vec<Event>,
+    instructions: &BTreeMap<ClubId, Vec<TimedInstruction>>,
+) {
     if !world.leagues.is_empty() {
-        if (month, day) == (7, 1) && current_season(world).is_some_and(|y| y < season_year(today)) {
-            rollover(world, events);
-        }
-        match (month, day) {
-            (6, 1) => renew_contracts(world, events),
-            (1, 1) => warn_expiring(world, events),
-            (8, 20) | (1, 10) => maintain_squads(world, events),
-            _ => {}
-        }
-        play_today(world, events);
+        play_today(world, events, instructions);
     }
     recovery(world);
     injuries(world, events);
-    if day == 1 {
+    if world.date.ymd().2 == 1 {
         development(world);
         if !world.leagues.is_empty() {
             refresh_ai_tactics(world);

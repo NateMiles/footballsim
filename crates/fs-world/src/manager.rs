@@ -28,4 +28,8 @@ pub struct Manager {
     /// For a human manager: let the assistant handle contracts, releases
     /// and free-agent signings (as the AI does for its own clubs).
     pub delegate_squad: bool,
+    /// For a human manager: stop on match days so the match can be
+    /// watched and managed live.
+    #[serde(default)]
+    pub watch_matches: bool,
 }

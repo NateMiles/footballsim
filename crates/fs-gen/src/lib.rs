@@ -164,6 +164,7 @@ pub fn generate(cfg: &GenConfig) -> World {
                 },
                 club: Some(club_id),
                 delegate_squad: false,
+                watch_matches: false,
             });
             let level = i32::from(world.clubs()[club_id].reputation) / 10;
             for slot in 0..cfg.players_per_club {

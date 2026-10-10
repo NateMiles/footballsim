@@ -4,14 +4,16 @@
 use crate::command::Event;
 use crate::ids::{ClubId, LeagueId, PlayerId};
 use crate::league::FixtureResult;
+use crate::lineup::sheet_from_lineup;
 use crate::player::{CONDITION_MAX, Injury, Severity};
 use crate::world::World;
 use fs_core::attributes::Position;
 use fs_core::{GameDate, Stream};
 use fs_match::{
     Formation, MatchEvent, MatchInput, MatchResult, PlayerSnapshot, Tactic, TeamSheet, Tier,
-    pick_team,
+    TimedInstruction, pick_team,
 };
+use std::collections::BTreeMap;
 
 /// A player's state at kickoff.
 pub fn snapshot(world: &World, id: PlayerId) -> PlayerSnapshot {
@@ -98,10 +100,40 @@ fn sheet_quality(squad: &[PlayerSnapshot], formation: Formation) -> f64 {
 /// Panics if the club has fewer than eleven players in total.
 pub fn team_sheet(world: &World, club: ClubId) -> TeamSheet {
     let squad = squad(world, club);
-    let tactic = world.clubs()[club]
+    let c = &world.clubs()[club];
+    let tactic = c
         .tactic()
         .unwrap_or_else(|| default_tactic(world, club, &squad));
-    pick_team(&squad, tactic)
+    match c.lineup() {
+        Some(lineup) => sheet_from_lineup(&squad, tactic, lineup),
+        None => pick_team(&squad, tactic),
+    }
+}
+
+/// The match input for a scheduled league fixture, as a watching manager
+/// sees it: both team sheets as they stand today and the fixture's random
+/// stream, with automatic substitutions off for clubs managed live. When
+/// the manager submits the instructions they gave
+/// ([`crate::Command::PlayMatch`]), the world plays exactly this input
+/// plus those instructions, so the result is the one they watched.
+///
+/// # Panics
+/// Panics if the league has no season or the fixture does not exist.
+pub fn fixture_input(world: &World, league: LeagueId, index: usize) -> MatchInput {
+    let season = world.leagues()[league]
+        .season()
+        .expect("season in progress");
+    let f = &season.fixtures[index];
+    let mut input = MatchInput::new(
+        team_sheet(world, f.home),
+        team_sheet(world, f.away),
+        world.seed(),
+        match_key(season.year, league, index),
+    );
+    // A manager watching live makes their own substitutions.
+    input.home.auto_subs = !world.watched_live(f.home);
+    input.away.auto_subs = !world.watched_live(f.away);
+    input
 }
 
 /// Recomputes every club's AI tactic from its current squad.
@@ -139,7 +171,11 @@ fn match_key(year: i32, league: LeagueId, index: usize) -> u64 {
 }
 
 /// Plays every fixture scheduled for today and applies the results.
-pub(crate) fn play_today(world: &mut World, events: &mut Vec<Event>) {
+pub(crate) fn play_today(
+    world: &mut World,
+    events: &mut Vec<Event>,
+    instructions: &BTreeMap<ClubId, Vec<TimedInstruction>>,
+) {
     let today = world.date();
     let mut todo: Vec<(LeagueId, usize, i32)> = Vec::new();
     for (lid, league) in world.leagues.iter() {
@@ -159,14 +195,20 @@ pub(crate) fn play_today(world: &mut World, events: &mut Vec<Event>) {
     {
         let world = &*world;
         fs_core::par::for_each_heavy(&mut results, |k, slot| {
-            let (lid, i, year) = todo[k];
+            let (lid, i, _) = todo[k];
             let f = &world.leagues()[lid].season().expect("season").fixtures[i];
-            let input = MatchInput::new(
-                team_sheet(world, f.home),
-                team_sheet(world, f.away),
-                world.seed(),
-                match_key(year, lid, i),
-            );
+            let mut input = fixture_input(world, lid, i);
+            // Clubs whose manager watched get exactly their instructions
+            // and no automatic substitutions; everyone else (including a
+            // watcher who skipped the match) gets the assistant's.
+            input.home.auto_subs = !instructions.contains_key(&f.home);
+            input.away.auto_subs = !instructions.contains_key(&f.away);
+            for club in [f.home, f.away] {
+                if let Some(given) = instructions.get(&club) {
+                    input.instructions.extend_from_slice(given);
+                }
+            }
+            input.instructions.sort_by_key(|x| x.step);
             *slot = Some(fs_match::play(&input, tiers[lid.index()]));
         });
     }

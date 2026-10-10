@@ -1,6 +1,7 @@
 //! Clubs.
 
 use crate::ids::{LeagueId, ManagerId, NationId, PlayerId};
+use crate::lineup::Lineup;
 use fs_match::Tactic;
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +23,9 @@ pub struct Club {
     /// The AI's current tactic, refreshed monthly. Used when `tactic` is
     /// empty.
     pub(crate) ai_tactic: Option<Tactic>,
+    /// Lineup chosen by a human manager; automatic selection when empty.
+    #[serde(default)]
+    pub(crate) lineup: Option<Lineup>,
     /// Everyone registered with the club, in the order they joined.
     /// Maintained by [`crate::World`] only, so it always agrees with each
     /// player's club.
@@ -40,6 +44,7 @@ impl Club {
             league: None,
             tactic: None,
             ai_tactic: None,
+            lineup: None,
             squad: Vec::new(),
         }
     }
@@ -52,6 +57,11 @@ impl Club {
     /// The club's league, if any.
     pub fn league(&self) -> Option<LeagueId> {
         self.league
+    }
+
+    /// The manager's chosen lineup, if any.
+    pub fn lineup(&self) -> Option<&Lineup> {
+        self.lineup.as_ref()
     }
 
     /// The tactic the club will play: the manager's choice if set,

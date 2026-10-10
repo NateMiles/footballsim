@@ -4,15 +4,18 @@
 //! rejected command has no effect and is not recorded.
 
 use crate::ids::{ClubId, LeagueId, ManagerId, PlayerId};
-use crate::manager::Control;
+use crate::lineup::Lineup;
+use crate::live::{self, PendingMatchDay};
+use crate::manager::{Control, Manager};
 use crate::people::{age_years, wage_demand};
 use crate::player::{Contract, Status};
 use crate::squad::contract_expiry;
 use crate::tick;
 use crate::world::World;
 use fs_core::GameDate;
-use fs_match::Tactic;
+use fs_match::{Side, Tactic, TimedInstruction};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Who issued a command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,6 +28,10 @@ pub enum Actor {
 
 /// Largest number of days one [`Command::Advance`] may cover.
 pub const MAX_ADVANCE_DAYS: u16 = 366;
+/// Most instructions one watched match may carry.
+pub const MAX_MATCH_INSTRUCTIONS: usize = 200;
+/// Longest manager name part, in bytes.
+pub const MAX_NAME_LEN: usize = 40;
 
 /// A decision that changes the world.
 ///
@@ -32,6 +39,12 @@ pub const MAX_ADVANCE_DAYS: u16 = 366;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Command {
     /// Move time forward, running the daily simulation for each day.
+    ///
+    /// A day on which a manager who watches matches has a fixture stops
+    /// before its matches (see [`Event::MatchDayReady`]); the command
+    /// ends there. Advancing while such a day is pending first plays it,
+    /// with the assistant managing any match nobody watched, and then
+    /// moves on `days` days.
     Advance { days: u16 },
     /// Give a player a squad number (1-99), or clear it with `None`.
     SetSquadNumber {
@@ -54,6 +67,24 @@ pub enum Command {
     /// Let the assistant handle contracts, releases and free-agent
     /// signings (`true`), or take them back (`false`).
     SetDelegation { squad: bool },
+    /// Report a watched match: the instructions given while watching it
+    /// (from `fs_match::view::LiveView::instructions`). When every
+    /// watched match of the day is in, the day's matches are played.
+    PlayMatch { instructions: Vec<TimedInstruction> },
+    /// Pick the starting eleven (by formation slot) and substitutes, or
+    /// `None` to let the assistant pick each match.
+    SetLineup { lineup: Option<Lineup> },
+    /// Stop on match days to watch and manage matches live (`true`), or
+    /// let them be played in the background (`false`).
+    SetWatchMatches { watch: bool },
+    /// Appoint a new human manager to a club, replacing its AI manager.
+    /// System only. The new manager watches matches and runs their own
+    /// squad.
+    AppointHuman {
+        club: ClubId,
+        first_name: String,
+        last_name: String,
+    },
 }
 
 /// An applied command, as stored in the command log.
@@ -126,6 +157,22 @@ pub enum Event {
     },
     /// A human manager changed tactic.
     TacticChanged { club: ClubId },
+    /// A manager can watch today's match: the day waits for
+    /// [`Command::PlayMatch`]. `fs_world::matchday::fixture_input` gives
+    /// the match to show.
+    MatchDayReady {
+        manager: ManagerId,
+        club: ClubId,
+        league: LeagueId,
+        /// Index into the league season's fixtures.
+        index: usize,
+        home: ClubId,
+        away: ClubId,
+    },
+    /// A human manager chose or cleared their lineup.
+    LineupChanged { club: ClubId },
+    /// A manager took charge of a club.
+    ManagerAppointed { manager: ManagerId, club: ClubId },
 }
 
 /// Why a command was rejected.
@@ -159,6 +206,22 @@ pub enum CommandError {
     ContractRejected { demand: u32 },
     #[error("the squad is full ({0} players)")]
     SquadFull(usize),
+    #[error("{0} has no match waiting to be played")]
+    NoMatchWaiting(ManagerId),
+    #[error("an instruction is for the other side")]
+    WrongSide,
+    #[error("{0} instructions (at most {MAX_MATCH_INSTRUCTIONS})")]
+    TooManyInstructions(usize),
+    #[error("invalid lineup: {0}")]
+    InvalidLineup(String),
+    #[error("not while today's matches are being played")]
+    MatchDayInProgress,
+    #[error("unknown club {0}")]
+    UnknownClub(ClubId),
+    #[error("{0} already has a human manager")]
+    ClubTaken(ClubId),
+    #[error("names must be 1-{MAX_NAME_LEN} bytes")]
+    InvalidName,
 }
 
 /// Largest squad a club may register.
@@ -179,10 +242,34 @@ impl World {
                     return Err(CommandError::InvalidDays(days));
                 }
                 let mut events = Vec::with_capacity(usize::from(days));
+                if self.pending.is_some() {
+                    self.finish_match_day(&mut events);
+                }
                 for _ in 0..days {
                     self.date = self.date.add_days(1);
                     events.push(Event::DayAdvanced { date: self.date });
-                    tick::daily(self, &mut events);
+                    tick::morning(self, &mut events);
+                    let watched = live::watched_fixtures(self);
+                    if !watched.is_empty() {
+                        for w in &watched {
+                            let f =
+                                &self.leagues[w.league].season().expect("season").fixtures[w.index];
+                            events.push(Event::MatchDayReady {
+                                manager: w.manager,
+                                club: w.club,
+                                league: w.league,
+                                index: w.index,
+                                home: f.home,
+                                away: f.away,
+                            });
+                        }
+                        self.pending = Some(PendingMatchDay {
+                            awaiting: watched,
+                            instructions: BTreeMap::new(),
+                        });
+                        break;
+                    }
+                    tick::afternoon(self, &mut events, &BTreeMap::new());
                 }
                 Ok(events)
             }
@@ -222,6 +309,7 @@ impl World {
             }
             Command::SetTactic { tactic } => {
                 let club = self.managed_club(actor)?;
+                self.require_unlocked(club)?;
                 self.clubs[club].tactic = tactic.map(Tactic::clamped);
                 Ok(vec![Event::TacticChanged { club }])
             }
@@ -231,6 +319,7 @@ impl World {
                 years,
             } => {
                 let club = self.managed_club(actor)?;
+                self.require_unlocked(club)?;
                 if !self.players.contains(player) {
                     return Err(CommandError::UnknownPlayer(player));
                 }
@@ -277,6 +366,7 @@ impl World {
             }
             Command::ReleasePlayer { player } => {
                 let club = self.managed_club(actor)?;
+                self.require_unlocked(club)?;
                 if !self.players.contains(player) {
                     return Err(CommandError::UnknownPlayer(player));
                 }
@@ -289,6 +379,134 @@ impl World {
                 self.release_player(player);
                 Ok(vec![Event::PlayerLeft { player, club }])
             }
+            Command::PlayMatch { ref instructions } => {
+                let Actor::Manager(m) = actor else {
+                    return Err(CommandError::NotPermitted);
+                };
+                let watched = self
+                    .pending
+                    .as_ref()
+                    .and_then(|p| p.awaiting.iter().find(|w| w.manager == m))
+                    .copied()
+                    .ok_or(CommandError::NoMatchWaiting(m))?;
+                if instructions.len() > MAX_MATCH_INSTRUCTIONS {
+                    return Err(CommandError::TooManyInstructions(instructions.len()));
+                }
+                let f = &self.leagues[watched.league]
+                    .season()
+                    .expect("season")
+                    .fixtures[watched.index];
+                let side = if f.home == watched.club {
+                    Side::Home
+                } else {
+                    Side::Away
+                };
+                if instructions.iter().any(|i| i.side != side) {
+                    return Err(CommandError::WrongSide);
+                }
+                let pending = self.pending.as_mut().expect("checked above");
+                pending.awaiting.retain(|w| w.manager != m);
+                pending
+                    .instructions
+                    .insert(watched.club, instructions.clone());
+                let mut events = Vec::new();
+                if pending.awaiting.is_empty() {
+                    self.finish_match_day(&mut events);
+                }
+                Ok(events)
+            }
+            Command::SetLineup { ref lineup } => {
+                let club = self.managed_club(actor)?;
+                self.require_unlocked(club)?;
+                if let Some(l) = lineup {
+                    l.validate().map_err(CommandError::InvalidLineup)?;
+                    if let Some(&p) =
+                        l.starters.iter().chain(&l.bench).find(|&&p| {
+                            !self.players.contains(p) || self.players.club(p) != Some(club)
+                        })
+                    {
+                        return Err(CommandError::InvalidLineup(format!(
+                            "{p} is not at the club"
+                        )));
+                    }
+                }
+                self.clubs[club].lineup = lineup.clone();
+                Ok(vec![Event::LineupChanged { club }])
+            }
+            Command::SetWatchMatches { watch } => {
+                self.managed_club(actor)?;
+                if self.pending.is_some() {
+                    return Err(CommandError::MatchDayInProgress);
+                }
+                if let Actor::Manager(m) = actor {
+                    self.managers[m].watch_matches = watch;
+                }
+                Ok(Vec::new())
+            }
+            Command::AppointHuman {
+                club,
+                ref first_name,
+                ref last_name,
+            } => {
+                if actor != Actor::System {
+                    return Err(CommandError::NotPermitted);
+                }
+                if self.pending.is_some() {
+                    return Err(CommandError::MatchDayInProgress);
+                }
+                if self.clubs.get(club).is_none() {
+                    return Err(CommandError::UnknownClub(club));
+                }
+                if self.is_human_club(club) {
+                    return Err(CommandError::ClubTaken(club));
+                }
+                for name in [first_name, last_name] {
+                    if name.trim().is_empty() || name.len() > MAX_NAME_LEN {
+                        return Err(CommandError::InvalidName);
+                    }
+                }
+                if let Some(old) = self.clubs[club].manager.take() {
+                    self.managers[old].club = None;
+                }
+                let first_name = self.names.intern(first_name.trim());
+                let last_name = self.names.intern(last_name.trim());
+                let manager = self.add_manager(Manager {
+                    first_name,
+                    last_name,
+                    control: Control::Human,
+                    club: Some(club),
+                    delegate_squad: false,
+                    watch_matches: true,
+                });
+                Ok(vec![Event::ManagerAppointed { manager, club }])
+            }
+        }
+    }
+
+    /// Plays the rest of a pending match day, with the instructions
+    /// submitted so far.
+    fn finish_match_day(&mut self, events: &mut Vec<Event>) {
+        let pending = self.pending.take().expect("a pending match day");
+        tick::afternoon(self, events, &pending.instructions);
+    }
+
+    /// Rejects changes that would alter a match already shown or being
+    /// shown live: while a match day is pending, a club playing today may
+    /// change only while its own manager, alone, is still to watch it.
+    fn require_unlocked(&self, club: ClubId) -> Result<(), CommandError> {
+        let Some(pending) = &self.pending else {
+            return Ok(());
+        };
+        let Some((league, index)) = live::fixture_today(self, club) else {
+            return Ok(());
+        };
+        let mut watchers = pending
+            .awaiting
+            .iter()
+            .filter(|w| w.league == league && w.index == index);
+        match (watchers.next(), watchers.next()) {
+            (Some(w), None) if w.club == club => Ok(()),
+            _ => Err(CommandError::MatchDayInProgress),
         }
     }
 

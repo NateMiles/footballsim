@@ -9,7 +9,7 @@ use crate::world::World;
 /// File signature.
 pub const MAGIC: [u8; 4] = *b"FSIM";
 /// Current snapshot format version. Bump on any change to serialised types.
-pub const FORMAT_VERSION: u16 = 2;
+pub const FORMAT_VERSION: u16 = 3;
 
 /// Why a snapshot could not be loaded.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

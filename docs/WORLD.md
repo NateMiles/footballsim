@@ -15,7 +15,11 @@ Seasons run from 1 July to 30 June.
 | 1 January | Human managers warned about contracts ending in June | `squad::warn_expiring` |
 | 1 June | AI clubs renew contracts worth keeping; humans warned again | `squad::renew_contracts` |
 | 1st of every month | Player development; AI tactics refreshed | `tick::development` |
-| Every day | Recovery, injury healing, training injuries | `tick::daily` |
+| Every day | Recovery, injury healing, training injuries | `tick::afternoon` |
+
+Each day runs in two parts: the morning's calendar business
+(`tick::morning`), then matches, recovery and development
+(`tick::afternoon`). A watched match day pauses between them (section 5).
 
 Fixtures are a double round robin with the club order shuffled each
 season. Rounds are spread evenly over the Saturdays from the second
@@ -89,8 +93,35 @@ In order:
 Human-managed clubs are left alone by the AI unless the manager delegates
 squad management (`Command::SetDelegation`). Otherwise they must renew
 contracts themselves (`OfferContract`), or players leave in June. Other
-commands: `SetTactic`, `ReleasePlayer`, `SetSquadNumber`. A contract offer
-is accepted when the wage is at least 90% of the player's demand.
+commands: `SetTactic`, `SetLineup`, `ReleasePlayer`, `SetSquadNumber`. A
+contract offer is accepted when the wage is at least 90% of the player's
+demand.
+
+A new game appoints its human with `AppointHuman` (system only), which
+replaces the club's AI manager. A chosen lineup is honoured slot by slot;
+starters who are injured, suspended or gone are replaced by the most
+suitable available player, and the bench is topped up.
+
+**Watched match days.** A manager with `watch_matches` set (`SetWatchMatches`)
+manages their matches live:
+
+1. `Advance` stops after the morning of a day on which they play, with
+   `Event::MatchDayReady`. No match anywhere is played yet
+   (`World::pending`).
+2. The host shows the match from `matchday::fixture_input`, using
+   `fs_match::view::LiveView`. The manager's side has no automatic
+   substitutions; their substitutions, tactic changes and shouts are
+   recorded against engine steps.
+3. `PlayMatch { instructions }` reports them. Once every watching manager
+   has reported, the day's matches are played, the watched ones with
+   their instructions, so the result is exactly the one watched.
+
+While the day is pending, a club playing today can change its team only
+if its own manager, alone, is still to watch the match; anything else
+that would alter a match being shown is refused. `Advance` during a
+pending day plays it first, with the assistant managing unwatched matches.
+When two watching humans meet, each submits their own side's
+instructions; showing both live together is left to online play.
 
 ## 6. Health targets
 

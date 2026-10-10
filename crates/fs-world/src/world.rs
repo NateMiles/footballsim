@@ -5,6 +5,7 @@ use crate::ids::{
     ClubId, ClubKind, LeagueId, LeagueKind, ManagerId, ManagerKind, NationId, NationKind, PlayerId,
 };
 use crate::league::League;
+use crate::live::PendingMatchDay;
 use crate::manager::{Control, Manager};
 use crate::names::NamePool;
 use crate::nation::Nation;
@@ -29,6 +30,8 @@ pub struct World {
     pub(crate) managers: IdVec<ManagerKind, Manager>,
     pub(crate) leagues: IdVec<LeagueKind, League>,
     pub(crate) players: Players,
+    /// Today's matches, waiting for human managers to watch them.
+    pub(crate) pending: Option<PendingMatchDay>,
 }
 
 impl World {
@@ -43,6 +46,7 @@ impl World {
             managers: IdVec::new(),
             leagues: IdVec::new(),
             players: Players::default(),
+            pending: None,
         }
     }
 
@@ -235,6 +239,19 @@ impl World {
         self.clubs[club]
             .manager
             .is_some_and(|m| self.managers[m].control == Control::Human)
+    }
+
+    /// The match day waiting for human managers, if today is one.
+    pub fn pending(&self) -> Option<&PendingMatchDay> {
+        self.pending.as_ref()
+    }
+
+    /// Whether a human manager watches and manages this club's matches
+    /// live (and so makes their own substitutions).
+    pub fn watched_live(&self, club: ClubId) -> bool {
+        self.clubs[club].manager.is_some_and(|m| {
+            self.managers[m].control == Control::Human && self.managers[m].watch_matches
+        })
     }
 
     /// Whether the AI runs this club's squad (contracts, releases,
