@@ -21,6 +21,13 @@ impl Game {
         }
     }
 
+    /// Resumes a saved game: the world as saved, and the commands that led
+    /// to it (from whatever world the log began with). New commands are
+    /// numbered on from the log.
+    pub fn resume(world: World, log: Vec<CommandRecord>) -> Self {
+        Self { world, log }
+    }
+
     /// The current world.
     pub fn world(&self) -> &World {
         &self.world

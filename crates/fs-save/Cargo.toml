@@ -1,0 +1,24 @@
+[package]
+name = "fs-save"
+description = "Saved games: a versioned, compressed container for the world, its command log and host state."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+fs-core.workspace = true
+fs-world.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+postcard.workspace = true
+thiserror.workspace = true
+xxhash-rust.workspace = true
+miniz_oxide.workspace = true
+
+[dev-dependencies]
+fs-gen.workspace = true
+
+[lints]
+workspace = true
