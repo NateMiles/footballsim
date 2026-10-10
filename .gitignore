@@ -1,0 +1,22 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node / web UI
+node_modules/
+dist/
+.svelte-kit/
+.vite/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Saves and generated data
+*.fsave
+/data/generated/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
