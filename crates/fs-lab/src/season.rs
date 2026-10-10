@@ -94,13 +94,7 @@ pub fn simulate_season(world: &World, engine: &Engine) -> SeasonOutcome {
     let mut results: Vec<Option<MatchResult>> = vec![None; fixtures.len()];
     fs_core::par::for_each_heavy(&mut results, |i, slot| {
         let (h, a) = fixtures[i];
-        let input = MatchInput {
-            home: sheets[h].clone(),
-            away: sheets[a].clone(),
-            neutral: false,
-            seed: world.seed(),
-            key: i as u64,
-        };
+        let input = MatchInput::new(sheets[h].clone(), sheets[a].clone(), world.seed(), i as u64);
         *slot = Some(engine.play(&input));
     });
     let mut points = vec![0u32; n];

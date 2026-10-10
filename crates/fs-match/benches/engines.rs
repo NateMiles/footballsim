@@ -38,17 +38,12 @@ fn sheet(level: u16, first: u32) -> TeamSheet {
         bench: (0..9)
             .map(|i| make(11 + i, slots[1 + i as usize].position))
             .collect(),
+        auto_subs: true,
     }
 }
 
 fn bench(c: &mut Criterion) {
-    let mut input = MatchInput {
-        home: sheet(620, 0),
-        away: sheet(560, 100),
-        neutral: false,
-        seed: Seed(1),
-        key: 0,
-    };
+    let mut input = MatchInput::new(sheet(620, 0), sheet(560, 100), Seed(1), 0);
     c.bench_function("tier1/match", |b| {
         b.iter(|| {
             input.key += 1;

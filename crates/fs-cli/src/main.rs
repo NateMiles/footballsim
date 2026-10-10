@@ -223,13 +223,12 @@ fn determinism_cmd(a: &Args) {
                 .iter()
                 .enumerate()
                 .map(|(k, &(h, w))| {
-                    let input = fs_match::MatchInput {
-                        home: sheets[h].clone(),
-                        away: sheets[w].clone(),
-                        neutral: false,
-                        seed: world.seed(),
-                        key: k as u64,
-                    };
+                    let input = fs_match::MatchInput::new(
+                        sheets[h].clone(),
+                        sheets[w].clone(),
+                        world.seed(),
+                        k as u64,
+                    );
                     fs_match::play(&input, tier)
                 })
                 .collect();
@@ -281,13 +280,7 @@ fn match_cmd(a: &Args) -> ExitCode {
         world.clubs()[ClubId::new(a.away)].name.clone(),
     ];
     let formations = [home.tactic.formation.name(), away.tactic.formation.name()];
-    let input = fs_match::MatchInput {
-        home,
-        away,
-        neutral: false,
-        seed: world.seed(),
-        key: u64::from(a.runs),
-    };
+    let input = fs_match::MatchInput::new(home, away, world.seed(), u64::from(a.runs));
     let t = Instant::now();
     let r = fs_match::play(&input, a.tier);
     let elapsed = t.elapsed().as_secs_f64() * 1e6;

@@ -161,13 +161,12 @@ pub(crate) fn play_today(world: &mut World, events: &mut Vec<Event>) {
         fs_core::par::for_each_heavy(&mut results, |k, slot| {
             let (lid, i, year) = todo[k];
             let f = &world.leagues()[lid].season().expect("season").fixtures[i];
-            let input = MatchInput {
-                home: team_sheet(world, f.home),
-                away: team_sheet(world, f.away),
-                neutral: false,
-                seed: world.seed(),
-                key: match_key(year, lid, i),
-            };
+            let input = MatchInput::new(
+                team_sheet(world, f.home),
+                team_sheet(world, f.away),
+                world.seed(),
+                match_key(year, lid, i),
+            );
             *slot = Some(fs_match::play(&input, tiers[lid.index()]));
         });
     }

@@ -16,6 +16,8 @@
 pub mod fitted;
 pub mod formation;
 pub mod input;
+pub mod instruction;
+pub mod log;
 pub mod result;
 pub mod selection;
 pub mod skills;
@@ -25,6 +27,8 @@ pub mod tier2;
 
 pub use formation::{Formation, Slot};
 pub use input::{MatchInput, PlayerSnapshot, Tactic, TeamSheet};
+pub use instruction::{Instruction, InstructionError, Shout, TimedInstruction};
+pub use log::{ActionKind, ActionRecord, Outcome, Zone};
 pub use result::{GoalKind, MatchEvent, MatchResult, PlayerMatchStats, Side, TeamStats};
 pub use selection::pick_team;
 pub use strength::TeamStrength;
@@ -84,16 +88,11 @@ pub(crate) mod test_support {
             tactic,
             starters,
             bench,
+            auto_subs: true,
         }
     }
 
     pub fn input(home: u16, away: u16, key: u64) -> MatchInput {
-        MatchInput {
-            home: sheet(home, 0),
-            away: sheet(away, 100),
-            neutral: false,
-            seed: Seed(42),
-            key,
-        }
+        MatchInput::new(sheet(home, 0), sheet(away, 100), Seed(42), key)
     }
 }

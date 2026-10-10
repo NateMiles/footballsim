@@ -30,13 +30,7 @@ pub fn predict(
 ) -> Prediction {
     let mut results = vec![([0u8; 2], [0f32; 2]); runs as usize];
     fs_core::par::for_each_heavy(&mut results, |i, slot| {
-        let input = MatchInput {
-            home: home.clone(),
-            away: away.clone(),
-            neutral: false,
-            seed,
-            key: i as u64,
-        };
+        let input = MatchInput::new(home.clone(), away.clone(), seed, i as u64);
         let r = play(&input, tier);
         *slot = (r.goals, [r.stats[0].xg, r.stats[1].xg]);
     });

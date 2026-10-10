@@ -94,14 +94,9 @@ fn tactics_only_input(tactics: [fs_match::Tactic; 2]) -> MatchInput {
         tactic,
         starters: Vec::new(),
         bench: Vec::new(),
+        auto_subs: true,
     };
-    MatchInput {
-        home: sheet(tactics[0]),
-        away: sheet(tactics[1]),
-        neutral: false,
-        seed: fs_core::Seed(0),
-        key: 0,
-    }
+    MatchInput::new(sheet(tactics[0]), sheet(tactics[1]), fs_core::Seed(0), 0)
 }
 
 /// Ordinary least squares with four regressors (include a constant column
