@@ -99,7 +99,7 @@ Each milestone ends in something playable or measurable. Rough sizes assume
 one developer working with AI assistance; they are for sequencing, not
 promises.
 
-### M0: Foundations
+### M0: Foundations (done)
 - Cargo workspace, CI (fmt, clippy, tests), benchmark harness.
 - Core ID and entity types, seeded RNG, determinism test (same seed gives a
   byte-identical world hash on native and WASM).

@@ -5,7 +5,23 @@ A football management game aiming to beat Football Manager on three fronts:
 more honestly), and **openness** (transparent stats, moddable data, scriptable
 scenarios).
 
-Status: **planning**. No code yet.
+Status: **milestone 0 (foundations) complete.** The Rust workspace,
+deterministic core, world generator, command log, save snapshots,
+benchmarks and CI are in place. There is no match engine or UI yet; that
+starts in milestone 1.
+
+## Try it
+
+Needs Rust (the pinned version installs automatically through `rustup`)
+and Node 22 for the WebAssembly check.
+
+```bash
+cargo test --workspace
+cargo run --release -p fs-cli -- squad --seed 3          # a generated squad
+cargo run --release -p fs-cli -- gen --size medium       # 155k-player world
+cargo run --release -p fs-cli -- run --size medium --days 30
+scripts/determinism-check.sh                             # native vs WebAssembly
+```
 
 ## Docs
 

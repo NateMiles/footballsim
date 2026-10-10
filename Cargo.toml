@@ -1,0 +1,40 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "UNLICENSED"
+publish = false
+
+[workspace.dependencies]
+fs-core = { path = "crates/fs-core" }
+fs-world = { path = "crates/fs-world" }
+fs-gen = { path = "crates/fs-gen" }
+
+serde = { version = "1", features = ["derive"] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+libm = "0.2"
+rayon = "1"
+thiserror = "2"
+serde-big-array = "0.5"
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+float_cmp = "warn"
+
+[profile.release]
+debug = 1
+codegen-units = 1
+lto = "thin"
+
+[profile.bench]
+inherits = "release"

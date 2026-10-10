@@ -1,0 +1,33 @@
+# Determinism guard rails for simulation code.
+#
+# Platform maths functions can return different bits on different targets
+# (native vs WebAssembly), which breaks replays, saves and online play.
+# Use fs_core::math instead, which routes through the portable `libm` crate.
+# Hash-ordered collections iterate in an unspecified order; use BTreeMap,
+# BTreeSet or index-based storage in simulation code.
+disallowed-methods = [
+  { path = "f64::sin", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::cos", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::tan", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::atan2", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::exp", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::ln", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::log10", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::log2", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::powf", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::powi", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f64::hypot", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f32::sin", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f32::cos", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f32::tan", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f32::atan2", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f32::exp", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f32::ln", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f32::powf", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f32::powi", reason = "not bit-exact across platforms; use fs_core::math" },
+  { path = "f32::hypot", reason = "not bit-exact across platforms; use fs_core::math" },
+]
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "iteration order is not deterministic; use BTreeMap or index-based storage" },
+  { path = "std::collections::HashSet", reason = "iteration order is not deterministic; use BTreeSet or a bitset" },
+]

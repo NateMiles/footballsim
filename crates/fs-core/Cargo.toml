@@ -1,0 +1,24 @@
+[package]
+name = "fs-core"
+description = "Shared types for footballsim: IDs, deterministic RNG, maths, calendar, hashing."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+postcard.workspace = true
+xxhash-rust.workspace = true
+libm.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "rng"
+harness = false
+
+[lints]
+workspace = true

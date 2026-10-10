@@ -1,0 +1,20 @@
+[package]
+name = "fs-cli"
+description = "Headless runner for footballsim: world generation, timing runs and determinism checks."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "fs-cli"
+path = "src/main.rs"
+
+[dependencies]
+fs-core.workspace = true
+fs-world.workspace = true
+fs-gen.workspace = true
+
+[lints]
+workspace = true
