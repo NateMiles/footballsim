@@ -75,7 +75,7 @@ only exist because the engine is fast.
 - **Modding.** Data packs for leagues, rules, names, kits (text and images,
   no code). Later, a sandboxed scripting layer for custom events.
 - **Deterministic replays.** Any match can be re-watched exactly, or replayed
-  from any moment with a substitution changed ("what if I'd brought him on
+  from any moment with a substitution changed ("what if I'd made that sub
   at 60'?").
 - **Online leagues** (later). Determinism means only manager decisions need
   to be synced, not the simulation.
