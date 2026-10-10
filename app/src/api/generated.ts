@@ -3,7 +3,7 @@
 
 export const PROTOCOL_VERSION = 1;
 
-export type ApiError = { code: ErrorCode, 
+export type ApiErrorBody = { code: ErrorCode, 
 /**
  * For people.
  */
@@ -230,7 +230,7 @@ export type Response = { "type": "hello", protocol: number, version: string,
 /**
  * Whether a game is loaded.
  */
-inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "error", error: ApiError, };
+inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "error", error: ApiErrorBody, };
 
 export type SaveGame = { 
 /**

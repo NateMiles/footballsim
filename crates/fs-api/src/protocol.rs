@@ -161,6 +161,7 @@ pub enum Response {
 /// A failed request.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(rename = "ApiErrorBody")]
 pub struct ApiError {
     pub code: ErrorCode,
     /// For people.
