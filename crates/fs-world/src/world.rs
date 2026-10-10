@@ -3,6 +3,7 @@
 use crate::club::Club;
 use crate::ids::{
     ClubId, ClubKind, LeagueId, LeagueKind, ManagerId, ManagerKind, NationId, NationKind, PlayerId,
+    StaffId, StaffKind,
 };
 use crate::league::League;
 use crate::live::PendingMatchDay;
@@ -11,6 +12,8 @@ use crate::names::NamePool;
 use crate::nation::Nation;
 use crate::player::{Contract, Status};
 use crate::player::{PlayerInit, Players};
+use crate::scouting::Scouting;
+use crate::staff::Staff;
 use fs_core::{GameDate, IdVec, Seed, StateHash, state_hash};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -30,6 +33,8 @@ pub struct World {
     pub(crate) managers: IdVec<ManagerKind, Manager>,
     pub(crate) leagues: IdVec<LeagueKind, League>,
     pub(crate) players: Players,
+    pub(crate) staff: IdVec<StaffKind, Staff>,
+    pub(crate) scouting: Scouting,
     /// Today's matches, waiting for human managers to watch them.
     pub(crate) pending: Option<PendingMatchDay>,
 }
@@ -46,6 +51,8 @@ impl World {
             managers: IdVec::new(),
             leagues: IdVec::new(),
             players: Players::default(),
+            staff: IdVec::new(),
+            scouting: Scouting::default(),
             pending: None,
         }
     }
@@ -78,6 +85,16 @@ impl World {
     /// All clubs.
     pub fn clubs(&self) -> &IdVec<ClubKind, Club> {
         &self.clubs
+    }
+
+    /// All staff members, employed or not.
+    pub fn staff(&self) -> &IdVec<StaffKind, Staff> {
+        &self.staff
+    }
+
+    /// What clubs know about players.
+    pub fn scouting(&self) -> &Scouting {
+        &self.scouting
     }
 
     /// All managers.
@@ -143,6 +160,51 @@ impl World {
             club.manager = Some(id);
         }
         id
+    }
+
+    /// Adds a staff member and, if they have a club, adds them to its
+    /// staff.
+    ///
+    /// # Panics
+    /// Panics if the club does not exist.
+    pub fn add_staff(&mut self, staff: Staff) -> StaffId {
+        let club = staff.club;
+        let id = self.staff.push(staff);
+        if let Some(c) = club {
+            self.clubs[c].staff.push(id);
+        }
+        id
+    }
+
+    /// Adds a staff member employed by `club` (world generation).
+    ///
+    /// # Panics
+    /// Panics if the club does not exist.
+    pub fn add_staff_at(&mut self, mut staff: Staff, club: ClubId, contract: Contract) -> StaffId {
+        staff.club = Some(club);
+        staff.contract = Some(contract);
+        self.add_staff(staff)
+    }
+
+    /// Sets a club's facilities (world generation).
+    pub fn set_facilities(&mut self, club: ClubId, facilities: crate::finance::Facilities) {
+        self.clubs[club].facilities = facilities;
+    }
+
+    /// Hires a staff member on a new contract, leaving any current club.
+    pub(crate) fn hire_staff(&mut self, staff: StaffId, club: ClubId, contract: Contract) {
+        self.release_staff(staff);
+        self.staff[staff].club = Some(club);
+        self.staff[staff].contract = Some(contract);
+        self.clubs[club].staff.push(staff);
+    }
+
+    /// Ends a staff member's employment.
+    pub(crate) fn release_staff(&mut self, staff: StaffId) {
+        if let Some(c) = self.staff[staff].club.take() {
+            self.clubs[c].staff.retain(|&s| s != staff);
+        }
+        self.staff[staff].contract = None;
     }
 
     /// Adds a player and, if they have a club, adds them to its squad.
@@ -338,6 +400,26 @@ impl World {
             }
             if self.nations.get(self.players.bio(pid).nation).is_none() {
                 return Err(format!("{pid} has unknown nation"));
+            }
+        }
+        for (cid, club) in self.clubs.iter() {
+            for &s in &club.staff {
+                let Some(st) = self.staff.get(s) else {
+                    return Err(format!("{cid} lists unknown staff {s}"));
+                };
+                if st.club != Some(cid) {
+                    return Err(format!("{s} is on {cid} staff but not at the club"));
+                }
+                if st.contract.is_none() {
+                    return Err(format!("{s} works at {cid} without a contract"));
+                }
+            }
+        }
+        for (sid, st) in self.staff.iter() {
+            if let Some(c) = st.club
+                && !self.clubs.get(c).is_some_and(|c| c.staff.contains(&sid))
+            {
+                return Err(format!("{sid} has club {c}, which does not list them"));
             }
         }
         for (mid, m) in self.managers.iter() {

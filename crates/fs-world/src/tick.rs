@@ -10,12 +10,14 @@
 
 use crate::attributes::{ATTR_MAX, Attr, HiddenAttr};
 use crate::command::Event;
+use crate::economy;
 use crate::ids::ClubId;
 use crate::matchday::{play_today, refresh_ai_tactics, sample_injury};
-use crate::people::{age_years, develop_month, season_year};
+use crate::people::{GrowthFactors, age_years, develop_month, season_year};
 use crate::player::{CONDITION_MAX, Condition, Players, Status};
 use crate::season::{current_season, rollover};
 use crate::squad::{maintain_squads, renew_contracts, warn_expiring};
+use crate::staff;
 use crate::world::World;
 use fs_core::Stream;
 use fs_core::par;
@@ -41,7 +43,10 @@ pub(crate) fn morning(world: &mut World, events: &mut Vec<Event>) {
         rollover(world, events);
     }
     match (month, day) {
-        (6, 1) => renew_contracts(world, events),
+        (6, 1) => {
+            renew_contracts(world, events);
+            staff::warn_expiring(world, events);
+        }
         (1, 1) => warn_expiring(world, events),
         (8, 20) | (1, 10) => maintain_squads(world, events),
         _ => {}
@@ -60,7 +65,9 @@ pub(crate) fn afternoon(
     }
     recovery(world);
     injuries(world, events);
+    crate::scouting::daily(world, events);
     if world.date.ymd().2 == 1 {
+        economy::monthly_accounts(world);
         development(world);
         if !world.leagues.is_empty() {
             refresh_ai_tactics(world);
@@ -95,6 +102,15 @@ fn injuries(world: &mut World, events: &mut Vec<Event>) {
     let seed = world.seed;
     let today = world.date;
     let day = u64::from(today.days());
+    // Medical teams: (prevention, treatment) per club.
+    let medical: Vec<(f64, f64)> = world
+        .clubs
+        .ids()
+        .map(|c| {
+            let r = staff::ratings(world, c);
+            (staff::prevention_factor(&r), staff::treatment_factor(&r))
+        })
+        .collect();
     let Players {
         injury,
         condition,
@@ -107,14 +123,16 @@ fn injuries(world: &mut World, events: &mut Vec<Event>) {
         if inj.is_some_and(|x| x.until <= today) {
             *inj = None;
         }
-        if inj.is_some() || status[i] != Status::Active || club[i].is_none() {
+        if inj.is_some() || status[i] != Status::Active {
             return;
         }
+        let Some(c) = club[i] else { return };
+        let (prevention, treatment) = medical[c.index()];
         let mut rng = seed.derive(Stream::Injury, day, i as u64);
         let proneness = f64::from(hidden[i].get(HiddenAttr::InjuryProneness)) / 1000.0;
         let load = 1.0 + f64::from(condition[i].fatigue) / 5000.0;
-        if rng.chance(TRAINING_INJURY_RATE * (0.5 + proneness) * load) {
-            *inj = Some(sample_injury(&mut rng, today, proneness * 0.5));
+        if rng.chance(TRAINING_INJURY_RATE * (0.5 + proneness) * load * prevention) {
+            *inj = Some(sample_injury(&mut rng, today, proneness * 0.5, treatment));
         }
     });
     for c in world.clubs.ids().filter(|&c| world.is_human_club(c)) {
@@ -149,6 +167,17 @@ fn development(world: &mut World) {
             }
         }
     }
+    // Coaching: (seniors, under-21s) per club.
+    let coaching: Vec<(f64, f64)> = world
+        .clubs
+        .ids()
+        .map(|c| {
+            staff::coaching_factors(
+                &staff::ratings(world, c),
+                world.clubs[c].facilities.training,
+            )
+        })
+        .collect();
     let Players {
         attributes,
         positions,
@@ -172,13 +201,21 @@ fn development(world: &mut World) {
             Some(c) if played[c.index()] == 0 => 0.5,
             Some(c) => f64::from(season[i].minutes) / (90.0 * f64::from(played[c.index()])),
         };
+        // Free agents train alone.
+        let coached = club[i].map_or(0.85, |c| {
+            let (senior, youth) = coaching[c.index()];
+            if age < 21.0 { youth } else { senior }
+        });
         develop_month(
             attrs,
             positions[i].best(),
             potential[i],
             age,
-            professionalism,
-            playing,
+            GrowthFactors {
+                professionalism,
+                playing_time: playing,
+                coaching: coached,
+            },
             &mut rng,
         );
     });

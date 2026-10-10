@@ -7,9 +7,12 @@
 //! basis for replays, bug reports and future online leagues.
 
 pub use fs_core::attributes;
+pub mod board;
 pub mod club;
 pub mod command;
 pub mod competition;
+pub mod economy;
+pub mod finance;
 pub mod game;
 pub mod league;
 pub mod lineup;
@@ -21,17 +24,21 @@ pub mod names;
 pub mod nation;
 pub mod people;
 pub mod player;
+pub mod scouting;
 pub mod season;
 pub mod snapshot;
 pub mod squad;
+pub mod staff;
 pub mod tick;
 pub mod world;
 
 pub use attributes::{Attr, Attributes, Hidden, HiddenAttr, Position, PositionRatings};
+pub use board::Board;
 pub use club::Club;
 pub use command::{Actor, Command, CommandError, CommandRecord, Event};
+pub use finance::{Facilities, Finances, Ledger, Money, SeasonAccounts};
 pub use game::{Game, ReplayError, replay};
-pub use ids::{ClubId, LeagueId, ManagerId, NationId, PlayerId};
+pub use ids::{ClubId, LeagueId, ManagerId, NationId, PlayerId, StaffId};
 pub use league::{Fixture, League, LeagueSeason, SeasonSummary, TableRow};
 pub use lineup::Lineup;
 pub use live::{PendingMatchDay, WatchedFixture};
@@ -42,4 +49,5 @@ pub use player::{
     Condition, Contract, Foot, Injury, PlayerBio, PlayerInit, Players, SeasonStats, Status,
 };
 pub use snapshot::SnapshotError;
+pub use staff::{Staff, StaffAttrs, StaffRole};
 pub use world::World;

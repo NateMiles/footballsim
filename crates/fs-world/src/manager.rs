@@ -30,6 +30,7 @@ pub struct Manager {
     pub delegate_squad: bool,
     /// For a human manager: stop on match days so the match can be
     /// watched and managed live.
-    #[serde(default)]
     pub watch_matches: bool,
+    /// Standing in the game, 0-10000: what clubs look at when hiring.
+    pub reputation: u16,
 }

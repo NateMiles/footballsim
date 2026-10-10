@@ -248,17 +248,32 @@ pub fn age_years(birth: GameDate, today: GameDate) -> f64 {
 /// One month of development for one player: growth toward potential while
 /// young, a plateau, then decline, physical attributes first.
 ///
-/// `professionalism` and `playing_time` are 0-1; playing time is the share
-/// of available minutes the player has had this season.
+/// What drives a player's growth besides age and potential.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GrowthFactors {
+    /// The player's professionalism, 0-1.
+    pub professionalism: f64,
+    /// Share of available minutes played this season, 0-1.
+    pub playing_time: f64,
+    /// The club's coaches and training ground: 1 for average.
+    pub coaching: f64,
+}
+
+/// One month of development for one player: growth toward potential while
+/// young, a plateau, then decline, physical attributes first.
 pub fn develop_month(
     attrs: &mut Attributes,
     best: Position,
     potential: u16,
     age: f64,
-    professionalism: f64,
-    playing_time: f64,
+    growth: GrowthFactors,
     rng: &mut Rng,
 ) {
+    let GrowthFactors {
+        professionalism,
+        playing_time,
+        coaching,
+    } = growth;
     let rating = f64::from(best.role_rating(attrs));
     // Growth is roughly linear: enough to climb from a 250 baseline to
     // potential over eight years, fastest in the late teens and tailing
@@ -277,8 +292,9 @@ pub fn develop_month(
     let growth = (pace
         * growth_age
         * (0.6 + 0.8 * professionalism)
-        * (0.7 + 0.6 * playing_time.clamp(0.0, 1.0)))
-    .min(gap * 0.15);
+        * (0.7 + 0.6 * playing_time.clamp(0.0, 1.0))
+        * coaching)
+        .min(gap * 0.15);
     let physical_decline = if age > 29.0 { (age - 29.0) * 1.0 } else { 0.0 };
     let skill_decline = if age > 32.0 { (age - 32.0) * 0.8 } else { 0.0 };
     let experience = if (26.0..32.0).contains(&age) {
@@ -349,8 +365,11 @@ mod tests {
                 Position::MidfielderCentre,
                 potential,
                 age + f64::from(m) / 12.0,
-                0.5,
-                0.8,
+                GrowthFactors {
+                    professionalism: 0.5,
+                    playing_time: 0.8,
+                    coaching: 1.0,
+                },
                 &mut rng,
             );
         }

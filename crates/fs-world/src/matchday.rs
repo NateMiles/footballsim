@@ -2,10 +2,12 @@
 //! selection, and playing the day's fixtures.
 
 use crate::command::Event;
+use crate::economy;
 use crate::ids::{ClubId, LeagueId, PlayerId};
 use crate::league::FixtureResult;
 use crate::lineup::sheet_from_lineup;
 use crate::player::{CONDITION_MAX, Injury, Severity};
+use crate::staff;
 use crate::world::World;
 use fs_core::attributes::Position;
 use fs_core::{GameDate, Stream};
@@ -243,6 +245,11 @@ fn apply_result(
         (f.home, f.away)
     };
     let clubs = [home, away];
+    economy::gate_receipts(world, home, away, match_key(year, lid, index));
+    for (side, &club) in clubs.iter().enumerate() {
+        let opponents: Vec<PlayerId> = r.players[1 - side].iter().map(|p| p.player).collect();
+        crate::scouting::after_match(world, club, &opponents);
+    }
 
     // League record.
     let scorers: Vec<(u8, PlayerId)> = r
@@ -358,7 +365,8 @@ fn apply_result(
                 let proneness = f64::from(
                     world.players.hidden[i].get(fs_core::attributes::HiddenAttr::InjuryProneness),
                 ) / 1000.0;
-                let injury = sample_injury(&mut rng, today, proneness);
+                let treatment = staff::treatment_factor(&staff::ratings(world, club));
+                let injury = sample_injury(&mut rng, today, proneness, treatment);
                 world.players.injury[i] = Some(injury);
                 if human {
                     events.push(Event::PlayerInjured {
@@ -381,7 +389,13 @@ fn apply_result(
 
 /// Draws an injury's severity and length. Injury-prone players (0-1) are
 /// out longer.
-pub(crate) fn sample_injury(rng: &mut fs_core::Rng, today: GameDate, proneness: f64) -> Injury {
+/// `treatment` scales the time out: 1 with an average medical team.
+pub(crate) fn sample_injury(
+    rng: &mut fs_core::Rng,
+    today: GameDate,
+    proneness: f64,
+    treatment: f64,
+) -> Injury {
     let roll = rng.unit_f64();
     let (severity, lo, hi) = if roll < 0.6 {
         (Severity::Minor, 3, 12)
@@ -390,7 +404,7 @@ pub(crate) fn sample_injury(rng: &mut fs_core::Rng, today: GameDate, proneness: 
     } else {
         (Severity::Serious, 60, 220)
     };
-    let days = f64::from(rng.range_i32(lo, hi)) * (0.8 + 0.4 * proneness);
+    let days = f64::from(rng.range_i32(lo, hi)) * (0.8 + 0.4 * proneness) * treatment;
     Injury {
         severity,
         since: today,

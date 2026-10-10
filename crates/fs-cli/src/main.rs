@@ -9,6 +9,7 @@
 //! fs-cli predict     [--seed N] [--home N] [--away N] [--tier 1|2] [--runs N]
 //! fs-cli calibrate   [--seed N] [--seasons N] [--tier 1|2] [--out FILE]
 //! fs-cli career      [--size ...] [--seed N] [--seasons N]
+//! fs-cli economy     [--size ...] [--seed N]
 //! fs-cli compare-tiers [--runs N]
 //! fs-cli fit-tier2   [--seed N] [--seasons N] [--out crates/fs-match/src/fitted.rs]
 //! ```
@@ -40,7 +41,7 @@ struct Args {
     out: Option<String>,
 }
 
-const USAGE: &str = "usage: fs-cli <gen|run|squad|determinism|match|predict|calibrate|compare-tiers|fit-tier2|career> \
+const USAGE: &str = "usage: fs-cli <gen|run|squad|determinism|match|predict|calibrate|compare-tiers|fit-tier2|career|economy> \
 [--size tiny|small|medium|large] [--seed N] [--days N] [--club N] [--home N] [--away N] \
 [--tier 1|2] [--runs N] [--seasons N] [--out FILE]";
 
@@ -111,6 +112,7 @@ fn main() -> ExitCode {
         "fit-tier2" => return fit_cmd(&args),
         "compare-tiers" => compare_cmd(&args),
         "career" => career_cmd(&args),
+        "economy" => economy_cmd(&args),
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::from(2);
@@ -650,6 +652,7 @@ fn career_cmd(a: &Args) {
             pct(bands[4]),
             academy
         );
+        println!("  Economy: {}", fs_world::economy::health(w));
         for (row, &p) in prospect_rows.iter_mut().zip(&prospects) {
             row.push(ps.ability(p));
         }
@@ -671,5 +674,67 @@ fn career_cmd(a: &Args) {
             ps.potential(p),
             abil.join(" ")
         );
+    }
+}
+
+/// Wage bills and money by reputation band, at the start and after
+/// `--seasons` seasons (default none), for tuning the economy model.
+fn economy_cmd(a: &Args) {
+    use fs_world::economy::{player_wage_bill, revenue_potential};
+    let mut game = Game::new(generate(&GenConfig::preset(a.size, a.seed)));
+    let report = |w: &World| {
+        let mut rows: Vec<(u16, f64, f64, f64, f64)> = w
+            .clubs()
+            .iter()
+            .map(|(id, c)| {
+                let f = c.finances();
+                let ledger = f.history.last().map_or(f.season, |x| x.ledger);
+                let pot = revenue_potential(c.reputation) as f64;
+                let income = ledger.operating_income().max(1) as f64;
+                (
+                    c.reputation,
+                    player_wage_bill(w, id) as f64 * 52.0 / pot,
+                    ledger.player_wages as f64 / income,
+                    income / pot,
+                    f.balance as f64 / pot,
+                )
+            })
+            .collect();
+        rows.sort_by_key(|r| r.0);
+        println!(
+            "reputation    clubs  bill/potential  wages/income  income/potential  balance/potential  in debt"
+        );
+        for band in rows.chunks(rows.len().div_ceil(8).max(1)) {
+            let n = band.len() as f64;
+            let mean =
+                |k: fn(&(u16, f64, f64, f64, f64)) -> f64| band.iter().map(k).sum::<f64>() / n;
+            let debt = band.iter().filter(|r| r.4 < 0.0).count();
+            println!(
+                "{:>5}-{:<5}  {:>5}  {:>14.2}  {:>12.2}  {:>16.2}  {:>17.2}  {:>7}",
+                band[0].0,
+                band[band.len() - 1].0,
+                band.len(),
+                mean(|r| r.1),
+                mean(|r| r.2),
+                mean(|r| r.3),
+                mean(|r| r.4),
+                debt
+            );
+        }
+        println!("{}\n", fs_world::economy::health(w));
+    };
+    report(game.world());
+    for _ in 0..a.seasons.min(50) {
+        let year = fs_world::people::season_year(game.world().date());
+        let target = fs_core::GameDate::from_ymd(year + 1, 7, 2).expect("valid date");
+        while game.world().date() < target {
+            let days = target.days_since(game.world().date()).min(366) as u16;
+            game.submit(Actor::System, Command::Advance { days })
+                .expect("advance");
+        }
+    }
+    if a.seasons > 0 {
+        println!("After {} seasons:", a.seasons);
+        report(game.world());
     }
 }

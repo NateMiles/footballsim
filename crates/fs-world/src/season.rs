@@ -3,6 +3,7 @@
 
 use crate::command::Event;
 use crate::competition::{double_round_robin, season_dates};
+use crate::economy;
 use crate::ids::{ClubId, LeagueId, PlayerId};
 use crate::league::{Fixture, LeagueSeason, SeasonSummary, TableRow};
 use crate::matchday::refresh_ai_tactics;
@@ -64,15 +65,18 @@ pub fn current_season(world: &World) -> Option<i32> {
 /// 1 July: close the old season and open the new one.
 pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
     let year = season_year(world.date());
+    economy::close_accounts(world, year - 1);
     close_season(world, events);
     record_careers(world, year - 1);
     expire_contracts(world, events);
+    crate::staff::rollover(world, events);
     retirements(world, events);
     potential_drift(world);
     youth_intake(world, events);
     maintain_squads(world, events);
     refresh_ai_tactics(world);
     start_season(world, year);
+    economy::set_budgets(world);
 }
 
 /// Archives every league's season and applies promotion and relegation.
@@ -304,9 +308,14 @@ fn youth_intake(world: &mut World, events: &mut Vec<Event>) {
     for club in world.clubs.ids() {
         let mut rng = seed.derive(Stream::Youth, year, u64::from(club.raw()));
         let count = 2 + rng.below(3);
+        // An academy better than the club's standing turns out better
+        // prospects: about 8 points of potential per point of youth
+        // facilities above what such a club usually has.
         let (home_nation, level) = {
             let c = &world.clubs[club];
-            (c.nation, i32::from(c.reputation / 10))
+            let usual = crate::finance::usual_facilities(c.reputation);
+            let academy = ((f64::from(c.facilities.youth) - usual) * 8.0) as i32;
+            (c.nation, i32::from(c.reputation / 10) + academy)
         };
         let mut joined = Vec::new();
         for k in 0..count {

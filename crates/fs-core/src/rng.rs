@@ -45,6 +45,14 @@ pub enum Stream {
     Development = 8,
     /// Season rollover: retirements, contract decisions.
     Season = 9,
+    /// Scouting estimates: what a club believes about a player.
+    Scouting = 10,
+    /// Club finances: attendances and other variable income.
+    Finance = 11,
+    /// Staff: generation, development and hiring.
+    Staff = 12,
+    /// Boards and the managers' job market.
+    Board = 13,
 }
 
 impl Seed {

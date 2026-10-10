@@ -9,7 +9,11 @@ pub mod scenario;
 use fs_core::{GameDate, Rng, Seed, Stream};
 use fs_world::attributes::Position;
 use fs_world::people::{Age, PlayerSpec, new_player};
-use fs_world::{Club, ClubId, Control, League, Manager, NameRef, Nation, NationId, World};
+use fs_world::staff::{self, StaffRole};
+use fs_world::{
+    Club, ClubId, Contract, Control, Facilities, League, Manager, NameRef, Nation, NationId, World,
+    economy,
+};
 use names::{NameStyle, STYLES};
 
 /// What to generate.
@@ -165,6 +169,7 @@ pub fn generate(cfg: &GenConfig) -> World {
                 club: Some(club_id),
                 delegate_squad: false,
                 watch_matches: false,
+                reputation: world.clubs()[club_id].reputation,
             });
             let level = i32::from(world.clubs()[club_id].reputation) / 10;
             for slot in 0..cfg.players_per_club {
@@ -261,9 +266,59 @@ pub fn generate(cfg: &GenConfig) -> World {
         }
     }
     fs_world::season::start_first_season(&mut world);
+    add_backroom(&mut world, cfg);
+    fs_world::economy::initialise(&mut world);
 
     debug_assert_eq!(world.check_invariants(), Ok(()));
     world
+}
+
+/// Facilities and staff for every club, plus a pool of unemployed staff.
+/// Separate random streams, so the players are the same as without them.
+fn add_backroom(world: &mut World, cfg: &GenConfig) {
+    let clubs: Vec<ClubId> = world.clubs().ids().collect();
+    for club in clubs {
+        let mut rng = cfg.seed.derive(Stream::Staff, 1, u64::from(club.raw()));
+        let rep = world.clubs()[club].reputation;
+        let r = f64::from(rep) / 10_000.0;
+        let capacity = f64::from(economy::fans(rep)) * rng.range_f64(0.9, 1.4);
+        let usual = fs_world::finance::usual_facilities(rep);
+        let rating = |rng: &mut Rng| (usual + rng.normal(0.0, 2.0)).round().clamp(1.0, 20.0) as u8;
+        world.set_facilities(
+            club,
+            Facilities {
+                capacity: ((capacity / 500.0).round() * 500.0).max(1_000.0) as u32,
+                training: rating(&mut rng),
+                youth: rating(&mut rng),
+            },
+        );
+        let nation = world.clubs()[club].nation;
+        let quality = staff::quality_for_reputation(rep);
+        for role in StaffRole::ALL {
+            let (want, _) = role.wanted();
+            let extra =
+                usize::from(rng.chance(r)) * usize::from(role != StaffRole::AssistantManager);
+            for _ in 0..want + extra {
+                let s =
+                    staff::new_staff(world.nations(), &mut rng, cfg.start, nation, role, quality);
+                let contract = Contract {
+                    wage: s.wage_demand(),
+                    expires: fs_world::squad::contract_expiry(cfg.start, rng.range_i32(1, 4) as u8),
+                };
+                world.add_staff_at(s, club, contract);
+            }
+        }
+    }
+    // Unemployed staff: about one per club, of every standard.
+    let pool = world.clubs().len().max(20);
+    for i in 0..pool {
+        let mut rng = cfg.seed.derive(Stream::Staff, 2, i as u64);
+        let nation = NationId::new(rng.below(u32::from(cfg.nations)));
+        let role = StaffRole::ALL[rng.index(StaffRole::ALL.len())];
+        let quality = rng.range_f64(3.0, 15.0);
+        let s = staff::new_staff(world.nations(), &mut rng, cfg.start, nation, role, quality);
+        world.add_staff(s);
+    }
 }
 
 const ORDINALS: [&str; 10] = [

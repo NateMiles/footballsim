@@ -3,7 +3,7 @@
 //! A command is validated completely before anything changes, so a
 //! rejected command has no effect and is not recorded.
 
-use crate::ids::{ClubId, LeagueId, ManagerId, PlayerId};
+use crate::ids::{ClubId, LeagueId, ManagerId, PlayerId, StaffId};
 use crate::lineup::Lineup;
 use crate::live::{self, PendingMatchDay};
 use crate::manager::{Control, Manager};
@@ -89,6 +89,18 @@ pub enum Command {
     /// substitutions. Like [`Command::PlayMatch`], the day's matches are
     /// played once every watched match is accounted for.
     SkipMatch,
+    /// Hire a free staff member, or renew the contract of one of yours.
+    HireStaff {
+        staff: StaffId,
+        wage: u32,
+        years: u8,
+    },
+    /// Dismiss a staff member, paying three months' wages.
+    ReleaseStaff { staff: StaffId },
+    /// Send the scouts to watch a player.
+    ScoutPlayer { player: PlayerId },
+    /// Stop scouting a player.
+    CancelScouting { player: PlayerId },
 }
 
 /// An applied command, as stored in the command log.
@@ -177,6 +189,18 @@ pub enum Event {
     LineupChanged { club: ClubId },
     /// A manager took charge of a club.
     ManagerAppointed { manager: ManagerId, club: ClubId },
+    /// A club hired a staff member (or renewed their contract).
+    StaffHired { staff: StaffId, club: ClubId },
+    /// A staff member left a club.
+    StaffLeft { staff: StaffId, club: ClubId },
+    /// The scouts finished assessing a player.
+    ScoutReport { club: ClubId, player: PlayerId },
+    /// A human-managed club's staff member has a contract ending soon.
+    StaffContractExpiring {
+        staff: StaffId,
+        club: ClubId,
+        expires: GameDate,
+    },
 }
 
 /// Why a command was rejected.
@@ -226,6 +250,22 @@ pub enum CommandError {
     ClubTaken(ClubId),
     #[error("names must be 1-{MAX_NAME_LEN} bytes")]
     InvalidName,
+    #[error("unknown staff member {0}")]
+    UnknownStaff(StaffId),
+    #[error("{0} works for another club")]
+    StaffAtAnotherClub(StaffId),
+    #[error("{0} does not want to join a club of this standing")]
+    StaffNotInterested(StaffId),
+    #[error("the club already has {0} {1}s")]
+    StaffRoleFull(usize, &'static str),
+    #[error("the staff member wants at least {demand} a week")]
+    StaffWageTooLow { demand: u32 },
+    #[error("{0} does not work for your club")]
+    NotYourStaff(StaffId),
+    #[error("the scouts already have {0} players to watch")]
+    TooManyAssignments(usize),
+    #[error("{0} is already one of your players")]
+    OwnPlayer(PlayerId),
 }
 
 /// Largest squad a club may register.
@@ -410,6 +450,33 @@ impl World {
                 let watched = self.awaited_match(actor)?;
                 Ok(self.match_reported(watched.manager))
             }
+            Command::HireStaff { staff, wage, years } => {
+                self.hire_staff_command(actor, staff, wage, years)
+            }
+            Command::ReleaseStaff { staff } => self.release_staff_command(actor, staff),
+            Command::ScoutPlayer { player } => {
+                let club = self.managed_club(actor)?;
+                if !self.players.contains(player) {
+                    return Err(CommandError::UnknownPlayer(player));
+                }
+                if self.players.status(player) == Status::Retired {
+                    return Err(CommandError::Retired(player));
+                }
+                if self.players.club(player) == Some(club) {
+                    return Err(CommandError::OwnPlayer(player));
+                }
+                let n = self.scouting.assignments(club).len();
+                if n >= crate::scouting::MAX_ASSIGNMENTS {
+                    return Err(CommandError::TooManyAssignments(n));
+                }
+                self.scouting.assign(club, player);
+                Ok(Vec::new())
+            }
+            Command::CancelScouting { player } => {
+                let club = self.managed_club(actor)?;
+                self.scouting.cancel(club, player);
+                Ok(Vec::new())
+            }
             Command::SetLineup { ref lineup } => {
                 let club = self.managed_club(actor)?;
                 self.require_unlocked(club)?;
@@ -472,10 +539,85 @@ impl World {
                     club: Some(club),
                     delegate_squad: false,
                     watch_matches: true,
+                    // A newcomer: known, but with everything to prove.
+                    reputation: self.clubs[club].reputation / 2,
                 });
                 Ok(vec![Event::ManagerAppointed { manager, club }])
             }
         }
+    }
+
+    fn hire_staff_command(
+        &mut self,
+        actor: Actor,
+        staff: StaffId,
+        wage: u32,
+        years: u8,
+    ) -> Result<Vec<Event>, CommandError> {
+        let club = self.managed_club(actor)?;
+        let st = self
+            .staff
+            .get(staff)
+            .ok_or(CommandError::UnknownStaff(staff))?;
+        let renewal = st.club == Some(club);
+        if !renewal {
+            if st.club.is_some() {
+                return Err(CommandError::StaffAtAnotherClub(staff));
+            }
+            if !crate::staff::available(self, staff, self.date) {
+                return Err(CommandError::StaffNotInterested(staff));
+            }
+            if !st.would_join(self.clubs[club].reputation) {
+                return Err(CommandError::StaffNotInterested(staff));
+            }
+            let (_, max) = st.role.wanted();
+            let have = self.clubs[club]
+                .staff
+                .iter()
+                .filter(|&&s| self.staff[s].role == st.role)
+                .count();
+            if have >= max {
+                return Err(CommandError::StaffRoleFull(have, st.role.label()));
+            }
+        }
+        if !(1..=5).contains(&years) {
+            return Err(CommandError::InvalidYears(years));
+        }
+        let demand = st.wage_demand();
+        if u64::from(wage) * 10 < u64::from(demand) * 9 {
+            return Err(CommandError::StaffWageTooLow { demand });
+        }
+        let contract = Contract {
+            wage,
+            expires: contract_expiry(self.date, years),
+        };
+        if renewal {
+            self.staff[staff].contract = Some(contract);
+        } else {
+            self.hire_staff(staff, club, contract);
+        }
+        Ok(vec![Event::StaffHired { staff, club }])
+    }
+
+    fn release_staff_command(
+        &mut self,
+        actor: Actor,
+        staff: StaffId,
+    ) -> Result<Vec<Event>, CommandError> {
+        let club = self.managed_club(actor)?;
+        let st = self
+            .staff
+            .get(staff)
+            .ok_or(CommandError::UnknownStaff(staff))?;
+        if st.club != Some(club) {
+            return Err(CommandError::NotYourStaff(staff));
+        }
+        let severance = st.contract.map_or(0, |c| i64::from(c.wage) * 13);
+        self.clubs[club]
+            .finances
+            .spend(|l| &mut l.staff_wages, severance);
+        self.release_staff(staff);
+        Ok(vec![Event::StaffLeft { staff, club }])
     }
 
     /// The match `actor` is due to watch today.

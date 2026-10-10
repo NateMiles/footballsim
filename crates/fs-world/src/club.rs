@@ -1,6 +1,8 @@
 //! Clubs.
 
-use crate::ids::{LeagueId, ManagerId, NationId, PlayerId};
+use crate::board::Board;
+use crate::finance::{Facilities, Finances};
+use crate::ids::{LeagueId, ManagerId, NationId, PlayerId, StaffId};
 use crate::lineup::Lineup;
 use fs_match::Tactic;
 use serde::{Deserialize, Serialize};
@@ -24,12 +26,16 @@ pub struct Club {
     /// empty.
     pub(crate) ai_tactic: Option<Tactic>,
     /// Lineup chosen by a human manager; automatic selection when empty.
-    #[serde(default)]
     pub(crate) lineup: Option<Lineup>,
     /// Everyone registered with the club, in the order they joined.
     /// Maintained by [`crate::World`] only, so it always agrees with each
     /// player's club.
     pub(crate) squad: Vec<PlayerId>,
+    /// Backroom staff. Maintained by [`crate::World`].
+    pub(crate) staff: Vec<StaffId>,
+    pub(crate) finances: Finances,
+    pub facilities: Facilities,
+    pub(crate) board: Board,
 }
 
 impl Club {
@@ -46,12 +52,29 @@ impl Club {
             ai_tactic: None,
             lineup: None,
             squad: Vec::new(),
+            staff: Vec::new(),
+            finances: Finances::default(),
+            facilities: Facilities::default(),
+            board: Board::default(),
         }
     }
 
     /// Players registered with the club.
     pub fn squad(&self) -> &[PlayerId] {
         &self.squad
+    }
+
+    /// Backroom staff.
+    pub fn staff(&self) -> &[StaffId] {
+        &self.staff
+    }
+
+    pub fn finances(&self) -> &Finances {
+        &self.finances
+    }
+
+    pub fn board(&self) -> &Board {
+        &self.board
     }
 
     /// The club's league, if any.
