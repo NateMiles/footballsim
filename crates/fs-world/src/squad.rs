@@ -98,13 +98,34 @@ pub fn first_team_age(world: &World, p: PlayerId, today: GameDate) -> bool {
     age_years(world.players().bio(p).birth_date, today) >= ACADEMY_AGE
 }
 
-/// The first-team players (18 and over), most valuable first.
+/// Players a club holds the contracts of: its squad without players
+/// borrowed from other clubs, plus its own players out on loan.
+pub fn contracted(world: &World, club: ClubId) -> Vec<PlayerId> {
+    let market = world.market();
+    let mut v: Vec<PlayerId> = world.clubs()[club]
+        .squad()
+        .iter()
+        .copied()
+        .filter(|&p| market.loan(p).is_none_or(|l| l.parent == club))
+        .collect();
+    v.extend(
+        market
+            .loans()
+            .iter()
+            .filter(|(_, l)| l.parent == club)
+            .map(|(&p, _)| p),
+    );
+    v
+}
+
+/// The first-team players (18 and over) the club owns and has with it,
+/// most valuable first.
 fn ranked_first_team(world: &World, club: ClubId, today: GameDate) -> Vec<PlayerId> {
     let mut squad: Vec<PlayerId> = world.clubs()[club]
         .squad()
         .iter()
         .copied()
-        .filter(|&p| first_team_age(world, p, today))
+        .filter(|&p| first_team_age(world, p, today) && world.market().loan(p).is_none())
         .collect();
     squad.sort_by(|&a, &b| {
         value(world, b, today)
@@ -131,10 +152,8 @@ pub(crate) fn renew_contracts(world: &mut World, events: &mut Vec<Event>) {
     let today = world.date();
     let ending = season_end(season_year(today));
     for club in world.clubs.ids() {
-        let expiring: Vec<PlayerId> = world.clubs[club]
-            .squad
-            .iter()
-            .copied()
+        let expiring: Vec<PlayerId> = contracted(world, club)
+            .into_iter()
             .filter(|&p| {
                 world
                     .players
@@ -155,13 +174,24 @@ pub(crate) fn renew_contracts(world: &mut World, events: &mut Vec<Event>) {
         let ranked = ranked_first_team(world, club, today);
         let bar = first_team_bar(world, &ranked);
         let keep: Vec<PlayerId> = ranked.iter().copied().take(TARGET_SIZE - 2).collect();
+        // Renewals must fit the wage budget; the best eleven may stretch it
+        // by a tenth. Stars the club cannot afford leave on a free.
+        let budget = world.clubs[club].finances.wage_budget;
+        let mut room = budget - crate::economy::player_wage_bill(world, club);
         for p in expiring {
             let age = age_years(world.players.bio(p).birth_date, today);
-            let core = ranked.iter().position(|&q| q == p).is_some_and(|k| k < 14);
+            let rank = ranked.iter().position(|&q| q == p);
+            let core = rank.is_some_and(|k| k < 14);
+            let star = rank.is_some_and(|k| k < 11);
             let prospect = age < 21.0 && u32::from(world.players.potential(p)) + 30 >= bar;
-            if prospect || (keep.contains(&p) && (age < 33.0 || (age < 35.0 && core))) {
-                let ps = &world.players;
-                let wage = wage_demand(ps.ability(p), ps.potential(p), age as u32);
+            let ps = &world.players;
+            let wage = wage_demand(ps.ability(p), ps.potential(p), age as u32);
+            let rise = i64::from(wage) - ps.contract(p).map_or(0, |c| i64::from(c.wage));
+            let affordable = rise <= room || (star && rise <= room + budget / 10);
+            if affordable
+                && (prospect || (keep.contains(&p) && (age < 33.0 || (age < 35.0 && core))))
+            {
+                room -= rise;
                 world.players.contract[p.index()] = Some(Contract {
                     wage,
                     expires: contract_expiry(today, years_for_age(age)),
@@ -176,7 +206,7 @@ pub(crate) fn warn_expiring(world: &World, events: &mut Vec<Event>) {
     let today = world.date();
     let ending = season_end(season_year(today));
     for club in world.clubs().ids().filter(|&c| !world.ai_runs_squad(c)) {
-        for &p in world.clubs()[club].squad() {
+        for p in contracted(world, club) {
             if world
                 .players()
                 .contract(p)
@@ -264,13 +294,23 @@ pub(crate) fn maintain_squads(world: &mut World, events: &mut Vec<Event>) {
     });
     for club in order {
         let cap = wage_cap(world.clubs[club].reputation);
+        let budget = world.clubs[club].finances.wage_budget;
+        // A club missing positions it must fill can always afford a
+        // modest squad player, whatever its budget says.
+        let modest = (0.6 * crate::economy::wage_scale(world.clubs[club].reputation)) as i64;
         for _ in 0..8 {
+            let room = budget - crate::economy::player_wage_bill(world, club);
             let Some(need) = most_needed(world, club, today) else {
                 break;
             };
-            let pick = free
-                .iter()
-                .position(|&(_, g, demand)| need.is_none_or(|n| n == g) && demand <= cap);
+            let allowed = if need.is_some() {
+                room.max(modest)
+            } else {
+                room
+            };
+            let pick = free.iter().position(|&(_, g, demand)| {
+                need.is_none_or(|n| n == g) && demand <= cap && i64::from(demand) <= allowed
+            });
             let Some(k) = pick else { break };
             let (p, _, wage) = free.remove(k);
             let age = age_years(world.players.bio(p).birth_date, today);
@@ -279,6 +319,64 @@ pub(crate) fn maintain_squads(world: &mut World, events: &mut Vec<Event>) {
                 expires: contract_expiry(today, years_for_age(age)),
             };
             world.sign_player(p, club, contract);
+            if world.is_human_club(club) {
+                events.push(Event::PlayerSigned { player: p, club });
+            }
+        }
+    }
+}
+
+/// Squads below this sign whoever they can, whatever the budget.
+pub const EMERGENCY_SIZE: usize = 16;
+
+/// Daily safety net: any club down to fewer than [`EMERGENCY_SIZE`]
+/// players signs the cheapest free agents it needs, on one-year deals, so
+/// every club can always field a team.
+pub(crate) fn emergency_signings(world: &mut World, events: &mut Vec<Event>) {
+    let short: Vec<ClubId> = world
+        .clubs()
+        .ids()
+        .filter(|&c| world.clubs()[c].squad().len() < EMERGENCY_SIZE)
+        .collect();
+    if short.is_empty() {
+        return;
+    }
+    let today = world.date();
+    let mut free: Vec<(u32, PlayerId, Group)> = world
+        .players
+        .ids()
+        .filter(|&p| {
+            world.players.status(p) == Status::Active
+                && world.players.club(p).is_none()
+                && first_team_age(world, p, today)
+        })
+        .map(|p| {
+            let ps = &world.players;
+            let age = age_years(ps.bio(p).birth_date, today) as u32;
+            (
+                wage_demand(ps.ability(p), ps.potential(p), age),
+                p,
+                Group::of(ps.positions(p).best()),
+            )
+        })
+        .collect();
+    free.sort_unstable();
+    for club in short {
+        while world.clubs[club].squad.len() < EMERGENCY_SIZE && !free.is_empty() {
+            let need = most_needed(world, club, today).flatten();
+            let k = free
+                .iter()
+                .position(|f| need.is_none_or(|g| g == f.2))
+                .unwrap_or(0);
+            let (wage, p, _) = free.remove(k);
+            world.sign_player(
+                p,
+                club,
+                Contract {
+                    wage,
+                    expires: contract_expiry(today, 1),
+                },
+            );
             if world.is_human_club(club) {
                 events.push(Event::PlayerSigned { player: p, club });
             }

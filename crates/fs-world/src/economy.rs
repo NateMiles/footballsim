@@ -19,7 +19,7 @@ const BROADCAST_SHARE: f64 = 0.35;
 const PRIZE_SHARE: f64 = 0.10;
 const RUNNING_COST_SHARE: f64 = 0.15;
 /// Share of revenue potential the board allows in player wages.
-pub const WAGE_BUDGET_SHARE: f64 = 0.62;
+pub const WAGE_BUDGET_SHARE: f64 = 0.66;
 /// Months of wages a board keeps in reserve before releasing money for
 /// transfers.
 const RESERVE_MONTHS: f64 = 3.0;
@@ -87,14 +87,22 @@ pub fn commercial_income(world: &World, club: ClubId) -> Money {
     rest.max(potential / 50)
 }
 
-/// Weekly wages of a club's players.
+/// Weekly wages a club pays its players, including its share for players
+/// on loan in either direction.
 pub fn player_wage_bill(world: &World, club: ClubId) -> Money {
-    world.clubs()[club]
+    let squad: Money = world.clubs()[club]
         .squad()
         .iter()
-        .filter_map(|&p| world.players().contract(p))
-        .map(|c| Money::from(c.wage))
-        .sum()
+        .map(|&p| crate::transfer::wage_paid(world, club, p))
+        .sum();
+    let loaned_out: Money = world
+        .market()
+        .loans()
+        .iter()
+        .filter(|(_, l)| l.parent == club)
+        .map(|(&p, _)| crate::transfer::wage_paid(world, club, p))
+        .sum();
+    squad + loaned_out
 }
 
 /// Weekly wages of a club's staff.
@@ -194,15 +202,65 @@ pub(crate) fn set_budgets(world: &mut World) {
         .map(|c| {
             let club = &world.clubs()[c];
             let potential = revenue_potential(club.reputation) as f64;
-            let wage_budget = (WAGE_BUDGET_SHARE * potential / 52.0) as Money;
-            let reserve = (RESERVE_MONTHS * monthly(wage_budget) as f64) as Money;
+            let base = (WAGE_BUDGET_SHARE * potential / 52.0) as Money;
+            let reserve = (RESERVE_MONTHS * monthly(base) as f64) as Money;
             let spare = club.finances.balance - reserve;
+            // Savings stretch the wage budget a little: a quarter of them
+            // spread over four seasons.
+            let wage_budget = base + spare.max(0) / 4 / (4 * 52);
             (wage_budget, (spare / 2).max(0))
         })
         .collect();
     for (club, (wages, transfers)) in world.clubs.as_mut_slice().iter_mut().zip(budgets) {
         club.finances.wage_budget = wages;
         club.finances.transfer_budget = transfers;
+    }
+}
+
+/// Facilities wear: the chance each season that a rating drops a point.
+const WEAR: f64 = 0.2;
+/// Cost of one point of training or youth facilities, as a share of
+/// revenue potential.
+const FACILITY_COST: f64 = 0.25;
+/// Cost of adding a tenth to the stadium, as a share of revenue potential.
+const STADIUM_COST: f64 = 0.2;
+
+/// The summer: facilities wear, and boards with money to spare invest in
+/// one improvement: a bigger stadium if it is full, otherwise the weaker
+/// of the training ground and the academy.
+pub(crate) fn invest(world: &mut World) {
+    let year = crate::people::season_year(world.date()) as u64;
+    let seed = world.seed();
+    for (k, club) in world.clubs.as_mut_slice().iter_mut().enumerate() {
+        let mut rng = seed.derive(Stream::Finance, year, k as u64 | 1 << 40);
+        let f = &mut club.facilities;
+        if rng.chance(WEAR) {
+            f.training = f.training.saturating_sub(1).max(1);
+        }
+        if rng.chance(WEAR) {
+            f.youth = f.youth.saturating_sub(1).max(1);
+        }
+        let potential = revenue_potential(club.reputation) as f64;
+        let reserve = RESERVE_MONTHS / 12.0 * WAGE_BUDGET_SHARE * potential;
+        let spare = club.finances.balance as f64 - reserve;
+        if spare < 0.5 * potential {
+            continue;
+        }
+        let (cost, upgrade): (f64, fn(&mut crate::finance::Facilities)) = if fans(club.reputation)
+            > club.facilities.capacity
+        {
+            (STADIUM_COST, |f| f.capacity += f.capacity / 10)
+        } else if club.facilities.training <= club.facilities.youth && club.facilities.training < 20
+        {
+            (FACILITY_COST, |f| f.training += 1)
+        } else if club.facilities.youth < 20 {
+            (FACILITY_COST, |f| f.youth += 1)
+        } else {
+            continue;
+        };
+        upgrade(&mut club.facilities);
+        club.finances
+            .spend(|l| &mut l.investment, (cost * potential) as Money);
     }
 }
 

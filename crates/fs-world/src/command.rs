@@ -3,6 +3,7 @@
 //! A command is validated completely before anything changes, so a
 //! rejected command has no effect and is not recorded.
 
+use crate::finance::Money;
 use crate::ids::{ClubId, LeagueId, ManagerId, PlayerId, StaffId};
 use crate::lineup::Lineup;
 use crate::live::{self, PendingMatchDay};
@@ -11,6 +12,7 @@ use crate::people::{age_years, wage_demand};
 use crate::player::{Contract, Status};
 use crate::squad::contract_expiry;
 use crate::tick;
+use crate::transfer::{Listing, Offer, OfferKind, OfferStatus, Refusal};
 use crate::world::World;
 use fs_core::GameDate;
 use fs_match::{Side, Tactic, TimedInstruction};
@@ -101,6 +103,38 @@ pub enum Command {
     ScoutPlayer { player: PlayerId },
     /// Stop scouting a player.
     CancelScouting { player: PlayerId },
+    /// Bid for a player at another club during a transfer window. For a
+    /// transfer, `wage` and `years` are the contract offered to the player.
+    MakeOffer {
+        player: PlayerId,
+        kind: OfferKind,
+        wage: u32,
+        years: u8,
+    },
+    /// Answer an offer for one of your players.
+    RespondToOffer { offer: u32, response: OfferResponse },
+    /// Accept the fee a selling club asked for in reply to your offer.
+    AcceptCounter { offer: u32 },
+    /// Withdraw one of your offers.
+    WithdrawOffer { offer: u32 },
+    /// List one of your players for sale or loan, or take them off the list.
+    SetListing {
+        player: PlayerId,
+        listing: Option<Listing>,
+    },
+}
+
+/// A selling club's answer to an offer.
+///
+/// The variant order is part of the save format. Only append.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OfferResponse {
+    Accept,
+    Reject,
+    /// Name the fee you would accept.
+    Counter {
+        fee: Money,
+    },
 }
 
 /// An applied command, as stored in the command log.
@@ -193,6 +227,36 @@ pub enum Event {
     StaffHired { staff: StaffId, club: ClubId },
     /// A staff member left a club.
     StaffLeft { staff: StaffId, club: ClubId },
+    /// Another club bid for a human-managed club's player.
+    OfferReceived {
+        offer: u32,
+        player: PlayerId,
+        buyer: ClubId,
+        seller: ClubId,
+    },
+    /// An offer involving a human-managed club changed status.
+    OfferUpdated {
+        offer: u32,
+        player: PlayerId,
+        buyer: ClubId,
+        seller: ClubId,
+        status: OfferStatus,
+    },
+    /// A deal involving a human-managed club went through.
+    TransferCompleted {
+        player: PlayerId,
+        from: ClubId,
+        to: ClubId,
+        /// Zero for loans.
+        fee: Money,
+        loan: bool,
+    },
+    /// A loan ended and the player went back.
+    LoanEnded {
+        player: PlayerId,
+        from: ClubId,
+        to: ClubId,
+    },
     /// The scouts finished assessing a player.
     ScoutReport { club: ClubId, player: PlayerId },
     /// A human-managed club's staff member has a contract ending soon.
@@ -266,6 +330,24 @@ pub enum CommandError {
     TooManyAssignments(usize),
     #[error("{0} is already one of your players")]
     OwnPlayer(PlayerId),
+    #[error("the transfer window is closed")]
+    WindowClosed,
+    #[error("unknown offer {0}")]
+    UnknownOffer(u32),
+    #[error("that offer is not yours to answer")]
+    NotYourOffer,
+    #[error("that offer has already been settled")]
+    OfferClosed,
+    #[error("the transfer budget is {budget}")]
+    OverBudget { budget: Money },
+    #[error("you already have an offer in for {0}")]
+    AlreadyOffered(PlayerId),
+    #[error("{0} is on loan")]
+    OnLoan(PlayerId),
+    #[error("a loan's wage share must be 0-100%")]
+    InvalidWageShare,
+    #[error("fees cannot be negative")]
+    NegativeFee,
 }
 
 /// Largest squad a club may register.
@@ -374,6 +456,9 @@ impl World {
                 if current.is_some_and(|c| c != club) {
                     return Err(CommandError::AtAnotherClub(player));
                 }
+                if self.market.loans.contains_key(&player) {
+                    return Err(CommandError::OnLoan(player));
+                }
                 if !(1..=5).contains(&years) {
                     return Err(CommandError::InvalidYears(years));
                 }
@@ -419,6 +504,9 @@ impl World {
                         Actor::Manager(m) => m,
                         Actor::System => unreachable!("managed_club rejects the system"),
                     }));
+                }
+                if self.market.loans.contains_key(&player) {
+                    return Err(CommandError::OnLoan(player));
                 }
                 self.release_player(player);
                 Ok(vec![Event::PlayerLeft { player, club }])
@@ -475,6 +563,50 @@ impl World {
             Command::CancelScouting { player } => {
                 let club = self.managed_club(actor)?;
                 self.scouting.cancel(club, player);
+                Ok(Vec::new())
+            }
+            Command::MakeOffer {
+                player,
+                kind,
+                wage,
+                years,
+            } => self.make_offer(actor, player, kind, wage, years),
+            Command::RespondToOffer { offer, response } => {
+                self.respond_to_offer(actor, offer, response)
+            }
+            Command::AcceptCounter { offer } => self.accept_counter(actor, offer),
+            Command::WithdrawOffer { offer } => {
+                let club = self.managed_club(actor)?;
+                let o = *self
+                    .market
+                    .offer(offer)
+                    .ok_or(CommandError::UnknownOffer(offer))?;
+                if o.buyer != club {
+                    return Err(CommandError::NotYourOffer);
+                }
+                if !o.status.is_open() || o.status == OfferStatus::Agreed {
+                    return Err(CommandError::OfferClosed);
+                }
+                Ok(self.settle(offer, OfferStatus::Refused(Refusal::Withdrawn)))
+            }
+            Command::SetListing { player, listing } => {
+                let club = self.managed_club(actor)?;
+                if !self.players.contains(player) {
+                    return Err(CommandError::UnknownPlayer(player));
+                }
+                if self.players.club(player) != Some(club) {
+                    return Err(CommandError::NotYourPlayer(match actor {
+                        Actor::Manager(m) => m,
+                        Actor::System => unreachable!("managed_club rejects the system"),
+                    }));
+                }
+                if self.market.loans.contains_key(&player) {
+                    return Err(CommandError::OnLoan(player));
+                }
+                match listing {
+                    Some(l) => self.market.listed.insert(player, l),
+                    None => self.market.listed.remove(&player),
+                };
                 Ok(Vec::new())
             }
             Command::SetLineup { ref lineup } => {
@@ -618,6 +750,170 @@ impl World {
             .spend(|l| &mut l.staff_wages, severance);
         self.release_staff(staff);
         Ok(vec![Event::StaffLeft { staff, club }])
+    }
+
+    fn make_offer(
+        &mut self,
+        actor: Actor,
+        player: PlayerId,
+        kind: OfferKind,
+        wage: u32,
+        years: u8,
+    ) -> Result<Vec<Event>, CommandError> {
+        let club = self.managed_club(actor)?;
+        if !crate::transfer::window_open(self.date) {
+            return Err(CommandError::WindowClosed);
+        }
+        if !self.players.contains(player) {
+            return Err(CommandError::UnknownPlayer(player));
+        }
+        let seller = self
+            .players
+            .club(player)
+            .ok_or(CommandError::NoClub(player))?;
+        if seller == club {
+            return Err(CommandError::OwnPlayer(player));
+        }
+        if self.market.loans.contains_key(&player) {
+            return Err(CommandError::OnLoan(player));
+        }
+        if self.market.open_offer(club, player).is_some() {
+            return Err(CommandError::AlreadyOffered(player));
+        }
+        if self.clubs[club].squad.len() >= MAX_SQUAD {
+            return Err(CommandError::SquadFull(self.clubs[club].squad.len()));
+        }
+        match kind {
+            OfferKind::Transfer { fee } => {
+                if fee < 0 {
+                    return Err(CommandError::NegativeFee);
+                }
+                let budget = self.clubs[club].finances.transfer_budget;
+                if fee > budget {
+                    return Err(CommandError::OverBudget { budget });
+                }
+                if !(1..=5).contains(&years) {
+                    return Err(CommandError::InvalidYears(years));
+                }
+            }
+            OfferKind::Loan { wage_share } => {
+                if wage_share > 100 {
+                    return Err(CommandError::InvalidWageShare);
+                }
+            }
+        }
+        let today = self.date;
+        let offer = Offer {
+            id: 0,
+            date: today,
+            buyer: club,
+            seller,
+            player,
+            kind,
+            wage,
+            years,
+            status: OfferStatus::Pending,
+            respond_by: crate::market::respond_by(self, seller),
+            updated: today,
+        };
+        let id = self.market.add(offer);
+        let mut events = Vec::new();
+        if self.is_human_club(seller) && !self.ai_runs_squad(seller) {
+            events.push(Event::OfferReceived {
+                offer: id,
+                player,
+                buyer: club,
+                seller,
+            });
+        }
+        Ok(events)
+    }
+
+    fn respond_to_offer(
+        &mut self,
+        actor: Actor,
+        offer: u32,
+        response: OfferResponse,
+    ) -> Result<Vec<Event>, CommandError> {
+        let club = self.managed_club(actor)?;
+        let o = *self
+            .market
+            .offer(offer)
+            .ok_or(CommandError::UnknownOffer(offer))?;
+        if o.seller != club {
+            return Err(CommandError::NotYourOffer);
+        }
+        if o.status != OfferStatus::Pending {
+            return Err(CommandError::OfferClosed);
+        }
+        let status = match response {
+            OfferResponse::Reject => OfferStatus::Refused(Refusal::TooLow),
+            OfferResponse::Counter { fee } => {
+                if fee < 0 {
+                    return Err(CommandError::NegativeFee);
+                }
+                if let Some(x) = self.market.offer_mut(offer) {
+                    x.respond_by = self.date.add_days(crate::transfer::HUMAN_RESPONSE_DAYS);
+                }
+                OfferStatus::Countered { fee }
+            }
+            OfferResponse::Accept => self.player_decides(&o),
+        };
+        Ok(self.settle(offer, status))
+    }
+
+    fn accept_counter(&mut self, actor: Actor, offer: u32) -> Result<Vec<Event>, CommandError> {
+        let club = self.managed_club(actor)?;
+        let o = *self
+            .market
+            .offer(offer)
+            .ok_or(CommandError::UnknownOffer(offer))?;
+        if o.buyer != club {
+            return Err(CommandError::NotYourOffer);
+        }
+        let OfferStatus::Countered { fee } = o.status else {
+            return Err(CommandError::OfferClosed);
+        };
+        let budget = self.clubs[club].finances.transfer_budget;
+        if fee > budget {
+            return Err(CommandError::OverBudget { budget });
+        }
+        let x = self.market.offer_mut(offer).expect("exists");
+        x.kind = OfferKind::Transfer { fee };
+        let updated = *x;
+        let status = self.player_decides(&updated);
+        Ok(self.settle(offer, status))
+    }
+
+    /// The player's verdict on an offer the clubs have agreed.
+    fn player_decides(&self, o: &Offer) -> OfferStatus {
+        let yes = match o.kind {
+            OfferKind::Transfer { .. } => {
+                crate::transfer::accepts_terms(self, o.player, o.buyer, o.wage)
+            }
+            OfferKind::Loan { .. } => crate::transfer::accepts_loan(self, o.player, o.buyer),
+        };
+        if yes {
+            OfferStatus::Agreed
+        } else {
+            OfferStatus::Refused(Refusal::PlayerRefused)
+        }
+    }
+
+    /// Sets an offer's status and reports it to the clubs involved.
+    fn settle(&mut self, offer: u32, status: OfferStatus) -> Vec<Event> {
+        let today = self.date;
+        let o = self.market.offer_mut(offer).expect("exists");
+        o.status = status;
+        o.updated = today;
+        let o = *o;
+        vec![Event::OfferUpdated {
+            offer,
+            player: o.player,
+            buyer: o.buyer,
+            seller: o.seller,
+            status,
+        }]
     }
 
     /// The match `actor` is due to watch today.

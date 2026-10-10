@@ -68,6 +68,15 @@ pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
     economy::close_accounts(world, year - 1);
     close_season(world, events);
     record_careers(world, year - 1);
+    for (player, loan) in crate::transfer::end_loans(world) {
+        if world.is_human_club(loan.parent) || world.is_human_club(loan.borrower) {
+            events.push(Event::LoanEnded {
+                player,
+                from: loan.borrower,
+                to: loan.parent,
+            });
+        }
+    }
     expire_contracts(world, events);
     crate::staff::rollover(world, events);
     retirements(world, events);
@@ -76,6 +85,7 @@ pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
     maintain_squads(world, events);
     refresh_ai_tactics(world);
     start_season(world, year);
+    economy::invest(world);
     economy::set_budgets(world);
 }
 

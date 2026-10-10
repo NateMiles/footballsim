@@ -14,6 +14,7 @@ use crate::player::{Contract, Status};
 use crate::player::{PlayerInit, Players};
 use crate::scouting::Scouting;
 use crate::staff::Staff;
+use crate::transfer::Market;
 use fs_core::{GameDate, IdVec, Seed, StateHash, state_hash};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -35,6 +36,7 @@ pub struct World {
     pub(crate) players: Players,
     pub(crate) staff: IdVec<StaffKind, Staff>,
     pub(crate) scouting: Scouting,
+    pub(crate) market: Market,
     /// Today's matches, waiting for human managers to watch them.
     pub(crate) pending: Option<PendingMatchDay>,
 }
@@ -53,6 +55,7 @@ impl World {
             players: Players::default(),
             staff: IdVec::new(),
             scouting: Scouting::default(),
+            market: Market::default(),
             pending: None,
         }
     }
@@ -90,6 +93,11 @@ impl World {
     /// All staff members, employed or not.
     pub fn staff(&self) -> &IdVec<StaffKind, Staff> {
         &self.staff
+    }
+
+    /// The transfer market: offers, loans, listings and history.
+    pub fn market(&self) -> &Market {
+        &self.market
     }
 
     /// What clubs know about players.
@@ -269,8 +277,27 @@ impl World {
         self.clubs[club].squad.push(player);
     }
 
+    /// Moves a player to another club's squad without touching their
+    /// contract (loans). Gives them the lowest free squad number there.
+    pub(crate) fn move_player(&mut self, player: PlayerId, club: ClubId) {
+        let i = player.index();
+        if let Some(c) = self.players.club[i].take() {
+            self.clubs[c].squad.retain(|&p| p != player);
+        }
+        let used: BTreeSet<u8> = self.clubs[club]
+            .squad
+            .iter()
+            .filter_map(|&p| self.players.squad_number(p))
+            .collect();
+        self.players.squad_number[i] = (1..=99).find(|n| !used.contains(n));
+        self.players.club[i] = Some(club);
+        self.clubs[club].squad.push(player);
+    }
+
     /// Removes a player from their club, if any, ending their contract.
     pub(crate) fn release_player(&mut self, player: PlayerId) {
+        self.market.listed.remove(&player);
+        self.market.loans.remove(&player);
         let i = player.index();
         if let Some(c) = self.players.club[i].take() {
             self.clubs[c].squad.retain(|&p| p != player);
@@ -420,6 +447,14 @@ impl World {
                 && !self.clubs.get(c).is_some_and(|c| c.staff.contains(&sid))
             {
                 return Err(format!("{sid} has club {c}, which does not list them"));
+            }
+        }
+        for (&p, loan) in self.market.loans() {
+            if self.players.club(p) != Some(loan.borrower) {
+                return Err(format!("{p} is on loan to {} but not there", loan.borrower));
+            }
+            if self.players.contract(p).is_none() {
+                return Err(format!("{p} is on loan without a contract"));
             }
         }
         for (mid, m) in self.managers.iter() {

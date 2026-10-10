@@ -51,6 +51,7 @@ pub(crate) fn morning(world: &mut World, events: &mut Vec<Event>) {
         (8, 20) | (1, 10) => maintain_squads(world, events),
         _ => {}
     }
+    crate::squad::emergency_signings(world, events);
 }
 
 /// The rest of the day: the matches (with any live instructions), then
@@ -66,6 +67,9 @@ pub(crate) fn afternoon(
     recovery(world);
     injuries(world, events);
     crate::scouting::daily(world, events);
+    if !world.leagues.is_empty() {
+        crate::market::daily(world, events);
+    }
     if world.date.ymd().2 == 1 {
         economy::monthly_accounts(world);
         development(world);

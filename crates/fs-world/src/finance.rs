@@ -21,6 +21,8 @@ pub struct Ledger {
     pub staff_wages: Money,
     pub player_purchases: Money,
     pub running_costs: Money,
+    /// Spending on the stadium and facilities.
+    pub investment: Money,
 }
 
 impl Ledger {
@@ -29,7 +31,11 @@ impl Ledger {
     }
 
     pub fn expenses(&self) -> Money {
-        self.player_wages + self.staff_wages + self.player_purchases + self.running_costs
+        self.player_wages
+            + self.staff_wages
+            + self.player_purchases
+            + self.running_costs
+            + self.investment
     }
 
     /// Income minus spending.

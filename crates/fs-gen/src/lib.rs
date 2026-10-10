@@ -268,6 +268,7 @@ pub fn generate(cfg: &GenConfig) -> World {
     fs_world::season::start_first_season(&mut world);
     add_backroom(&mut world, cfg);
     fs_world::economy::initialise(&mut world);
+    fs_world::market::list_players(&mut world);
 
     debug_assert_eq!(world.check_invariants(), Ok(()));
     world

@@ -119,8 +119,9 @@ pub struct Estimate {
 }
 
 /// The fixed errors a club makes about a player, each about N(0, 1):
-/// one per attribute, then ability, then potential.
-fn errors(world: &World, club: ClubId, player: PlayerId) -> [f64; ATTR_COUNT + 2] {
+/// ability, then potential, then one per attribute. Only the first `N`
+/// are drawn, so callers needing just the ability pay for one draw.
+fn errors<const N: usize>(world: &World, club: ClubId, player: PlayerId) -> [f64; N] {
     let mut rng: Rng = world.seed().derive(
         Stream::Scouting,
         u64::from(club.raw()),
@@ -147,7 +148,7 @@ pub fn estimate(world: &World, club: ClubId, player: PlayerId) -> Estimate {
     // the best.
     let judge = staff::effect(ratings.scouting_ability, -0.4);
     let judge_potential = staff::effect(ratings.scouting_potential, -0.4);
-    let e = errors(world, club, player);
+    let e: [f64; ATTR_COUNT + 2] = errors(world, club, player);
     let ps = world.players();
     let attrs = ps.attributes(player);
     let attributes = Attr::ALL
@@ -156,7 +157,7 @@ pub fn estimate(world: &World, club: ClubId, player: PlayerId) -> Estimate {
         .map(|(i, &a)| {
             range(
                 f64::from(attrs.display(a)),
-                e[i],
+                e[2 + i],
                 unknown * 5.0 * judge,
                 1.0,
                 20.0,
@@ -165,14 +166,14 @@ pub fn estimate(world: &World, club: ClubId, player: PlayerId) -> Estimate {
         .collect();
     let ability = range(
         f64::from(ps.ability(player)),
-        e[ATTR_COUNT],
+        e[0],
         unknown * 150.0 * judge,
         0.0,
         1000.0,
     );
     let potential = range(
         f64::from(ps.potential(player).max(ps.ability(player))),
-        e[ATTR_COUNT + 1],
+        e[1],
         unknown * 250.0 * judge_potential,
         0.0,
         1000.0,
@@ -196,7 +197,7 @@ pub fn perceived_ability(
     let k = knowledge_with(world, club, player, ratings);
     let unknown = f64::from(FULL - k) / 100.0;
     let judge = staff::effect(ratings.scouting_ability, -0.4);
-    let e = errors(world, club, player)[ATTR_COUNT];
+    let [e] = errors::<1>(world, club, player);
     f64::from(world.players().ability(player)) + e * unknown * 105.0 * judge
 }
 

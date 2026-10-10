@@ -653,6 +653,10 @@ fn career_cmd(a: &Args) {
             academy
         );
         println!("  Economy: {}", fs_world::economy::health(w));
+        println!(
+            "  Market: {}",
+            fs_world::transfer::MarketSummary::of(w, summary.year)
+        );
         for (row, &p) in prospect_rows.iter_mut().zip(&prospects) {
             row.push(ps.ability(p));
         }
