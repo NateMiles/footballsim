@@ -4,10 +4,13 @@
 //! ships on (native desktop, iOS, WebAssembly). See `docs/ARCHITECTURE.md`,
 //! section "Determinism".
 
+pub mod attributes;
 pub mod date;
 pub mod hash;
 pub mod id;
+pub mod ids;
 pub mod math;
+pub mod par;
 pub mod rng;
 
 pub use date::GameDate;

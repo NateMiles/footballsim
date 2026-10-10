@@ -9,13 +9,11 @@ publish.workspace = true
 
 [dependencies]
 fs-core.workspace = true
+fs-match.workspace = true
 serde.workspace = true
 postcard.workspace = true
 thiserror.workspace = true
 serde-big-array.workspace = true
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-rayon.workspace = true
 
 [lints]
 workspace = true

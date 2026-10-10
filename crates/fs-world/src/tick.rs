@@ -6,10 +6,10 @@
 //! results.
 
 use crate::attributes::{ATTR_MAX, Attr, HiddenAttr};
-use crate::par;
 use crate::player::{CONDITION_MAX, Condition, Players};
 use crate::world::World;
 use fs_core::Stream;
+use fs_core::par;
 
 /// Morale drifts back toward this value.
 const MORALE_BASELINE: u16 = CONDITION_MAX / 2;

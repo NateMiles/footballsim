@@ -250,99 +250,6 @@ fn add_club(
     world.add_club(Club::new(name, town, nation, reputation))
 }
 
-/// Which attributes matter most for a position: (key, secondary).
-fn profile(position: Position) -> (&'static [Attr], &'static [Attr]) {
-    use Attr::*;
-    use Position::*;
-    match position {
-        Goalkeeper => (
-            &[
-                Reflexes,
-                Handling,
-                OneOnOnes,
-                AerialReach,
-                CommandOfArea,
-                Positioning,
-            ],
-            &[
-                Kicking,
-                Throwing,
-                Communication,
-                RushingOut,
-                Concentration,
-                Agility,
-            ],
-        ),
-        DefenderCentre => (
-            &[
-                Tackling,
-                Marking,
-                Heading,
-                Positioning,
-                Strength,
-                JumpingReach,
-            ],
-            &[Anticipation, Bravery, Concentration, Composure, Passing],
-        ),
-        DefenderRight | DefenderLeft | WingBackRight | WingBackLeft => (
-            &[Tackling, Marking, Pace, Stamina, Crossing, Positioning],
-            &[Acceleration, WorkRate, Dribbling, Teamwork, Anticipation],
-        ),
-        DefensiveMidfielder => (
-            &[
-                Tackling,
-                Positioning,
-                Passing,
-                Anticipation,
-                Teamwork,
-                Stamina,
-            ],
-            &[Marking, Decisions, Concentration, Strength, WorkRate],
-        ),
-        MidfielderCentre => (
-            &[Passing, Vision, Decisions, Technique, FirstTouch, Stamina],
-            &[Teamwork, WorkRate, Composure, LongShots, Tackling],
-        ),
-        MidfielderRight | MidfielderLeft => (
-            &[Crossing, Pace, Dribbling, Stamina, Passing, WorkRate],
-            &[Acceleration, Technique, FirstTouch, OffTheBall, Teamwork],
-        ),
-        AttackingMidRight | AttackingMidLeft => (
-            &[Dribbling, Pace, Acceleration, Technique, Flair, Crossing],
-            &[Agility, FirstTouch, OffTheBall, Finishing, Passing],
-        ),
-        AttackingMidCentre => (
-            &[Passing, Vision, Technique, FirstTouch, Flair, Decisions],
-            &[Dribbling, LongShots, OffTheBall, Composure, Agility],
-        ),
-        Striker => (
-            &[Finishing, OffTheBall, Composure, FirstTouch, Pace, Heading],
-            &[Acceleration, Strength, Dribbling, Technique, Anticipation],
-        ),
-    }
-}
-
-/// Neighbouring positions a player can usually also play.
-fn neighbours(position: Position) -> &'static [Position] {
-    use Position::*;
-    match position {
-        Goalkeeper => &[],
-        DefenderRight => &[WingBackRight, DefenderCentre, MidfielderRight],
-        DefenderLeft => &[WingBackLeft, DefenderCentre, MidfielderLeft],
-        DefenderCentre => &[DefensiveMidfielder, DefenderRight, DefenderLeft],
-        WingBackRight => &[DefenderRight, MidfielderRight],
-        WingBackLeft => &[DefenderLeft, MidfielderLeft],
-        DefensiveMidfielder => &[MidfielderCentre, DefenderCentre],
-        MidfielderCentre => &[DefensiveMidfielder, AttackingMidCentre],
-        MidfielderRight => &[AttackingMidRight, WingBackRight, MidfielderCentre],
-        MidfielderLeft => &[AttackingMidLeft, WingBackLeft, MidfielderCentre],
-        AttackingMidRight => &[MidfielderRight, Striker, AttackingMidLeft],
-        AttackingMidLeft => &[MidfielderLeft, Striker, AttackingMidRight],
-        AttackingMidCentre => &[MidfielderCentre, Striker],
-        Striker => &[AttackingMidCentre, AttackingMidRight, AttackingMidLeft],
-    }
-}
-
 fn clamp_attr(x: f64) -> u16 {
     x.round().clamp(1.0, f64::from(ATTR_MAX)) as u16
 }
@@ -374,7 +281,8 @@ fn make_player(
     }
     let ability = ability.clamp(60.0, 950.0);
 
-    let (key, secondary) = profile(position);
+    let key = position.key_attributes();
+    let secondary = position.secondary_attributes();
     let is_gk = position == Position::Goalkeeper;
     let mut attributes = Attributes::default();
     for attr in Attr::ALL {
@@ -403,7 +311,7 @@ fn make_player(
 
     let mut positions = PositionRatings::default();
     positions.set(position, 20);
-    for &n in neighbours(position) {
+    for &n in position.neighbours() {
         if rng.chance(0.6) {
             positions.set(n, 8 + rng.below(10) as u8);
         }

@@ -6,15 +6,16 @@
 //! its starting snapshot plus its command log (see [`replay`]). This is the
 //! basis for replays, bug reports and future online leagues.
 
-pub mod attributes;
+pub use fs_core::attributes;
 pub mod club;
 pub mod command;
+pub mod competition;
 pub mod game;
-pub mod ids;
+pub use fs_core::ids;
 pub mod manager;
+pub mod matchday;
 pub mod names;
 pub mod nation;
-mod par;
 pub mod player;
 pub mod snapshot;
 pub mod tick;

@@ -201,6 +201,8 @@ version = "0.1.0"
 dependencies = [
  "fs-core",
  "fs-gen",
+ "fs-lab",
+ "fs-match",
  "fs-world",
 ]
 
@@ -211,7 +213,9 @@ dependencies = [
  "criterion",
  "libm",
  "postcard",
+ "rayon",
  "serde",
+ "serde-big-array",
  "xxhash-rust",
 ]
 
@@ -225,12 +229,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-lab"
+version = "0.1.0"
+dependencies = [
+ "fs-core",
+ "fs-gen",
+ "fs-match",
+ "fs-world",
+]
+
+[[package]]
+name = "fs-match"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "fs-core",
+ "serde",
+]
+
+[[package]]
 name = "fs-world"
 version = "0.1.0"
 dependencies = [
  "fs-core",
+ "fs-match",
  "postcard",
- "rayon",
  "serde",
  "serde-big-array",
  "thiserror",

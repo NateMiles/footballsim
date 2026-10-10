@@ -5,15 +5,24 @@
 //! fs-cli run         [--size ...] [--seed N] [--days N]
 //! fs-cli squad       [--size ...] [--seed N] [--club N]
 //! fs-cli determinism [--size ...] [--seed N] [--days N]
+//! fs-cli match       [--seed N] [--home N] [--away N] [--tier 1|2]
+//! fs-cli predict     [--seed N] [--home N] [--away N] [--tier 1|2] [--runs N]
+//! fs-cli calibrate   [--seed N] [--seasons N] [--tier 1|2] [--out FILE]
+//! fs-cli compare-tiers [--runs N]
+//! fs-cli fit-tier2   [--seed N] [--seasons N] [--out crates/fs-match/src/fitted.rs]
 //! ```
+//!
+//! Match commands use the calibration league world; `--home` and
+//! `--away` are club numbers (0 is the strongest).
 //!
 //! Builds for native and `wasm32-wasip1`; `scripts/determinism-check.sh`
 //! runs `determinism` on both and compares the output.
 
 use fs_core::state_hash;
 use fs_gen::{GenConfig, Size, generate, scenario};
+use fs_match::{MatchEvent, Side, TeamSheet, Tier};
 use fs_world::attributes::{Attr, Position};
-use fs_world::{Actor, ClubId, Command, Game};
+use fs_world::{Actor, ClubId, Command, Game, World, matchday};
 use std::process::ExitCode;
 use std::time::Instant;
 
@@ -22,9 +31,17 @@ struct Args {
     seed: u64,
     days: u16,
     club: u32,
+    home: u32,
+    away: u32,
+    tier: Tier,
+    runs: u32,
+    seasons: u32,
+    out: Option<String>,
 }
 
-const USAGE: &str = "usage: fs-cli <gen|run|squad|determinism> [--size tiny|small|medium|large] [--seed N] [--days N] [--club N]";
+const USAGE: &str = "usage: fs-cli <gen|run|squad|determinism|match|predict|calibrate|fit-tier2> \
+[--size tiny|small|medium|large] [--seed N] [--days N] [--club N] [--home N] [--away N] \
+[--tier 1|2] [--runs N] [--seasons N] [--out FILE]";
 
 fn parse(mut args: impl Iterator<Item = String>) -> Result<(String, Args), String> {
     let cmd = args.next().ok_or_else(|| USAGE.to_string())?;
@@ -33,6 +50,12 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<(String, Args), Strin
         seed: 1,
         days: 365,
         club: 0,
+        home: 0,
+        away: 1,
+        tier: Tier::Event,
+        runs: 10_000,
+        seasons: 10,
+        out: None,
     };
     while let Some(flag) = args.next() {
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
@@ -50,6 +73,18 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<(String, Args), Strin
             "--seed" => out.seed = value.parse().map_err(bad)?,
             "--days" => out.days = value.parse().map_err(bad)?,
             "--club" => out.club = value.parse().map_err(bad)?,
+            "--home" => out.home = value.parse().map_err(bad)?,
+            "--away" => out.away = value.parse().map_err(bad)?,
+            "--runs" => out.runs = value.parse().map_err(bad)?,
+            "--seasons" => out.seasons = value.parse().map_err(bad)?,
+            "--out" => out.out = Some(value.clone()),
+            "--tier" => {
+                out.tier = match value.as_str() {
+                    "1" => Tier::Event,
+                    "2" => Tier::Statistical,
+                    _ => return Err(format!("unknown tier {value} (use 1 or 2)")),
+                }
+            }
             _ => return Err(format!("unknown flag {flag}\n{USAGE}")),
         }
     }
@@ -69,6 +104,11 @@ fn main() -> ExitCode {
         "run" => run_cmd(&args),
         "squad" => squad_cmd(&args),
         "determinism" => determinism_cmd(&args),
+        "match" => return match_cmd(&args),
+        "predict" => return predict_cmd(&args),
+        "calibrate" => return calibrate_cmd(&args),
+        "fit-tier2" => return fit_cmd(&args),
+        "compare-tiers" => compare_cmd(&args),
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::from(2);
@@ -163,4 +203,292 @@ fn determinism_cmd(a: &Args) {
     println!("world {}", game.world().state_hash());
     println!("log   {}", state_hash(game.log()));
     println!("date  {}", game.world().date());
+    // A season of matches from the evolved world, in both tiers: the match
+    // engines use floating point heavily, so they must agree bit for bit
+    // too.
+    let world = game.world();
+    let clubs = world.clubs().len().min(fs_lab::season::LEAGUE_SIZE);
+    if clubs >= 2 {
+        let fixtures: Vec<(usize, usize)> = fs_world::competition::double_round_robin(clubs)
+            .into_iter()
+            .flatten()
+            .collect();
+        let sheets: Vec<TeamSheet> = (0..clubs)
+            .map(|c| matchday::team_sheet(world, ClubId::new(c as u32)))
+            .collect();
+        for tier in [Tier::Event, Tier::Statistical] {
+            let results: Vec<fs_match::MatchResult> = fixtures
+                .iter()
+                .enumerate()
+                .map(|(k, &(h, w))| {
+                    let input = fs_match::MatchInput {
+                        home: sheets[h].clone(),
+                        away: sheets[w].clone(),
+                        neutral: false,
+                        seed: world.seed(),
+                        key: k as u64,
+                    };
+                    fs_match::play(&input, tier)
+                })
+                .collect();
+            let label = if tier == Tier::Event {
+                "tier1"
+            } else {
+                "tier2"
+            };
+            println!("{label} {}", state_hash(&results));
+        }
+    }
+}
+
+fn tiny_world(seed: u64) -> World {
+    fs_lab::league_world(seed)
+}
+
+fn sheets(world: &World, a: &Args) -> Result<(TeamSheet, TeamSheet), String> {
+    let n = world.clubs().len() as u32;
+    if a.home >= n || a.away >= n || a.home == a.away {
+        return Err(format!(
+            "--home and --away must be different clubs below {n}"
+        ));
+    }
+    Ok((
+        matchday::team_sheet(world, ClubId::new(a.home)),
+        matchday::team_sheet(world, ClubId::new(a.away)),
+    ))
+}
+
+fn tier_name(t: Tier) -> &'static str {
+    match t {
+        Tier::Event => "tier 1 (event)",
+        Tier::Statistical => "tier 2 (statistical)",
+    }
+}
+
+fn match_cmd(a: &Args) -> ExitCode {
+    let world = tiny_world(a.seed);
+    let (home, away) = match sheets(&world, a) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::from(2);
+        }
+    };
+    let names = [
+        world.clubs()[ClubId::new(a.home)].name.clone(),
+        world.clubs()[ClubId::new(a.away)].name.clone(),
+    ];
+    let formations = [home.tactic.formation.name(), away.tactic.formation.name()];
+    let input = fs_match::MatchInput {
+        home,
+        away,
+        neutral: false,
+        seed: world.seed(),
+        key: u64::from(a.runs),
+    };
+    let t = Instant::now();
+    let r = fs_match::play(&input, a.tier);
+    let elapsed = t.elapsed().as_secs_f64() * 1e6;
+    let name = |id| world.player_name(id);
+    println!(
+        "{} {} - {} {}   ({})",
+        names[0],
+        r.goals[0],
+        r.goals[1],
+        names[1],
+        tier_name(a.tier)
+    );
+    println!("{:>24}   {:<8}   {}", formations[0], "", formations[1]);
+    println!();
+    for e in &r.events {
+        let side = |s: Side| &names[s.index()];
+        match e {
+            MatchEvent::Goal {
+                minute,
+                side: s,
+                scorer,
+                assist,
+                kind,
+                xg,
+            } => {
+                let assist = assist
+                    .map(|p| format!(", assist {}", name(p)))
+                    .unwrap_or_default();
+                println!(
+                    "{minute:>3}'  GOAL  {}: {}{assist} ({kind:?}, xG {xg:.2})",
+                    side(*s),
+                    name(*scorer)
+                );
+            }
+            MatchEvent::PenaltyMissed {
+                minute,
+                side: s,
+                taker,
+            } => println!("{minute:>3}'  pen missed  {}: {}", side(*s), name(*taker)),
+            MatchEvent::Card {
+                minute,
+                side: s,
+                player,
+                red,
+            } => {
+                println!(
+                    "{minute:>3}'  {}  {}: {}",
+                    if *red { "RED " } else { "yellow" },
+                    side(*s),
+                    name(*player)
+                );
+            }
+            MatchEvent::Substitution {
+                minute,
+                side: s,
+                off,
+                on,
+            } => println!(
+                "{minute:>3}'  sub   {}: {} for {}",
+                side(*s),
+                name(*on),
+                name(*off)
+            ),
+            MatchEvent::Injury {
+                minute,
+                side: s,
+                player,
+            } => println!("{minute:>3}'  injury  {}: {}", side(*s), name(*player)),
+        }
+    }
+    println!();
+    let [h, w] = r.stats;
+    let row = |label: &str, x: String, y: String| println!("{x:>10}  {label:^18}  {y:<10}");
+    row(
+        "Possession",
+        format!("{:.0}%", h.possession * 100.0),
+        format!("{:.0}%", w.possession * 100.0),
+    );
+    row("Shots", h.shots.to_string(), w.shots.to_string());
+    row(
+        "On target",
+        h.shots_on_target.to_string(),
+        w.shots_on_target.to_string(),
+    );
+    row("xG", format!("{:.2}", h.xg), format!("{:.2}", w.xg));
+    row(
+        "Passes",
+        format!("{} ({:.0}%)", h.passes, h.pass_completion() * 100.0),
+        format!("{} ({:.0}%)", w.passes, w.pass_completion() * 100.0),
+    );
+    row("Corners", h.corners.to_string(), w.corners.to_string());
+    row("Fouls", h.fouls.to_string(), w.fouls.to_string());
+    row(
+        "Cards",
+        format!("{}/{}", h.yellows, h.reds),
+        format!("{}/{}", w.yellows, w.reds),
+    );
+    println!();
+    for (team, players) in names.iter().zip(&r.players) {
+        let best = players
+            .iter()
+            .filter(|p| p.minutes > 0)
+            .max_by(|x, y| x.rating.total_cmp(&y.rating));
+        if let Some(b) = best {
+            println!("Best for {}: {} ({:.1})", team, name(b.player), b.rating);
+        }
+    }
+    println!("\nsimulated in {elapsed:.0} µs");
+    ExitCode::SUCCESS
+}
+
+fn predict_cmd(a: &Args) -> ExitCode {
+    let world = tiny_world(a.seed);
+    let (home, away) = match sheets(&world, a) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::from(2);
+        }
+    };
+    let t = Instant::now();
+    let p = fs_lab::predict(&home, &away, world.seed(), a.runs, a.tier);
+    let secs = t.elapsed().as_secs_f64();
+    println!(
+        "{} v {}: {} runs, {}, {:.2} s",
+        world.clubs()[ClubId::new(a.home)].name,
+        world.clubs()[ClubId::new(a.away)].name,
+        p.runs,
+        tier_name(a.tier),
+        secs
+    );
+    println!(
+        "home win {:5.1}%   draw {:5.1}%   away win {:5.1}%",
+        100.0 * p.home_win,
+        100.0 * p.draw,
+        100.0 * p.away_win
+    );
+    println!(
+        "goals {:.2} - {:.2}   xG {:.2} - {:.2}",
+        p.home_goals, p.away_goals, p.home_xg, p.away_xg
+    );
+    println!("likeliest scores:");
+    for (s, prob) in p.scores.iter().take(6) {
+        println!("  {}-{}  {:4.1}%", s[0], s[1], 100.0 * prob);
+    }
+    ExitCode::SUCCESS
+}
+
+fn calibrate_cmd(a: &Args) -> ExitCode {
+    let t = Instant::now();
+    let seasons = fs_lab::simulate_seasons(a.seed, a.seasons, a.tier);
+    let secs = t.elapsed().as_secs_f64();
+    let report = fs_lab::report(&seasons);
+    let mut md = format!("# Calibration: {}\n\n", tier_name(a.tier));
+    md.push_str(&report.to_markdown());
+    md.push_str(&format!(
+        "\nGenerated by `fs-cli calibrate --tier {} --seasons {} --seed {}`.\n",
+        if a.tier == Tier::Event { 1 } else { 2 },
+        a.seasons,
+        a.seed
+    ));
+    print!("{md}");
+    eprintln!("simulated in {secs:.2} s");
+    if let Some(path) = &a.out
+        && let Err(e) = std::fs::write(path, &md)
+    {
+        eprintln!("could not write {path}: {e}");
+        return ExitCode::from(1);
+    }
+    if report.all_ok() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    }
+}
+
+fn fit_cmd(a: &Args) -> ExitCode {
+    let seasons = fs_lab::simulate_seasons(a.seed, a.seasons, Tier::Event);
+    let c = fs_lab::fit::fit_tier2(&seasons);
+    let literal = c.to_rust();
+    match &a.out {
+        Some(path) => {
+            let src = format!(
+                "//! Generated by `fs-cli fit-tier2 --seasons {} --seed {} --out\n//! crates/fs-match/src/fitted.rs`. Do not edit by hand: re-run it after\n//! changing tier 1.\n\nuse crate::tier2::Coefficients;\n\n/// Tier 2 coefficients fitted to tier 1.\npub const TIER2: Coefficients = {};\n",
+                a.seasons, a.seed, literal
+            );
+            if let Err(e) = std::fs::write(path, src) {
+                eprintln!("could not write {path}: {e}");
+                return ExitCode::from(1);
+            }
+            eprintln!("wrote {path}");
+        }
+        None => println!("{literal}"),
+    }
+    ExitCode::SUCCESS
+}
+
+fn compare_cmd(a: &Args) {
+    let rows = fs_lab::compare::compare_tiers(a.runs);
+    println!("## Tier 1 against tier 2, fixture by fixture\n");
+    println!(
+        "{} runs per fixture per tier, seed-42 league (club 0 strongest).\n",
+        a.runs
+    );
+    print!("{}", fs_lab::compare::to_markdown(&rows));
 }

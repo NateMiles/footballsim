@@ -12,6 +12,10 @@ serde.workspace = true
 postcard.workspace = true
 xxhash-rust.workspace = true
 libm.workspace = true
+serde-big-array.workspace = true
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+rayon.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true

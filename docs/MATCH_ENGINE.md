@@ -12,18 +12,28 @@ attributes, fitness, conditions, seed) and produce the same output shape
 (score, events, per-player stats, ratings). They differ in how much they
 simulate.
 
-| Tier | Used for | Model | Target cost |
-| --- | --- | --- | --- |
-| **0: Spatial** | The match you watch, replays, tactic lab deep runs | 22 agents + ball on a 2D pitch, 10 Hz decisions, ball physics with height | < 50 ms per 90 min when skipped |
-| **1: Event** | Other matches in followed leagues, match predictor | Possession chains through pitch zones; each action resolved from attribute contests | < 1 ms |
-| **2: Statistical** | Distant leagues, long-range projections | Team strength ratings to expected goals, goals and key events drawn from distributions | < 10 µs |
+| Tier | Used for | Model | Target cost | Status |
+| --- | --- | --- | --- | --- |
+| **0: Spatial** | The match you watch, replays, tactic lab deep runs | 22 agents + ball on a 2D pitch, 10 Hz decisions, ball physics with height | < 50 ms per 90 min when skipped | Planned (M3) |
+| **1: Event** | Other matches in followed leagues, match predictor | Possession chains through pitch zones; each action resolved from attribute contests | < 1 ms | Built: 0.31 ms |
+| **2: Statistical** | Distant leagues, long-range projections | Team strength ratings to expected goals, goals and key events drawn from distributions | < 10 µs | Built: 8.7 µs |
 
-Tiers 1 and 2 are **calibrated against Tier 0**: run Tier 0 on many matchups,
-then fit Tier 1 and 2 parameters so their outcome distributions match. Tier 0
-is calibrated against real-world football statistics. This keeps the whole
-world consistent no matter which tier played a given match.
+Timings are single-threaded on the 4-core cloud build machine.
 
-## 2. Tier 0: spatial simulation
+### How the tiers stay consistent
+
+1. **Tier 1 is calibrated against real football.** Its constants
+   (`tier1::Params`) are tuned until a season simulation matches
+   top-flight averages and no tactic slider is a free win (section 5).
+2. **Tier 2 is fitted to tier 1.** `fs-cli fit-tier2` simulates 40 tier 1
+   seasons and fits tier 2's goal model by Poisson regression, writing the
+   result to `crates/fs-match/src/fitted.rs`. CI regenerates it and fails
+   if it is stale.
+3. **When tier 0 arrives,** it becomes the reference: tier 0 is calibrated
+   against real football, tier 1 is re-tuned to match tier 0, and tier 2 is
+   refitted to tier 1.
+
+## 2. Tier 0: spatial simulation (planned)
 
 ### World
 - Pitch 105 x 68 m. Positions and velocities in metres and m/s.
@@ -77,54 +87,120 @@ role assignments, then hand back to open play.
 - Fixed-size arrays, no heap allocation inside the match loop.
 - Many matches run in parallel, one per thread, each with its own RNG stream.
 
-## 3. Tier 1: event simulation
+## 3. Tier 1: event simulation (built)
 
-- The pitch is split into a grid of zones (for example 12 x 8).
-- A possession is a chain of actions: each step picks an action from
-  tactic-weighted probabilities, then resolves it with an attribute contest
-  between the involved players (sampled by role and zone).
-- Shots resolve through the same xG and keeper models as Tier 0.
-- Produces believable event logs (passes, shots, fouls, cards, subs,
-  injuries) and per-player stats, so commentary and match reports still work.
+Code: `crates/fs-match/src/tier1.rs`.
 
-## 4. Tier 2: statistical simulation
+### Pitch and possession
+- Six bands from the team in possession's own goal (band 5 is the
+  opponent's box) by three lanes. Turnovers mirror the zone for the other
+  side.
+- Each formation slot has a typical location in the attacking shape.
+  Players near a zone are more often the ball carrier, receiver or
+  defender there (Gaussian weights per zone, rebuilt after every lineup
+  change).
 
-- Each team gets attacking and defensive strength from its lineup, tactic
-  fit, fitness and morale.
-- Expected goals for each side come from those strengths plus home advantage
-  and conditions. Goals are drawn from a distribution fitted to Tier 0 output
-  (a bivariate Poisson-family model handles the draw rate correctly).
-- Scorers, assisters, cards and injuries are drawn by role-weighted
-  probabilities so player season stats still look right.
+### Actions
+The carrier picks short pass, long ball, through ball, cross, dribble or
+shot, weighted by band, lane, tactic and their own skills. Each action is
+a logistic contest between the carrier's skill and a nearby defender's:
 
-## 5. Calibration targets
+- **Short pass.** Direction is chosen first; forward passes gain a band but
+  fail more often. Failures are loose balls, interceptions or throw-ins.
+- **Long ball.** Skips two bands; contested in the air.
+- **Through ball.** Played to a runner; success is a big chance (about 0.3
+  xG before skill). Can be caught offside.
+- **Cross.** From wide areas; success is a header at goal.
+- **Dribble.** Beats a defender to advance a band, or in the box raises
+  the next shot's quality. Failed dribbles are tackles or fouls.
+- **Shot.** xG comes from the zone and shot type, scaled by the shooter's
+  skill. The keeper's skill relative to an average top-flight keeper sets
+  the conversion. Shots can be blocked, saved (sometimes for a corner) or
+  missed.
 
-Starting targets, taken from top-flight European league averages. The
-calibration suite in CI asserts each tier stays within tolerance.
+### Set pieces, discipline, injuries
+Fouls happen in contests and away from the ball, scaled by the defender's
+aggression and dirtiness. Cards depend on temperament and danger; booked
+players are cautious. Fouls in the box can be penalties; central fouls
+outside it can be direct free kicks. Corners produce headers, short
+corners or clearances. Injuries are rare, more likely for injury-prone
+and tired players, and force a substitution.
+
+### Fatigue and substitutions
+Energy drains each minute by stamina, pressing and tempo, and faster for
+the side without the ball. Skills scale with energy. The AI makes up to
+five substitutions in three windows (60', 70', 80'), replacing the
+tiredest outfielders with the best bench fit.
+
+### Game state
+Trailing sides raise their mentality from 60' and again from 80'.
+Comfortable leaders sit back. An attacking mentality creates more chances
+but leaves space behind, which the opponent exploits near goal. This
+trade-off is what keeps mentality balanced.
+
+## 4. Tier 2: statistical simulation (built)
+
+Code: `crates/fs-match/src/tier2.rs`, constants in `fitted.rs`.
+
+- Each side's expected goals are `exp(beta . features)`. The features
+  are: home, attack against opposing defence, control difference,
+  finishing against opposing keeper, and both teams' six tactic sliders.
+- The score is drawn from two Poissons with a small Dixon-Coles
+  correction for low-score draws.
+- Shots, xG, passes, possession, fouls, cards, corners, scorers,
+  assisters, substitutions and ratings are drawn so season totals match
+  tier 1.
+
+**Known limitation.** Tier 2 matches tier 1 season by season (all checks in
+`docs/CALIBRATION.md` pass), but individual fixtures can differ. The mean
+gap in win/draw/loss probability is about 3 points, and unusual teams can
+differ by up to about 17. An example is a side with an elite defence but an
+average attack. Tier 2's few team summaries cannot see every interaction
+tier 1 simulates. This is acceptable for distant leagues. The match
+predictor uses tier 1 for that reason.
+
+## 5. Calibration (done)
+
+`scripts/calibration-report.sh` writes `docs/CALIBRATION.md`. Each tier
+plays 40 fresh 20-club seasons on seeds not used for tuning, and each
+statistic is checked against a target range:
 
 | Statistic | Target range |
 | --- | --- |
 | Goals per match | 2.5 to 3.0 |
-| Home win / draw / away win | about 45% / 25% / 30% |
-| Shots per team per match | 11 to 14 |
-| Shots on target ratio | 30% to 36% |
-| Pass completion | 78% to 85% |
-| Fouls per match | 20 to 26 |
-| Yellow cards per match | 3 to 5 |
-| Possession spread for strong vs weak team | up to about 70/30 |
-| Final table points, champion | 80 to 95 in a 38-game season |
+| Home win / draw / away win % | 42-48 / 22-28 / 27-33 |
+| 0-0 % | 5 to 10 |
+| Shots per team | 11 to 14 |
+| Shots on target % | 30 to 36 |
+| xG per shot; goals per xG | 0.09 to 0.12; 0.92 to 1.08 |
+| Passes per team; completion % | 400 to 520; 78 to 85 |
+| Fouls; yellows; reds per match | 20 to 26; 3 to 5; 0.05 to 0.2 |
+| Corners per team | 4 to 6 |
+| 95th percentile possession % | 62 to 72 |
+| Champion points; bottom club points | 80 to 95; 15 to 32 |
+| Season points per step of each tactic slider | -4 to +4 |
 
-Open event data such as StatsBomb Open Data can refine these and supply
-spatial targets (shot location maps, pass length distributions) for Tier 0.
+The tactic rows matter as much as the realism rows. They caught that
+direct long-ball play was worth about 13 points a season, a dominant
+strategy, until passing risk, chasing fatigue and mentality exposure were
+modelled.
+
+Tuning tool: `cargo run --release -p fs-lab --example tune -- key=value`.
+
+Remaining known gaps:
+- Crosses complete about 13% of the time, against about 22% in reality.
+  Headers from crosses are tuned for shot volume instead.
+- Tackles per team are about half the real count. This is a stat-labelling
+  gap; the contests happen but most are recorded as interceptions or loose
+  balls.
+- Draw rate sits near the bottom of its range, at 22-24%.
 
 ## 6. Build order
 
-1. **Tier 2** first (days of work). It unblocks the world simulation in M2.
-2. **Tier 1** next. It gives believable event logs and a real use of
-   tactics and attributes.
-3. **Tier 0** last, alongside the 2D match view in M3, then iterate on
-   realism for as long as the game exists.
-4. Calibration harness is built with Tier 2 and grows with each tier.
+1. ~~Tier 2~~ and ~~Tier 1~~, with the calibration harness: done in M1.
+2. **Tier 0** alongside the 2D match view in M3, then re-tune tier 1 to it.
+3. Keep iterating on realism for as long as the game exists, with the
+   calibration report as the guard rail.
 
 ## 7. Renderer-neutral output (3D readiness)
 

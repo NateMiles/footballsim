@@ -1,0 +1,22 @@
+[package]
+name = "fs-match"
+description = "Match engines for footballsim: statistical (tier 2) and event-level (tier 1)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+fs-core.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "engines"
+harness = false
+
+[lints]
+workspace = true

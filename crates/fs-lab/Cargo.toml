@@ -1,0 +1,17 @@
+[package]
+name = "fs-lab"
+description = "Calibration, model fitting and match prediction for footballsim."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+fs-core.workspace = true
+fs-world.workspace = true
+fs-gen.workspace = true
+fs-match.workspace = true
+
+[lints]
+workspace = true

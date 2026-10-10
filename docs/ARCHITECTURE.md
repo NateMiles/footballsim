@@ -69,20 +69,23 @@ internal layout.
 footballsim/
   Cargo.toml                 # workspace
   crates/
-    fs-core/                 # IDs, entities, attributes, RNG, time, shared types
-    fs-match/                # match engine, all fidelity tiers
-    fs-world/                # calendar, competitions, training, injuries,
-                             # contracts, transfers, finances, youth
-    fs-ai/                   # AI managers, directors, boards, agents
-    fs-gen/                  # procedural world and name generation
-    fs-data/                 # data-pack format, loading, validation
-    fs-save/                 # save/load, versioned migrations
-    fs-api/                  # command/query/event API used by every host
-    fs-wasm/                 # wasm-bindgen wrapper around fs-api
-    fs-cli/                  # headless runner: sim seasons, benchmarks, calibration
-  app/                       # TypeScript UI
-  app/src-tauri/             # Tauri 2 shell (desktop + iPadOS)
-  data/                      # base data packs (rules, competitions, name pools)
+    fs-core/                 # built: IDs, attributes, RNG, maths, time, hashing
+    fs-match/                # built: match engines (tiers 1 and 2), selection
+    fs-world/                # built: world state, commands, daily tick, fixtures;
+                             # later training, injuries, contracts, transfers,
+                             # finances, youth
+    fs-gen/                  # built: procedural world and name generation
+    fs-lab/                  # built: calibration, tier 2 fitting, prediction
+    fs-cli/                  # built: headless runner
+    fs-bench/                # built: benchmarks
+    fs-ai/                   # planned: AI managers, directors, boards, agents
+    fs-data/                 # planned: data-pack format, loading, validation
+    fs-save/                 # planned: save/load, versioned migrations
+    fs-api/                  # planned: command/query/event API for every host
+    fs-wasm/                 # planned: wasm-bindgen wrapper around fs-api
+  app/                       # planned: TypeScript UI
+  app/src-tauri/             # planned: Tauri 2 shell (desktop + iPadOS)
+  data/                      # planned: base data packs
   docs/
 ```
 
@@ -148,16 +151,18 @@ Targets on a recent iPad running the native build. The CI benchmark suite
 tracks these on desktop as a proxy, with a scaling factor measured once on
 hardware.
 
-| Operation | Target |
-| --- | --- |
-| Tier 0 full spatial match (watched) | Real time or faster at any playback speed; full 90 min in < 50 ms when skipped |
-| Tier 1 event-level match | < 1 ms |
-| Tier 2 statistical match | < 10 µs |
-| Daily world tick, medium world | < 50 ms |
-| Full matchday, all leagues, medium world | < 1 s |
-| One season in holiday mode, medium world | < 60 s |
-| Match predictor, 10,000 runs at Tier 1 | < 2 s |
-| Player search with filters over 150k players | < 20 ms |
+| Operation | Target | Measured so far |
+| --- | --- | --- |
+| Tier 0 full spatial match (watched) | Real time or faster at any playback speed; full 90 min in < 50 ms when skipped | Not built |
+| Tier 1 event-level match | < 1 ms | 0.31 ms |
+| Tier 2 statistical match | < 10 µs | 8.7 µs |
+| Daily world tick, medium world | < 50 ms | 1.2 ms (recovery only) |
+| Full matchday, all leagues, medium world | < 1 s | Not built |
+| One season in holiday mode, medium world | < 60 s | Not built |
+| Match predictor, 10,000 runs at Tier 1 | < 2 s | 0.73 s (4 threads) |
+| Player search with filters over 150k players | < 20 ms | Not built |
+
+Measurements are from the 4-core cloud build machine, not an iPad.
 
 ## 7. Determinism
 

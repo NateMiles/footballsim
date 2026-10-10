@@ -44,3 +44,21 @@ jobs:
         run: scripts/determinism-check.sh --size tiny --days 365
       - name: Native and WebAssembly agree (small world, two months)
         run: scripts/determinism-check.sh --size small --days 60
+
+  calibration:
+    name: Match engine calibration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Tier 2 fit is current
+        run: |
+          cargo run --release -p fs-cli -- fit-tier2 --seasons 40 --seed 1000 --out crates/fs-match/src/fitted.rs
+          git diff --exit-code crates/fs-match/src/fitted.rs
+      - name: Every calibration check passes and the report is current
+        run: |
+          scripts/calibration-report.sh
+          git diff --exit-code docs/CALIBRATION.md

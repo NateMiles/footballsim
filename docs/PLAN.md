@@ -107,10 +107,12 @@ promises.
   timestamped command. This is the foundation for replays, saves and future
   online leagues (see ARCHITECTURE.md section 11).
 
-### M1: Headless match engine
+### M1: Headless match engine (done)
 - Tier 1 event engine and Tier 2 statistical engine (see MATCH_ENGINE.md).
-- CLI: `sim-match --home A --away B --runs 10000` prints result distributions.
-- Calibration report comparing output stats against real-football targets.
+- CLI: `fs-cli predict --home A --away B --runs 10000` prints result
+  distributions; `fs-cli match` prints a full match report.
+- Calibration report comparing output stats against real-football targets,
+  plus tactic balance checks (docs/CALIBRATION.md).
 
 ### M2: One-league world
 - Fictional world generator: one nation, 20 clubs, about 600 players.

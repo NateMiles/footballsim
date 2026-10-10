@@ -240,6 +240,126 @@ impl Position {
             Position::Striker => "ST",
         }
     }
+
+    /// Attributes that matter most in this position, then the ones that
+    /// matter somewhat.
+    pub const fn profile(self) -> (&'static [Attr], &'static [Attr]) {
+        use Attr::*;
+        use Position::*;
+        match self {
+            Goalkeeper => (
+                &[
+                    Reflexes,
+                    Handling,
+                    OneOnOnes,
+                    AerialReach,
+                    CommandOfArea,
+                    Positioning,
+                ],
+                &[
+                    Kicking,
+                    Throwing,
+                    Communication,
+                    RushingOut,
+                    Concentration,
+                    Agility,
+                ],
+            ),
+            DefenderCentre => (
+                &[
+                    Tackling,
+                    Marking,
+                    Heading,
+                    Positioning,
+                    Strength,
+                    JumpingReach,
+                ],
+                &[Anticipation, Bravery, Concentration, Composure, Passing],
+            ),
+            DefenderRight | DefenderLeft | WingBackRight | WingBackLeft => (
+                &[Tackling, Marking, Pace, Stamina, Crossing, Positioning],
+                &[Acceleration, WorkRate, Dribbling, Teamwork, Anticipation],
+            ),
+            DefensiveMidfielder => (
+                &[
+                    Tackling,
+                    Positioning,
+                    Passing,
+                    Anticipation,
+                    Teamwork,
+                    Stamina,
+                ],
+                &[Marking, Decisions, Concentration, Strength, WorkRate],
+            ),
+            MidfielderCentre => (
+                &[Passing, Vision, Decisions, Technique, FirstTouch, Stamina],
+                &[Teamwork, WorkRate, Composure, LongShots, Tackling],
+            ),
+            MidfielderRight | MidfielderLeft => (
+                &[Crossing, Pace, Dribbling, Stamina, Passing, WorkRate],
+                &[Acceleration, Technique, FirstTouch, OffTheBall, Teamwork],
+            ),
+            AttackingMidRight | AttackingMidLeft => (
+                &[Dribbling, Pace, Acceleration, Technique, Flair, Crossing],
+                &[Agility, FirstTouch, OffTheBall, Finishing, Passing],
+            ),
+            AttackingMidCentre => (
+                &[Passing, Vision, Technique, FirstTouch, Flair, Decisions],
+                &[Dribbling, LongShots, OffTheBall, Composure, Agility],
+            ),
+            Striker => (
+                &[Finishing, OffTheBall, Composure, FirstTouch, Pace, Heading],
+                &[Acceleration, Strength, Dribbling, Technique, Anticipation],
+            ),
+        }
+    }
+
+    /// Neighbouring positions a player can usually also play.
+    pub const fn neighbours(self) -> &'static [Position] {
+        use Position::*;
+        match self {
+            Goalkeeper => &[],
+            DefenderRight => &[WingBackRight, DefenderCentre, MidfielderRight],
+            DefenderLeft => &[WingBackLeft, DefenderCentre, MidfielderLeft],
+            DefenderCentre => &[DefensiveMidfielder, DefenderRight, DefenderLeft],
+            WingBackRight => &[DefenderRight, MidfielderRight],
+            WingBackLeft => &[DefenderLeft, MidfielderLeft],
+            DefensiveMidfielder => &[MidfielderCentre, DefenderCentre],
+            MidfielderCentre => &[DefensiveMidfielder, AttackingMidCentre],
+            MidfielderRight => &[AttackingMidRight, WingBackRight, MidfielderCentre],
+            MidfielderLeft => &[AttackingMidLeft, WingBackLeft, MidfielderCentre],
+            AttackingMidRight => &[MidfielderRight, Striker, AttackingMidLeft],
+            AttackingMidLeft => &[MidfielderLeft, Striker, AttackingMidRight],
+            AttackingMidCentre => &[MidfielderCentre, Striker],
+            Striker => &[AttackingMidCentre, AttackingMidRight, AttackingMidLeft],
+        }
+    }
+
+    /// Key attributes for this position.
+    pub const fn key_attributes(self) -> &'static [Attr] {
+        self.profile().0
+    }
+
+    /// Secondary attributes for this position.
+    pub const fn secondary_attributes(self) -> &'static [Attr] {
+        self.profile().1
+    }
+
+    /// How good a player with these attributes is in this position, on the
+    /// 0-1000 scale, ignoring familiarity. Key attributes count three times,
+    /// secondary attributes twice.
+    pub fn role_rating(self, attrs: &Attributes) -> u16 {
+        let (key, secondary) = self.profile();
+        let mut total = 0u32;
+        for &a in key {
+            total += 3 * u32::from(attrs.get(a));
+        }
+        for &a in secondary {
+            total += 2 * u32::from(attrs.get(a));
+        }
+        let weight = 3 * key.len() as u32 + 2 * secondary.len() as u32;
+        (total / weight) as u16
+    }
 }
 
 /// How familiar a player is with each position, 0 (never) to 20 (natural).
@@ -298,6 +418,18 @@ mod tests {
         let mut a = Attributes::default();
         a.set(Attr::Pace, 4000);
         assert_eq!(a.get(Attr::Pace), ATTR_MAX);
+    }
+
+    #[test]
+    fn role_rating_weights_key_attributes() {
+        let mut a = Attributes([100; ATTR_COUNT]);
+        for &k in Position::Striker.key_attributes() {
+            a.set(k, 900);
+        }
+        assert!(Position::Striker.role_rating(&a) > Position::Goalkeeper.role_rating(&a) + 400);
+        for p in Position::ALL {
+            assert!(!p.key_attributes().is_empty());
+        }
     }
 
     #[test]

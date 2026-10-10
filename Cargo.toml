@@ -13,6 +13,8 @@ publish = false
 fs-core = { path = "crates/fs-core" }
 fs-world = { path = "crates/fs-world" }
 fs-gen = { path = "crates/fs-gen" }
+fs-match = { path = "crates/fs-match" }
+fs-lab = { path = "crates/fs-lab" }
 
 serde = { version = "1", features = ["derive"] }
 postcard = { version = "1", default-features = false, features = ["alloc"] }
@@ -38,3 +40,9 @@ lto = "thin"
 
 [profile.bench]
 inherits = "release"
+
+# The simulation is slow unoptimised; keep debug builds and tests quick.
+[profile.dev.package.fs-match]
+opt-level = 3
+[profile.dev.package.fs-core]
+opt-level = 3
