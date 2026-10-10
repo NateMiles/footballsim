@@ -70,8 +70,12 @@ pub(crate) fn afternoon(
     if !world.leagues.is_empty() {
         crate::market::daily(world, events);
     }
+    crate::board::fill_vacancies(world, events);
     if world.date.ymd().2 == 1 {
         economy::monthly_accounts(world);
+        if !world.leagues.is_empty() {
+            crate::board::monthly(world, events);
+        }
         development(world);
         if !world.leagues.is_empty() {
             refresh_ai_tactics(world);

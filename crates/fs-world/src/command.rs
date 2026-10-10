@@ -99,6 +99,11 @@ pub enum Command {
     },
     /// Dismiss a staff member, paying three months' wages.
     ReleaseStaff { staff: StaffId },
+    /// Take a vacant job (for a manager without a club). The board must
+    /// rate the manager highly enough.
+    ApplyForJob { club: ClubId },
+    /// Leave your club.
+    Resign,
     /// Send the scouts to watch a player.
     ScoutPlayer { player: PlayerId },
     /// Stop scouting a player.
@@ -227,6 +232,12 @@ pub enum Event {
     StaffHired { staff: StaffId, club: ClubId },
     /// A staff member left a club.
     StaffLeft { staff: StaffId, club: ClubId },
+    /// A board sacked its manager.
+    ManagerSacked { manager: ManagerId, club: ClubId },
+    /// A manager resigned.
+    ManagerLeft { manager: ManagerId, club: ClubId },
+    /// A human manager's board is losing patience.
+    BoardWarning { club: ClubId, confidence: u8 },
     /// Another club bid for a human-managed club's player.
     OfferReceived {
         offer: u32,
@@ -348,6 +359,12 @@ pub enum CommandError {
     InvalidWageShare,
     #[error("fees cannot be negative")]
     NegativeFee,
+    #[error("{0} is not looking for a manager")]
+    NotVacant(ClubId),
+    #[error("the board of {0} wants someone with a bigger reputation")]
+    ApplicationRejected(ClubId),
+    #[error("you already manage a club")]
+    AlreadyEmployed,
 }
 
 /// Largest squad a club may register.
@@ -674,7 +691,35 @@ impl World {
                     // A newcomer: known, but with everything to prove.
                     reputation: self.clubs[club].reputation / 2,
                 });
+                let board = &mut self.clubs[club].board;
+                board.vacant_since = None;
+                board.confidence = crate::board::NEUTRAL_CONFIDENCE;
                 Ok(vec![Event::ManagerAppointed { manager, club }])
+            }
+            Command::ApplyForJob { club } => {
+                let m = self.unemployed_human(actor)?;
+                if self.clubs.get(club).is_none() {
+                    return Err(CommandError::UnknownClub(club));
+                }
+                if self.clubs[club].manager.is_some() || self.clubs[club].league.is_none() {
+                    return Err(CommandError::NotVacant(club));
+                }
+                if !crate::board::would_hire(self, club, self.managers[m].reputation) {
+                    return Err(CommandError::ApplicationRejected(club));
+                }
+                crate::board::appoint(self, m, club);
+                Ok(vec![Event::ManagerAppointed { manager: m, club }])
+            }
+            Command::Resign => {
+                let club = self.managed_club(actor)?;
+                if self.pending.is_some() {
+                    return Err(CommandError::MatchDayInProgress);
+                }
+                let Actor::Manager(m) = actor else {
+                    unreachable!("managed_club rejects the system")
+                };
+                crate::board::leave(self, m);
+                Ok(vec![Event::ManagerLeft { manager: m, club }])
             }
         }
     }
@@ -982,6 +1027,24 @@ impl World {
                 mgr.club.ok_or(CommandError::NoManagedClub(m))
             }
         }
+    }
+
+    /// A human manager without a club.
+    fn unemployed_human(&self, actor: Actor) -> Result<ManagerId, CommandError> {
+        let Actor::Manager(m) = actor else {
+            return Err(CommandError::NotPermitted);
+        };
+        let mgr = self
+            .managers
+            .get(m)
+            .ok_or(CommandError::UnknownManager(m))?;
+        if mgr.control != Control::Human {
+            return Err(CommandError::NotPermitted);
+        }
+        if mgr.club.is_some() {
+            return Err(CommandError::AlreadyEmployed);
+        }
+        Ok(m)
     }
 
     fn require_system_or_human(&self, actor: Actor) -> Result<(), CommandError> {

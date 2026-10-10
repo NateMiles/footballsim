@@ -11,8 +11,8 @@ use fs_world::attributes::Position;
 use fs_world::people::{Age, PlayerSpec, new_player};
 use fs_world::staff::{self, StaffRole};
 use fs_world::{
-    Club, ClubId, Contract, Control, Facilities, League, Manager, NameRef, Nation, NationId, World,
-    economy,
+    Club, ClubId, Contract, Control, Facilities, League, Manager, NameRef, Nation, NationId, Rules,
+    World, economy,
 };
 use names::{NameStyle, STYLES};
 
@@ -30,6 +30,8 @@ pub struct GenConfig {
     pub free_agents: u32,
     /// Clubs (by creation index) whose managers are human.
     pub human_clubs: Vec<u32>,
+    /// The rules the game is played under.
+    pub rules: Rules,
 }
 
 /// Preset world sizes, matching the memory budgets in
@@ -64,6 +66,7 @@ impl GenConfig {
             players_per_club: 25,
             free_agents,
             human_clubs: vec![0],
+            rules: Rules::default(),
         }
     }
 }
@@ -107,6 +110,7 @@ const SQUAD_TEMPLATE: [Position; 25] = {
 /// Panics if `human_clubs` names a club index that is not generated.
 pub fn generate(cfg: &GenConfig) -> World {
     let mut world = World::new(cfg.seed, cfg.start);
+    world.set_rules(cfg.rules);
 
     // Nations and their name pools.
     let mut styles: Vec<&NameStyle> = Vec::with_capacity(usize::from(cfg.nations));
@@ -268,6 +272,7 @@ pub fn generate(cfg: &GenConfig) -> World {
     fs_world::season::start_first_season(&mut world);
     add_backroom(&mut world, cfg);
     fs_world::economy::initialise(&mut world);
+    fs_world::board::set_targets(&mut world);
     fs_world::market::list_players(&mut world);
 
     debug_assert_eq!(world.check_invariants(), Ok(()));

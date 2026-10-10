@@ -66,6 +66,7 @@ pub fn current_season(world: &World) -> Option<i32> {
 pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
     let year = season_year(world.date());
     economy::close_accounts(world, year - 1);
+    crate::board::season_end(world, events);
     close_season(world, events);
     record_careers(world, year - 1);
     for (player, loan) in crate::transfer::end_loans(world) {
@@ -85,6 +86,7 @@ pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
     maintain_squads(world, events);
     refresh_ai_tactics(world);
     start_season(world, year);
+    crate::board::set_targets(world);
     economy::invest(world);
     economy::set_budgets(world);
 }

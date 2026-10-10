@@ -6,7 +6,7 @@ use fs_gen::{GenConfig, Size, generate};
 use fs_world::matchday::team_sheet;
 use fs_world::people::{age_years, wage_demand};
 use fs_world::{
-    Actor, ClubId, Command, CommandError, Event, Game, LeagueId, ManagerId, Status, World,
+    Actor, ClubId, Command, CommandError, Event, Game, LeagueId, ManagerId, Rules, Status, World,
 };
 
 fn date(y: i32, m: u32, d: u32) -> GameDate {
@@ -24,6 +24,15 @@ fn advance_to(game: &mut Game, target: GameDate) -> Vec<Event> {
         );
     }
     events
+}
+
+/// A preset whose human manager cannot be sacked, for tests that follow
+/// one manager for a long time.
+fn unsackable(size: Size, seed: u64) -> GenConfig {
+    GenConfig {
+        rules: Rules { sack_humans: false },
+        ..GenConfig::preset(size, seed)
+    }
 }
 
 fn human(world: &World) -> (ManagerId, ClubId) {
@@ -148,7 +157,7 @@ fn unavailable_players_are_left_out() {
 
 #[test]
 fn human_contracts_must_be_renewed_or_the_player_leaves() {
-    let mut game = Game::new(generate(&GenConfig::preset(Size::Tiny, 14)));
+    let mut game = Game::new(generate(&unsackable(Size::Tiny, 14)));
     let (manager, club) = human(game.world());
     let ending = date(2027, 6, 30);
     let expiring: Vec<_> = game.world().clubs()[club]
@@ -211,7 +220,7 @@ fn human_contracts_must_be_renewed_or_the_player_leaves() {
 
 #[test]
 fn humans_can_sign_free_agents_and_set_tactics() {
-    let mut game = Game::new(generate(&GenConfig::preset(Size::Tiny, 15)));
+    let mut game = Game::new(generate(&unsackable(Size::Tiny, 15)));
     let (manager, club) = human(game.world());
     let w = game.world();
     let free = w

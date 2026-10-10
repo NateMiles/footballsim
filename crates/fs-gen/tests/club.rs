@@ -204,3 +204,76 @@ fn scouting_narrows_estimates_and_reports() {
     assert!(after.ability.low <= truth && truth <= after.ability.high);
     assert!(w.scouting().assignments(club).is_empty());
 }
+
+#[test]
+fn boards_set_targets_sack_managers_and_fill_vacancies() {
+    let mut game = Game::new(generate(&GenConfig::preset(Size::Small, 36)));
+    {
+        let w = game.world();
+        assert!(
+            w.clubs()
+                .iter()
+                .all(|(_, c)| c.league().is_none() || c.board().target > 0)
+        );
+    }
+    let events = advance_to(&mut game, date(2027, 7, 2));
+    let sacked = events
+        .iter()
+        .filter(|e| matches!(e, Event::ManagerSacked { .. }))
+        .count();
+    let appointed = events
+        .iter()
+        .filter(|e| matches!(e, Event::ManagerAppointed { .. }))
+        .count();
+    assert!(sacked > 50, "{sacked} sackings");
+    let w = game.world();
+    // Every sacking led to an appointment, or the club is still looking
+    // (the summer's sackings are under a week old).
+    let vacant = fs_world::board::vacancies(w).len();
+    assert!(
+        appointed + vacant >= sacked,
+        "{appointed} appointments, {vacant} vacancies"
+    );
+    w.check_invariants().unwrap();
+    let today = w.date();
+    for (id, c) in w.clubs().iter() {
+        if let Some(since) = c.board().vacant_since {
+            assert!(today.days_since(since) <= 7, "{id} vacant since {since}");
+        }
+    }
+}
+
+#[test]
+fn a_human_can_resign_and_apply_for_jobs() {
+    let mut game = Game::new(generate(&GenConfig::preset(Size::Small, 37)));
+    let (m, club) = human(game.world());
+    game.submit(Actor::Manager(m), Command::Resign).unwrap();
+    assert_eq!(game.world().human_club(m), None);
+    assert!(fs_world::board::vacancies(game.world()).contains(&club));
+    // The job is still open the next day; the human can take it back.
+    game.submit(Actor::System, Command::Advance { days: 1 })
+        .unwrap();
+    // A giant will not hire a manager whose reputation has collapsed.
+    let w = game.world();
+    let rep = w.managers()[m].reputation;
+    let vacant = fs_world::board::vacancies(w);
+    for &c in &vacant {
+        let ok = fs_world::board::would_hire(w, c, rep);
+        let result = game
+            .clone()
+            .submit(Actor::Manager(m), Command::ApplyForJob { club: c });
+        if ok {
+            assert!(result.is_ok());
+        } else {
+            assert_eq!(result, Err(CommandError::ApplicationRejected(c)));
+        }
+    }
+    game.submit(Actor::Manager(m), Command::ApplyForJob { club })
+        .unwrap();
+    assert_eq!(game.world().human_club(m), Some(club));
+    assert_eq!(
+        game.submit(Actor::Manager(m), Command::ApplyForJob { club }),
+        Err(CommandError::AlreadyEmployed)
+    );
+    game.world().check_invariants().unwrap();
+}

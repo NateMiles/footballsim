@@ -19,6 +19,19 @@ use fs_core::{GameDate, IdVec, Seed, StateHash, state_hash};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+/// Rules a game is played under, chosen when it starts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rules {
+    /// Whether boards may sack human managers.
+    pub sack_humans: bool,
+}
+
+impl Default for Rules {
+    fn default() -> Self {
+        Self { sack_humans: true }
+    }
+}
+
 /// The complete simulation state.
 ///
 /// Read access is public. Mutation goes through [`crate::Game::submit`]
@@ -37,6 +50,7 @@ pub struct World {
     pub(crate) staff: IdVec<StaffKind, Staff>,
     pub(crate) scouting: Scouting,
     pub(crate) market: Market,
+    pub(crate) rules: Rules,
     /// Today's matches, waiting for human managers to watch them.
     pub(crate) pending: Option<PendingMatchDay>,
 }
@@ -56,6 +70,7 @@ impl World {
             staff: IdVec::new(),
             scouting: Scouting::default(),
             market: Market::default(),
+            rules: Rules::default(),
             pending: None,
         }
     }
@@ -93,6 +108,16 @@ impl World {
     /// All staff members, employed or not.
     pub fn staff(&self) -> &IdVec<StaffKind, Staff> {
         &self.staff
+    }
+
+    /// Game rules chosen when the world was made.
+    pub fn rules(&self) -> &Rules {
+        &self.rules
+    }
+
+    /// Sets the game rules (world generation).
+    pub fn set_rules(&mut self, rules: Rules) {
+        self.rules = rules;
     }
 
     /// The transfer market: offers, loans, listings and history.

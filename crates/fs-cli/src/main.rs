@@ -535,10 +535,16 @@ fn career_cmd(a: &Args) {
         let t = Instant::now();
         let year = season_year(game.world().date());
         let target = fs_core::GameDate::from_ymd(year + 1, 7, 1).expect("valid date");
+        let mut sackings = 0;
         while game.world().date() < target {
             let days = target.days_since(game.world().date()).min(366) as u16;
-            game.submit(Actor::System, Command::Advance { days })
+            let events = game
+                .submit(Actor::System, Command::Advance { days })
                 .expect("advance");
+            sackings += events
+                .iter()
+                .filter(|e| matches!(e, fs_world::Event::ManagerSacked { .. }))
+                .count();
         }
         let secs = t.elapsed().as_secs_f64();
         let w = game.world();
@@ -656,6 +662,12 @@ fn career_cmd(a: &Args) {
         println!(
             "  Market: {}",
             fs_world::transfer::MarketSummary::of(w, summary.year)
+        );
+        let reps: Vec<u16> = w.clubs().iter().map(|(_, c)| c.reputation).collect();
+        println!(
+            "  Boards: {sackings} managers sacked; club reputation mean {:.0}, max {}",
+            reps.iter().map(|&r| f64::from(r)).sum::<f64>() / reps.len().max(1) as f64,
+            reps.iter().max().unwrap_or(&0)
         );
         for (row, &p) in prospect_rows.iter_mut().zip(&prospects) {
             row.push(ps.ability(p));

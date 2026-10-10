@@ -52,4 +52,4 @@ pub use player::{
 };
 pub use snapshot::SnapshotError;
 pub use staff::{Staff, StaffAttrs, StaffRole};
-pub use world::World;
+pub use world::{Rules, World};

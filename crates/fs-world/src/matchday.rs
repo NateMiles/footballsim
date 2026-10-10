@@ -288,6 +288,15 @@ fn apply_result(
     }
 
     for (side, &club) in clubs.iter().enumerate() {
+        let points = match r.goals[side].cmp(&r.goals[1 - side]) {
+            core::cmp::Ordering::Greater => 3,
+            core::cmp::Ordering::Equal => 1,
+            core::cmp::Ordering::Less => 0,
+        };
+        crate::board::after_match(world, club, points, events);
+    }
+
+    for (side, &club) in clubs.iter().enumerate() {
         let scored = r.goals[side];
         let conceded = r.goals[1 - side];
         let morale_shift: i32 = match scored.cmp(&conceded) {
