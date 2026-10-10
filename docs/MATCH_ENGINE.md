@@ -125,3 +125,45 @@ spatial targets (shot location maps, pass length distributions) for Tier 0.
 3. **Tier 0** last, alongside the 2D match view in M3, then iterate on
    realism for as long as the game exists.
 4. Calibration harness is built with Tier 2 and grows with each tier.
+
+## 7. Renderer-neutral output (3D readiness)
+
+The match view is 2D for now. A 3D view should be possible later without
+touching the engine, so the engine never draws anything. It emits a
+**frame stream** that any renderer can consume.
+
+### Frame stream contents
+- **Header:** pitch dimensions, team colours and kit IDs, player IDs, shirt
+  numbers, heights.
+- **Frames** at a fixed rate (for example 10 Hz), each with:
+  - per player: position (x, y), velocity, body facing, and an **action
+    state** such as running, passing, shooting, tackling, heading, diving,
+    celebrating, injured;
+  - ball: position (x, y, z) and velocity;
+  - the action's start time and target, so a 3D renderer can time
+    animations.
+- **Events:** goals, fouls, cards, subs, set-piece starts, with frame
+  indices.
+- Values are quantised (centimetres, small integer angles) so a full match
+  stays compact in memory and in replays.
+
+### How each renderer uses it
+- **2D (now).** Interpolates positions between frames, draws ball height as
+  a shadow offset and size change, and uses action state for simple icons
+  or highlights.
+- **3D (later).** Uses the same interpolation, maps action states to
+  animations, and adds cameras. The likely options are three.js or
+  Babylon.js inside the existing web UI, which also runs in the iPad
+  WebView. A native engine view is possible but not planned.
+
+### UI contract
+The UI defines one renderer interface: load the header, push frames, seek,
+and set playback speed. The 2D renderer is the first implementation; a 3D
+renderer is a second implementation of the same interface, selectable in
+settings.
+
+### Engine requirements this creates
+The engine must track body facing and action timing, and must simulate the
+ball in 3D. Tier 0 already needs all three for realism, so the cost is close
+to zero.
+

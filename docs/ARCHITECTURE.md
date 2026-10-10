@@ -9,7 +9,7 @@
 | Delivery | How it runs on iPad | Needs | When |
 | --- | --- | --- | --- |
 | **PWA** (progressive web app) | Core compiled to WebAssembly, runs in a Web Worker inside Safari. "Add to Home Screen" gives a full-screen app icon. | Any web host. No Mac, no Apple account. | From M3 |
-| **Native app via Tauri 2** | Core compiled to native ARM64 and linked into an iPadOS app. UI runs in the system WebView. | A Mac with Xcode, and an Apple developer account for installs beyond 7-day test builds. | From M6 |
+| **Native app via Tauri 2** | Core compiled to native ARM64 and linked into an iPadOS app. UI runs in the system WebView. | A Mac with Xcode (available). A free Apple ID gives 7-day installs on your own iPad; the paid developer account gives year-long installs, TestFlight and the App Store. | Dev builds from M3, polished in M6 |
 
 Why this beats the alternatives:
 
@@ -211,3 +211,42 @@ hardware.
 | Serialisation | serde, compact binary codec, zstd |
 | Benchmarks | criterion |
 | CI | GitHub Actions: fmt, clippy, tests, WASM build, determinism check, benchmarks |
+
+## 11. Designing for online leagues later
+
+Online leagues are not being built now. These rules apply from M0 so that
+adding them later is an add-on, not a rewrite.
+
+### Target model
+- **Server-authoritative shared world.** A server runs the same Rust core
+  headless and owns the canonical world. Each human manages one club.
+- **Turn-like matchdays.** Managers submit commands (team selection, tactics,
+  bids) before a deadline. The server advances the world and publishes the
+  result. Because the sim is deterministic, clients can replay matches
+  locally from the seed and commands instead of downloading video-like data.
+- **Clients are never trusted.** The server re-validates every command and
+  is the only thing that advances time.
+
+### Rules for the core from day one
+1. **Every state change is a command.** The UI never mutates world state.
+   Commands are serialisable, versioned and carry the acting manager.
+2. **Many humans, not one.** The world holds a list of human-controlled
+   clubs. Nothing in the core assumes a single "the player".
+3. **Queries take a viewer.** Every query is answered from a given club's
+   point of view, because scouting knowledge differs per club. This is
+   needed for fog of war anyway, and is exactly what online play needs.
+4. **No blocking prompts.** When the sim needs a human decision (a bid, a
+   contract demand), it creates a pending decision with a deadline and an
+   AI default. Single-player pauses on it; online play lets it time out.
+5. **Time advances by request.** Single-player advances when you press
+   continue. Online advances when all managers are ready or the deadline
+   passes. The scheduler supports both through the same entry point.
+6. **UI settings never affect the sim.** Anything that changes outcomes
+   lives in world state, so the server and every client agree.
+
+### Later work (M8)
+- `fs-server` crate: headless host, league lobby, deadlines, accounts.
+- Sync: clients receive command batches and world snapshots per matchday.
+- Hosting: a small server is enough, since a matchday for a medium world
+  costs about a second of CPU.
+

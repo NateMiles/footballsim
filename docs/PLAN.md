@@ -103,6 +103,9 @@ promises.
 - Cargo workspace, CI (fmt, clippy, tests), benchmark harness.
 - Core ID and entity types, seeded RNG, determinism test (same seed gives a
   byte-identical world hash on native and WASM).
+- Command log from day one: every manager decision is a serialisable,
+  timestamped command. This is the foundation for replays, saves and future
+  online leagues (see ARCHITECTURE.md section 11).
 
 ### M1: Headless match engine
 - Tier 1 event engine and Tier 2 statistical engine (see MATCH_ENGINE.md).
@@ -118,10 +121,13 @@ promises.
 ### M3: Playable web UI
 - TypeScript UI: inbox, squad, tactics, fixtures, table, player profile.
 - Match day: 2D top-down match view (Tier 0 engine), live stats, subs and
-  shouts.
+  shouts. The view renders from a renderer-neutral frame stream so a 3D
+  view can be added later without engine changes (see MATCH_ENGINE.md
+  section 7).
 - Core compiled to WASM in a Web Worker. Runs in desktop browsers **and
-  iPad Safari as an installable PWA**. This is the first time it runs on the
-  iPad.
+  iPad Safari as an installable PWA**.
+- Tauri dev builds for macOS and your own iPad, built from your Mac with
+  Xcode. This is the first time it runs natively on the iPad.
 
 ### M4: Management depth
 - Transfers and loans with the agent-based market, contracts, wages, agents.
@@ -136,10 +142,12 @@ promises.
 - LOD scheduling across the world, multithreaded daily tick.
 - Hit the performance budgets in ARCHITECTURE.md on an iPad.
 
-### M6: Native apps
-- Tauri 2 builds for macOS, Windows and iPadOS. The core runs natively, with
-  real threads, instead of in WASM.
+### M6: Native polish and distribution
+- Release-quality Tauri 2 builds for macOS, Windows and iPadOS, with the
+  core running natively on all cores.
 - iPad-first touch layout pass on every screen.
+- TestFlight builds for your own devices. App Store and Steam readiness
+  checks if a release is on the table by then.
 
 ### M7: Beyond FM
 - Match predictor, season projections, tactic lab.
@@ -148,8 +156,9 @@ promises.
 - Director of football and owner careers.
 
 ### M8+: Later
-- Online leagues, scripting for mods, 3D match view, women's football
-  world data, more nations.
+- **Online leagues.** Already designed for: see ARCHITECTURE.md section 11.
+- **3D match view.** Already designed for: see MATCH_ENGINE.md section 7.
+- Scripting for mods, women's football world data, more nations.
 
 ## 6. Biggest risks
 
@@ -162,12 +171,11 @@ promises.
 | Licensing | Real names and data are a legal problem. | Fictional world plus user-loaded data packs. |
 | Scope creep | "More than FM" is unbounded. | Milestones above are strict; M7 features wait until M5 performance is proven. |
 
-## 7. Open questions for you
+## 7. Decisions
 
-1. Is this a personal project, or something you want to release (App Store,
-   Steam, web)? Release changes priorities around licensing, polish and
-   store rules.
-2. Single-player only for now, or should online leagues shape early design?
-3. Match view ambitions: is a clean 2D view enough, or is 3D a must-have?
-4. Do you have a Mac? Native iPad builds through Tauri need Xcode on macOS.
-   The PWA route in M3 does not.
+| Question | Decision | What it changes |
+| --- | --- | --- |
+| Personal or release? | Personal for now, possible release later. | Build for fun and speed first, but never take shortcuts that block a release: keep the world fictional, keep third-party assets properly licensed, keep saves versioned. |
+| Online leagues? | Not now, but keep the door open. | No online code until M8. Determinism and the command log from M0 make it a later add-on instead of a rewrite. |
+| Match view | 2D now, 3D possible later. | The engine already simulates ball height. The renderer reads a neutral frame stream, so a 3D renderer can plug in alongside the 2D one. |
+| Mac available? | Yes. | Native iPad dev builds move up from M6 to M3. M6 becomes polish and distribution. |
