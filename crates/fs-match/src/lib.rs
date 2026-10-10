@@ -24,6 +24,7 @@ pub mod skills;
 pub mod strength;
 pub mod tier1;
 pub mod tier2;
+pub mod view;
 
 pub use formation::{Formation, Slot};
 pub use input::{MatchInput, PlayerSnapshot, Tactic, TeamSheet};
