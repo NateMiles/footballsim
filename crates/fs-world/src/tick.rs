@@ -72,6 +72,7 @@ pub(crate) fn afternoon(
         time("matches", || play_today(world, events, instructions));
         time("cups", || crate::cup::daily(world, events));
     }
+    time("training", || crate::training::daily(world));
     time("recovery", || recovery(world));
     time("injuries", || injuries(world, events));
     time("scouting", || crate::scouting::daily(world, events));
@@ -96,11 +97,19 @@ pub(crate) fn afternoon(
 fn recovery(world: &mut World) {
     let seed = world.seed;
     let day = u64::from(world.date.days());
+    // Each club's training sets how fast its players recover.
+    let rates: Vec<u32> = world
+        .clubs
+        .as_slice()
+        .iter()
+        .map(|c| c.training.recovery_per_mille())
+        .collect();
     let Players {
         condition,
         attributes,
         hidden,
         status,
+        club,
         ..
     } = &mut world.players;
     par::for_each_indexed_mut(condition, |i, c| {
@@ -110,7 +119,8 @@ fn recovery(world: &mut World) {
         let mut rng = seed.derive(Stream::DailyTick, day, i as u64);
         let natural_fitness = u32::from(attributes[i].get(Attr::NaturalFitness));
         let professionalism = u32::from(hidden[i].get(HiddenAttr::Professionalism));
-        recover(c, natural_fitness, professionalism, &mut rng);
+        let rate = club[i].map_or(1000, |c| rates[c.index()]);
+        recover(c, natural_fitness, professionalism, rate, &mut rng);
     });
 }
 
@@ -120,13 +130,16 @@ fn injuries(world: &mut World, events: &mut Vec<Event>) {
     let seed = world.seed;
     let today = world.date;
     let day = u64::from(today.days());
-    // Medical teams: (prevention, treatment) per club.
+    // Medical teams and training load: (prevention, treatment) per club.
     let medical: Vec<(f64, f64)> = world
         .clubs
         .ids()
         .map(|c| {
             let r = staff::ratings(world, c);
-            (staff::prevention_factor(&r), staff::treatment_factor(&r))
+            (
+                staff::prevention_factor(&r) * world.clubs[c].training.injury_risk(),
+                staff::treatment_factor(&r),
+            )
         })
         .collect();
     let Players {
@@ -195,6 +208,30 @@ fn development(world: &mut World) {
             }
         }
     }
+    // Training: growth and attribute emphasis per club developing today,
+    // and players' own training.
+    let schedules: Vec<(f64, Option<[f64; crate::attributes::ATTR_COUNT]>)> = world
+        .clubs
+        .as_slice()
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            if !due(i) {
+                return (1.0, None);
+            }
+            let t = c.training;
+            let focus = (t.focus != crate::training::Focus::Balanced).then(|| t.focus.weights());
+            (t.growth(), focus)
+        })
+        .collect();
+    let individual: BTreeMap<crate::ids::PlayerId, crate::training::Individual> = world
+        .clubs
+        .as_slice()
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| due(*i))
+        .flat_map(|(_, c)| c.individual.iter().map(|(&p, &t)| (p, t)))
+        .collect();
     // Coaching: (seniors, under-21s), for the clubs developing today.
     let coaching: Vec<(f64, f64)> = world
         .clubs
@@ -237,6 +274,11 @@ fn development(world: &mut World) {
             let (senior, youth) = coaching[c.index()];
             if age < 21.0 { youth } else { senior }
         });
+        let (training, focus) = club[i].map_or((1.0, None), |c| schedules[c.index()]);
+        let squad_weights = focus.unwrap_or(crate::people::EVEN);
+        let own = individual
+            .get(&crate::ids::PlayerId::new(i as u32))
+            .map(|t| t.weights(squad_weights));
         develop_month(
             attrs,
             positions[i].best(),
@@ -246,21 +288,41 @@ fn development(world: &mut World) {
                 professionalism,
                 playing_time: playing,
                 coaching: coached,
+                training,
             },
+            own.as_ref().unwrap_or(&squad_weights),
             &mut rng,
         );
     });
+    // Position training: a point of familiarity a month, two for
+    // adaptable players.
+    for (&p, &t) in &individual {
+        if let crate::training::Individual::Position(pos) = t {
+            let i = p.index();
+            let mut rng = seed.derive(Stream::Development, month, i as u64 | (1 << 41));
+            let adaptability = f64::from(hidden[i].get(HiddenAttr::Adaptability)) / 1000.0;
+            let gain = 1 + u8::from(rng.chance(adaptability));
+            let now = positions[i].get(pos);
+            positions[i].set(pos, now.saturating_add(gain));
+        }
+    }
 }
 
 /// One day of recovery for one player. Attribute inputs are 0-1000.
-fn recover(c: &mut Condition, natural_fitness: u32, professionalism: u32, rng: &mut fs_core::Rng) {
+fn recover(
+    c: &mut Condition,
+    natural_fitness: u32,
+    professionalism: u32,
+    rate_per_mille: u32,
+    rng: &mut fs_core::Rng,
+) {
     let max = u32::from(CONDITION_MAX);
     let attr_max = u32::from(ATTR_MAX);
 
     // Fitness closes 15% to 30% of the gap to full each day, faster with
     // better natural fitness, so a tired player is fresh within a week.
     let fitness = u32::from(c.fitness);
-    let rate = 150 + natural_fitness * 150 / attr_max; // per mille
+    let rate = (150 + natural_fitness * 150 / attr_max) * rate_per_mille / 1000; // per mille
     let gain = (max - fitness) * rate / 1000 + rng.below(20);
     c.fitness = (fitness + gain).min(max) as u16;
 
@@ -302,7 +364,7 @@ mod tests {
         };
         let mut rng = Rng::from_u64(1);
         for _ in 0..14 {
-            recover(&mut c, 800, 500, &mut rng);
+            recover(&mut c, 800, 500, 1000, &mut rng);
         }
         assert!(c.fitness > 9_400, "{c:?}");
         assert!(c.fatigue < 2_000, "{c:?}");
@@ -324,7 +386,7 @@ mod tests {
                 morale: CONDITION_MAX,
             };
             for _ in 0..1000 {
-                recover(&mut c, nf, nf, &mut rng);
+                recover(&mut c, nf, nf, 1000, &mut rng);
                 assert!(c.fitness <= CONDITION_MAX);
                 assert!(c.morale <= CONDITION_MAX);
                 assert!(c.sharpness >= SHARPNESS_FLOOR);

@@ -28,6 +28,7 @@ fn sheet(level: u16, first: u32) -> TeamSheet {
             fitness: 10_000,
             sharpness: 8_000,
             morale: 5_000,
+            cohesion: fs_match::input::DRILLED,
         }
     };
     TeamSheet {

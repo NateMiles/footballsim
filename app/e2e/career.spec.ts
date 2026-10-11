@@ -39,6 +39,16 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await expect(page.getByText('Your tactic')).toBeVisible();
   await page.screenshot({ path: shots('tactics', project) });
 
+  // Training: a schedule and one player's own training.
+  await page.goto('./#/training');
+  await expect(page.getByRole('heading', { name: 'Formations' })).toBeVisible();
+  await page.getByRole('radio', { name: /Attacking/ }).click();
+  await page.getByRole('radio', { name: 'Hard' }).click();
+  await expect(page.getByTestId('effects')).toContainText('Growth +12%');
+  await page.locator('tbody select').first().selectOption('p:WBL');
+  await expect(page.locator('tbody tr').first()).toContainText('/20');
+  await page.screenshot({ path: shots('training', project), fullPage: true });
+
   // The new club management screens.
   await page.goto('./#/finances');
   await expect(page.getByRole('heading', { name: 'Finances' })).toBeVisible();

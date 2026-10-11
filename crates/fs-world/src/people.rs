@@ -257,7 +257,12 @@ pub struct GrowthFactors {
     pub playing_time: f64,
     /// The club's coaches and training ground: 1 for average.
     pub coaching: f64,
+    /// The training schedule's growth: 1 for balanced, normal training.
+    pub training: f64,
 }
+
+/// Growth weights that leave every attribute as it is.
+pub const EVEN: [f64; crate::attributes::ATTR_COUNT] = [1.0; crate::attributes::ATTR_COUNT];
 
 /// One month of development for one player: growth toward potential while
 /// young, a plateau, then decline, physical attributes first.
@@ -267,12 +272,14 @@ pub fn develop_month(
     potential: u16,
     age: f64,
     growth: GrowthFactors,
+    emphasis: &[f64; crate::attributes::ATTR_COUNT],
     rng: &mut Rng,
 ) {
     let GrowthFactors {
         professionalism,
         playing_time,
         coaching,
+        training,
     } = growth;
     let rating = f64::from(best.role_rating(attrs));
     // Growth is roughly linear: enough to climb from a 250 baseline to
@@ -293,7 +300,8 @@ pub fn develop_month(
         * growth_age
         * (0.6 + 0.8 * professionalism)
         * (0.7 + 0.6 * playing_time.clamp(0.0, 1.0))
-        * coaching)
+        * coaching
+        * training)
         .min(gap * 0.15);
     let physical_decline = if age > 29.0 { (age - 29.0) * 1.0 } else { 0.0 };
     let skill_decline = if age > 32.0 { (age - 32.0) * 0.8 } else { 0.0 };
@@ -326,7 +334,7 @@ pub fn develop_month(
         } else {
             0.6
         };
-        let mut delta = growth * weight + noise;
+        let mut delta = growth * weight * emphasis[attr as usize] + noise;
         match group {
             "physical" if attr != Attr::Strength => {
                 if age < 21.0 {
@@ -378,7 +386,9 @@ mod tests {
                     professionalism: 0.5,
                     playing_time: 0.8,
                     coaching: 1.0,
+                    training: 1.0,
                 },
+                &EVEN,
                 &mut rng,
             );
         }

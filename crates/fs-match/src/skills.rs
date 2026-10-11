@@ -58,7 +58,8 @@ impl Skills {
         let h = |x: HiddenAttr| f64::from(p.hidden.get(x)) / 1000.0;
         let form = familiarity_factor(p.positions.get(position))
             * (0.94 + 0.06 * f64::from(p.sharpness) / 10_000.0)
-            * (0.97 + 0.06 * f64::from(p.morale) / 10_000.0);
+            * (0.97 + 0.06 * f64::from(p.morale) / 10_000.0)
+            * (1.0 - 0.05 * (1.0 - f64::from(p.cohesion.min(10_000)) / 10_000.0));
         let f = |x: f64| x * form;
         Self {
             pass_short: f(weighted(
@@ -210,6 +211,7 @@ mod tests {
             fitness: 10_000,
             sharpness: 10_000,
             morale: 5_000,
+            cohesion: crate::input::DRILLED,
         }
     }
 

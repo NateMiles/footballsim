@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Protocol version. Bump when a request or response changes shape.
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
 
 /// Something the UI asks for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -160,6 +160,19 @@ pub enum Request {
     ApplyForJob { club: Id },
     /// Leave your club. Answered with [`Response::Overview`].
     Resign,
+    /// Answered with [`Response::Training`].
+    Training,
+    /// Set the squad's training. Answered with [`Response::Training`].
+    SetTraining {
+        focus: TrainingFocus,
+        intensity: TrainingIntensity,
+    },
+    /// Give a player their own training, or stop it. Answered with
+    /// [`Response::Training`].
+    SetIndividualTraining {
+        player: Id,
+        training: Option<IndividualTraining>,
+    },
 
     /// Performance test: generate a world of this size beside any game.
     /// Answered with [`Response::Benchmark`]; time the call to measure.
@@ -261,6 +274,9 @@ pub enum Response {
     },
     Benchmark {
         benchmark: BenchmarkStatus,
+    },
+    Training {
+        training: TrainingView,
     },
     Error {
         error: ApiError,

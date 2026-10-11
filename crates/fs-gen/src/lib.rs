@@ -314,6 +314,7 @@ pub fn generate(cfg: &GenConfig) -> World {
     }
     add_cups(&mut world, &format);
     fs_world::season::start_first_season(&mut world);
+    fs_world::training::initialise(&mut world);
     add_backroom(&mut world, cfg);
     fs_world::economy::initialise(&mut world);
     fs_world::board::set_targets(&mut world);

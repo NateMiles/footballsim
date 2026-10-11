@@ -37,6 +37,7 @@ pub mod snapshot;
 pub mod squad;
 pub mod staff;
 pub mod tick;
+pub mod training;
 pub mod transfer;
 pub mod world;
 

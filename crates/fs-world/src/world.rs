@@ -353,6 +353,7 @@ impl World {
         let i = player.index();
         if let Some(c) = self.players.club[i].take() {
             self.clubs[c].squad.retain(|&p| p != player);
+            self.clubs[c].individual.remove(&player);
         }
         let used: BTreeSet<u8> = self.clubs[club]
             .squad
@@ -371,6 +372,7 @@ impl World {
         let i = player.index();
         if let Some(c) = self.players.club[i].take() {
             self.clubs[c].squad.retain(|&p| p != player);
+            self.clubs[c].individual.remove(&player);
         }
         self.players.contract[i] = None;
         self.players.squad_number[i] = None;
@@ -460,6 +462,9 @@ impl World {
                 {
                     return Err(format!("{cid} has duplicate squad number {n}"));
                 }
+            }
+            if let Some(&p) = club.individual.keys().find(|p| !club.squad.contains(p)) {
+                return Err(format!("{cid} trains {p}, who is not in its squad"));
             }
             if let Some(m) = club.manager
                 && self.managers.get(m).and_then(|m| m.club) != Some(cid)

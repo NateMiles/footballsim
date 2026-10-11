@@ -16,6 +16,7 @@
     { route: { name: 'inbox' }, label: 'Inbox', icon: '✉' },
     { route: { name: 'squad' }, label: 'Squad', icon: '☰' },
     { route: { name: 'tactics' }, label: 'Tactics', icon: '◎' },
+    { route: { name: 'training' }, label: 'Training', icon: '⚑' },
     { route: { name: 'transfers' }, label: 'Transfers', icon: '⇄' },
     { route: { name: 'staff' }, label: 'Staff', icon: '♟' },
     { route: { name: 'finances' }, label: 'Finances', icon: '£' },

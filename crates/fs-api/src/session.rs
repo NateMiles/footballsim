@@ -457,6 +457,35 @@ impl Session {
                 })
             }
             Request::Staff => self.staff_view(),
+            Request::Training => {
+                let c = self.career()?;
+                Ok(Response::Training {
+                    training: query::training::view(c.world(), c.club()?),
+                })
+            }
+            Request::SetTraining { focus, intensity } => {
+                let c = self.career()?;
+                c.submit_quiet(Command::SetTraining {
+                    schedule: query::training::schedule(focus, intensity),
+                })?;
+                Ok(Response::Training {
+                    training: query::training::view(c.world(), c.club()?),
+                })
+            }
+            Request::SetIndividualTraining { player, training } => {
+                let c = self.career()?;
+                let player = c.existing_player(player)?;
+                let training = match &training {
+                    Some(t) => Some(query::training::individual_from(t).ok_or_else(|| {
+                        ApiError::new(ErrorCode::BadRequest, "unknown position or attribute")
+                    })?),
+                    None => None,
+                };
+                c.submit_quiet(Command::SetIndividualTraining { player, training })?;
+                Ok(Response::Training {
+                    training: query::training::view(c.world(), c.club()?),
+                })
+            }
             Request::HireStaff { staff, wage, years } => {
                 self.career()?.submit(Command::HireStaff {
                     staff: StaffId::new(staff),

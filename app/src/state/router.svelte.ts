@@ -13,6 +13,7 @@ export type Route =
   | { name: 'cup'; cup?: number }
   | { name: 'competitions' }
   | { name: 'prepare' }
+  | { name: 'training' }
   | { name: 'match' }
   | { name: 'saves' }
   | { name: 'transfers'; tab?: TransferTab }
@@ -37,6 +38,7 @@ export function parse(hash: string): Route {
     case 'jobs':
     case 'competitions':
     case 'prepare':
+    case 'training':
       return { name };
     case 'cup':
       return { name, cup: id };

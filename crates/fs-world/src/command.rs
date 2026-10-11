@@ -13,6 +13,7 @@ use crate::people::{age_years, wage_demand};
 use crate::player::{Contract, Status};
 use crate::squad::contract_expiry;
 use crate::tick;
+use crate::training::{Individual, Schedule};
 use crate::transfer::{Listing, Offer, OfferKind, OfferStatus, Refusal};
 use crate::world::World;
 use fs_core::GameDate;
@@ -127,6 +128,13 @@ pub enum Command {
     SetListing {
         player: PlayerId,
         listing: Option<Listing>,
+    },
+    /// Set the squad's training schedule.
+    SetTraining { schedule: Schedule },
+    /// Give one of your players their own training, or stop it.
+    SetIndividualTraining {
+        player: PlayerId,
+        training: Option<Individual>,
     },
 }
 
@@ -639,6 +647,28 @@ impl World {
                 match listing {
                     Some(l) => self.market.listed.insert(player, l),
                     None => self.market.listed.remove(&player),
+                };
+                Ok(Vec::new())
+            }
+            Command::SetTraining { schedule } => {
+                let club = self.managed_club(actor)?;
+                self.clubs[club].training = schedule;
+                Ok(Vec::new())
+            }
+            Command::SetIndividualTraining { player, training } => {
+                let club = self.managed_club(actor)?;
+                if !self.players.contains(player) {
+                    return Err(CommandError::UnknownPlayer(player));
+                }
+                if self.players.club(player) != Some(club) {
+                    return Err(CommandError::NotYourPlayer(match actor {
+                        Actor::Manager(m) => m,
+                        Actor::System => unreachable!("managed_club rejects the system"),
+                    }));
+                }
+                match training {
+                    Some(t) => self.clubs[club].individual.insert(player, t),
+                    None => self.clubs[club].individual.remove(&player),
                 };
                 Ok(Vec::new())
             }

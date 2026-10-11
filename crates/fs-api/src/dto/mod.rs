@@ -14,6 +14,7 @@ pub mod live;
 pub mod management;
 pub mod market;
 pub mod preparation;
+pub mod training;
 
 pub use club::*;
 pub use common::*;
@@ -24,3 +25,4 @@ pub use live::*;
 pub use management::*;
 pub use market::*;
 pub use preparation::*;
+pub use training::*;

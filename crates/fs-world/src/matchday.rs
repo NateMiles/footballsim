@@ -30,6 +30,7 @@ pub fn snapshot(world: &World, id: PlayerId) -> PlayerSnapshot {
         fitness: c.fitness,
         sharpness: c.sharpness,
         morale: c.morale,
+        cohesion: fs_match::input::DRILLED,
     }
 }
 
@@ -74,11 +75,18 @@ pub fn default_tactic(world: &World, club: ClubId, squad: &[PlayerSnapshot]) -> 
     if squad.len() < 11 {
         return style;
     }
+    // The shape that suits the squad best, allowing for how well the club
+    // knows each one, so clubs stay with shapes they have drilled.
+    let known = &world.clubs()[club].familiarity;
+    let value = |f: Formation| {
+        sheet_quality(squad, f)
+            * (0.95 + 0.05 * f64::from(crate::training::cohesion(known.get(f))) / 10_000.0)
+    };
     let formation = Formation::ALL
         .into_iter()
         .max_by(|&a, &b| {
-            sheet_quality(squad, a)
-                .total_cmp(&sheet_quality(squad, b))
+            value(a)
+                .total_cmp(&value(b))
                 .then((b as u8).cmp(&(a as u8)))
         })
         .unwrap_or(Formation::F442);
@@ -107,10 +115,22 @@ pub fn team_sheet(world: &World, club: ClubId) -> TeamSheet {
     let tactic = c
         .tactic()
         .unwrap_or_else(|| default_tactic(world, club, &squad));
-    match c.lineup() {
+    let sheet = match c.lineup() {
         Some(lineup) => sheet_from_lineup(&squad, tactic, lineup),
         None => pick_team(&squad, tactic),
+    };
+    with_cohesion(world, club, sheet)
+}
+
+/// Sets every player's cohesion from how well the club knows the sheet's
+/// formation.
+fn with_cohesion(world: &World, club: ClubId, mut sheet: TeamSheet) -> TeamSheet {
+    let familiarity = world.clubs()[club].familiarity.get(sheet.tactic.formation);
+    let cohesion = crate::training::cohesion(familiarity);
+    for p in sheet.starters.iter_mut().chain(sheet.bench.iter_mut()) {
+        p.cohesion = cohesion;
     }
+    sheet
 }
 
 /// The club's team sheet if it played `tactic` today: its chosen lineup
@@ -119,12 +139,13 @@ pub fn team_sheet(world: &World, club: ClubId) -> TeamSheet {
 pub fn team_sheet_with(world: &World, club: ClubId, tactic: Tactic) -> TeamSheet {
     let squad = squad(world, club);
     let c = &world.clubs()[club];
-    match c.lineup() {
+    let sheet = match c.lineup() {
         Some(lineup) if c.tactic().is_some_and(|t| t.formation == tactic.formation) => {
             sheet_from_lineup(&squad, tactic, lineup)
         }
         _ => pick_team(&squad, tactic),
-    }
+    };
+    with_cohesion(world, club, sheet)
 }
 
 /// The match input for a scheduled fixture, as a watching manager sees

@@ -3,7 +3,11 @@ import type {
   BenchmarkStatus,
   ClubChoices,
   CompetitionsView,
+  IndividualTraining,
   OppositionReport,
+  TrainingFocus,
+  TrainingIntensity,
+  TrainingView,
   Prediction,
   ProjectionsView,
   Continued,
@@ -164,6 +168,18 @@ export class Client {
 
   async projections(league: number | null = null): Promise<ProjectionsView> {
     return (await this.send({ type: 'projections', league }, 'projections')).projections;
+  }
+
+  async training(): Promise<TrainingView> {
+    return (await this.send({ type: 'training' }, 'training')).training;
+  }
+
+  async setTraining(focus: TrainingFocus, intensity: TrainingIntensity): Promise<TrainingView> {
+    return (await this.send({ type: 'setTraining', focus, intensity }, 'training')).training;
+  }
+
+  async setIndividualTraining(player: number, training: IndividualTraining | null): Promise<TrainingView> {
+    return (await this.send({ type: 'setIndividualTraining', player, training }, 'training')).training;
   }
 
   async competitions(): Promise<CompetitionsView> {

@@ -18,7 +18,7 @@ Seasons run from 1 July to 30 June.
 | 1 June | AI clubs renew contracts worth keeping; humans warned again | `squad::renew_contracts` |
 | 1st of every month | Sponsorship, television, wages and running costs; boards review the table and the bank | `economy::monthly_accounts`, `board::monthly` |
 | 1st-28th of every month | Player development, each club's players on the club's own day | `tick::development` |
-| Every day | Recovery, injury healing, training injuries, scouting, completed deals, vacant jobs filled; AI clubs due a tactic review (section 12) | `tick::afternoon` |
+| Every day | Training (formations drilled), recovery, injury healing, training injuries, scouting, completed deals, vacant jobs filled; AI clubs due a tactic review (section 12) | `tick::afternoon` |
 | After every match | Gate receipts; board confidence | `economy::gate_receipts`, `board::after_match` |
 
 Each day runs in two parts: the morning's calendar business
@@ -54,7 +54,37 @@ straight red; every fifth yellow of the season brings a one-match ban.
 Injured and suspended players are never picked.
 
 **Training injuries** happen on any day, more often for injury-prone and
-fatigued players.
+fatigued players, and more often under hard training.
+
+**Training** (`training.rs`). Each club has a schedule: a focus and an
+intensity. AI clubs train balanced at normal intensity, which is exactly
+the world without training; only human managers change it.
+
+| Focus | Effect |
+| --- | --- |
+| Balanced | Every attribute grows alike |
+| Fitness, Attacking, Defending | The focus's attributes grow 1.6 times as fast as the rest; total growth is unchanged |
+| Tactics | Mental and positional attributes emphasised; the formation in use is drilled twice as fast |
+| Recovery | Growth ×0.8, recovery +25%, training injuries ×0.8, drilling halved |
+
+| Intensity | Growth | Recovery | Training injuries | Drill per day |
+| --- | --- | --- | --- | --- |
+| Light | ×0.85 | +15% | ×0.7 | 9 |
+| Normal | ×1 | ×1 | ×1 | 12 |
+| Hard | ×1.12 | -15% | ×1.5 | 15 |
+
+A player can also train individually: an attribute (it grows 1.5 times as
+fast, the rest 3% slower) or a position (familiarity rises a point a
+month, two with luck for adaptable players, up to natural). Individual
+training ends when the player leaves.
+
+**Tactical familiarity.** A club knows each formation 0-1000. The one it
+plays gains the day's drill; the others lose 2 a day down to 300. From 900
+up a shape costs nothing; below it, every player's match form is reduced,
+by up to 5% for a shape the team has never played (`PlayerSnapshot::
+cohesion`). New worlds start with each club knowing its formation fully.
+AI clubs weigh familiarity when they choose a formation, so they rarely
+change shape on a whim.
 
 **Development** happens monthly:
 - Below their hidden potential, players grow at a steady rate that would

@@ -4,8 +4,10 @@ use crate::board::Board;
 use crate::finance::{Facilities, Finances};
 use crate::ids::{LeagueId, ManagerId, NationId, PlayerId, StaffId};
 use crate::lineup::Lineup;
+use crate::training::{Familiarity, Individual, Schedule};
 use fs_match::Tactic;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// A football club.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,6 +38,13 @@ pub struct Club {
     pub(crate) finances: Finances,
     pub facilities: Facilities,
     pub(crate) board: Board,
+    /// The squad's training schedule.
+    pub(crate) training: Schedule,
+    /// How well the club knows each formation.
+    pub(crate) familiarity: Familiarity,
+    /// Players with their own training. Maintained by [`crate::World`]:
+    /// only current squad members appear.
+    pub(crate) individual: BTreeMap<PlayerId, Individual>,
 }
 
 impl Club {
@@ -56,6 +65,9 @@ impl Club {
             finances: Finances::default(),
             facilities: Facilities::default(),
             board: Board::default(),
+            training: Schedule::default(),
+            familiarity: Familiarity::default(),
+            individual: BTreeMap::new(),
         }
     }
 
@@ -75,6 +87,21 @@ impl Club {
 
     pub fn board(&self) -> &Board {
         &self.board
+    }
+
+    /// The squad's training schedule.
+    pub fn training(&self) -> Schedule {
+        self.training
+    }
+
+    /// How well the club knows each formation.
+    pub fn familiarity(&self) -> &Familiarity {
+        &self.familiarity
+    }
+
+    /// Players' own training.
+    pub fn individual_training(&self) -> &BTreeMap<PlayerId, Individual> {
+        &self.individual
     }
 
     /// The club's league, if any.

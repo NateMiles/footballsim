@@ -54,6 +54,9 @@ fn generate() -> String {
         // Preparation.
         OppositionReport, ReportPlayer, KeyPlayer, Record, Comparison, Prediction, ScoreChance,
         ProjectionsView, ProjectionZone, ProjectionRow,
+        // Training.
+        TrainingFocus, TrainingIntensity, IndividualTraining, FocusInfo, IntensityInfo,
+        FormationFamiliarity, TrainingPlayer, TrainingView,
     ];
     decls.sort();
     let mut out = String::from(

@@ -21,6 +21,17 @@ pub struct PlayerSnapshot {
     pub sharpness: u16,
     /// 0-10000, 5000 neutral.
     pub morale: u16,
+    /// How well the team knows its shape, 0-10000 (10000: fully drilled).
+    /// Scales the player's skills by 95-100%.
+    #[serde(default = "drilled")]
+    pub cohesion: u16,
+}
+
+/// Full cohesion.
+pub const DRILLED: u16 = 10_000;
+
+fn drilled() -> u16 {
+    DRILLED
 }
 
 /// Team instructions. Every slider runs from -2 to +2; 0 is balanced.

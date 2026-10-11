@@ -80,6 +80,7 @@ pub(crate) mod test_support {
                 fitness: 10_000,
                 sharpness: 8_000,
                 morale: 5_000,
+                cohesion: crate::input::DRILLED,
             }
         };
         let starters = (0..11)
