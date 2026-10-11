@@ -28,8 +28,6 @@ use fs_core::par;
 use fs_match::TimedInstruction;
 use std::collections::BTreeMap;
 
-/// Morale drifts back toward this value.
-const MORALE_BASELINE: u16 = CONDITION_MAX / 2;
 /// Sharpness never decays below this without match play.
 const SHARPNESS_FLOOR: u16 = 2_000;
 /// Chance per day of a training injury for an average player.
@@ -80,6 +78,9 @@ pub(crate) fn afternoon(
         time("market", || crate::market::daily(world, events));
     }
     time("vacancies", || crate::board::fill_vacancies(world, events));
+    if !world.leagues.is_empty() {
+        time("people", || crate::happiness::daily(world, events));
+    }
     // Staggered work: each player develops on their own day of the
     // month, and each club reviews its tactic on its own days.
     time("development", || development(world));
@@ -110,6 +111,7 @@ fn recovery(world: &mut World) {
         hidden,
         status,
         club,
+        happiness,
         ..
     } = &mut world.players;
     par::for_each_indexed_mut(condition, |i, c| {
@@ -120,7 +122,15 @@ fn recovery(world: &mut World) {
         let natural_fitness = u32::from(attributes[i].get(Attr::NaturalFitness));
         let professionalism = u32::from(hidden[i].get(HiddenAttr::Professionalism));
         let rate = club[i].map_or(1000, |c| rates[c.index()]);
-        recover(c, natural_fitness, professionalism, rate, &mut rng);
+        let baseline = crate::happiness::morale_baseline(happiness[i]);
+        recover(
+            c,
+            natural_fitness,
+            professionalism,
+            rate,
+            baseline,
+            &mut rng,
+        );
     });
 }
 
@@ -314,6 +324,7 @@ fn recover(
     natural_fitness: u32,
     professionalism: u32,
     rate_per_mille: u32,
+    morale_baseline: u16,
     rng: &mut fs_core::Rng,
 ) {
     let max = u32::from(CONDITION_MAX);
@@ -341,9 +352,10 @@ fn recover(
             .max(u32::from(SHARPNESS_FLOOR)) as u16;
     }
 
-    // Morale reverts 2% toward neutral each day, plus small noise.
+    // Morale reverts 2% toward the player's baseline each day (neutral
+    // for a player with no complaints), plus small noise.
     let morale = i32::from(c.morale);
-    let baseline = i32::from(MORALE_BASELINE);
+    let baseline = i32::from(morale_baseline);
     let pull = (baseline - morale) * 2 / 100;
     let noise = rng.range_i32(-30, 30);
     c.morale = (morale + pull + noise).clamp(0, max as i32) as u16;
@@ -364,7 +376,14 @@ mod tests {
         };
         let mut rng = Rng::from_u64(1);
         for _ in 0..14 {
-            recover(&mut c, 800, 500, 1000, &mut rng);
+            recover(
+                &mut c,
+                800,
+                500,
+                1000,
+                crate::happiness::morale_baseline(0),
+                &mut rng,
+            );
         }
         assert!(c.fitness > 9_400, "{c:?}");
         assert!(c.fatigue < 2_000, "{c:?}");
@@ -386,7 +405,14 @@ mod tests {
                 morale: CONDITION_MAX,
             };
             for _ in 0..1000 {
-                recover(&mut c, nf, nf, 1000, &mut rng);
+                recover(
+                    &mut c,
+                    nf,
+                    nf,
+                    1000,
+                    crate::happiness::morale_baseline(0),
+                    &mut rng,
+                );
                 assert!(c.fitness <= CONDITION_MAX);
                 assert!(c.morale <= CONDITION_MAX);
                 assert!(c.sharpness >= SHARPNESS_FLOOR);

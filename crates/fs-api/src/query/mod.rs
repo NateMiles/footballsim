@@ -10,6 +10,7 @@ pub mod cup;
 pub mod game;
 pub mod management;
 pub mod market;
+pub mod people;
 pub mod preparation;
 pub mod refs;
 pub mod training;

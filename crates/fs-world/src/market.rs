@@ -334,7 +334,8 @@ pub fn list_players(world: &mut World) {
             / team.len().clamp(1, 11) as u32;
         for (rank, &p) in team.iter().enumerate() {
             let age = age_years(world.players().bio(p).birth_date, today);
-            let listing = if rank >= 25 {
+            let requested = world.relations().request(p).is_some_and(|r| r.accepted);
+            let listing = if rank >= 25 || requested {
                 Some(Listing::Transfer)
             } else if rank >= 16
                 && age < 22.0

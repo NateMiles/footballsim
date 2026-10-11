@@ -448,6 +448,41 @@ impl Inbox {
                         Some(Link::Player { player: p.raw() }),
                     );
                 }
+                Event::TransferRequested { player: p, club: c } if *c == club => self.push(
+                    world,
+                    Category::People,
+                    format!("{} asks to leave", player(*p)),
+                    "They have handed in a transfer request. Accept it and list them for sale, \
+                     or refuse and risk their mood souring further."
+                        .to_owned(),
+                    Some(Link::Player { player: p.raw() }),
+                ),
+                Event::PromiseSettled {
+                    player: p,
+                    club: c,
+                    kept,
+                } if *c == club => self.push(
+                    world,
+                    Category::People,
+                    if *kept {
+                        format!("Promise kept to {}", player(*p))
+                    } else {
+                        format!("Promise to {} broken", player(*p))
+                    },
+                    if *kept {
+                        "They appreciate that you kept your word.".to_owned()
+                    } else {
+                        "They feel let down and will not forget it soon.".to_owned()
+                    },
+                    Some(Link::Player { player: p.raw() }),
+                ),
+                Event::PlayerUnhappy { player: p, club: c } if *c == club => self.push(
+                    world,
+                    Category::People,
+                    format!("{} is unhappy", player(*p)),
+                    "See the dressing room for the reasons.".to_owned(),
+                    Some(Link::Dynamics),
+                ),
                 Event::ScoutReport { club: c, player: p } if *c == club => self.push(
                     world,
                     Category::Scouting,

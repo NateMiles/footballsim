@@ -569,6 +569,7 @@ fn career_cmd(a: &Args) {
         .map(|&p| vec![w.players().ability(p)])
         .collect();
     let players_at_start = w.players().len();
+    let mut requests_before = 0;
     println!(
         "{} clubs, {} players, {} leagues. Following {}.\n",
         w.clubs().len(),
@@ -710,6 +711,15 @@ fn career_cmd(a: &Args) {
             fs_world::transfer::MarketSummary::of(w, summary.year)
         );
         cups_line(w, summary.year, human);
+        let mood = fs_world::happiness::Mood::of(w);
+        let requests = w.relations().requests_made();
+        println!(
+            "  People: happiness mean {:+.1}, very unhappy {:.1}%; {} transfer requests",
+            mood.mean,
+            mood.unhappy * 100.0,
+            requests - requests_before
+        );
+        requests_before = requests;
         let reps: Vec<u16> = w.clubs().iter().map(|(_, c)| c.reputation).collect();
         println!(
             "  Boards: {sackings} managers sacked; club reputation mean {:.0}, max {}",

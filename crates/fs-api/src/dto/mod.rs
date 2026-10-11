@@ -13,6 +13,7 @@ pub mod inbox;
 pub mod live;
 pub mod management;
 pub mod market;
+pub mod people;
 pub mod preparation;
 pub mod training;
 
@@ -24,5 +25,6 @@ pub use inbox::*;
 pub use live::*;
 pub use management::*;
 pub use market::*;
+pub use people::*;
 pub use preparation::*;
 pub use training::*;

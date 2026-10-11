@@ -5,6 +5,7 @@
   import DevelopmentChart from '../components/DevelopmentChart.svelte';
   import Meter from '../components/Meter.svelte';
   import OfferForm from '../components/OfferForm.svelte';
+  import PlayerMood from '../components/PlayerMood.svelte';
   import type { Listing, OfferKind } from '../api';
   import { longDate, money, wage } from '../format';
   import { useGame } from '../state/game.svelte';
@@ -119,6 +120,8 @@
         {#if p.suspension > 0}<p class="pill warn">Suspended for {p.suspension} matches</p>{/if}
       </div>
     </section>
+
+    <PlayerMood {p} />
 
     {#if !p.retired && mine}
       <section class="card market">

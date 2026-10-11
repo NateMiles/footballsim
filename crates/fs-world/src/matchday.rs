@@ -390,6 +390,11 @@ fn apply_result(
             core::cmp::Ordering::Less => -200,
         };
         let human = world.is_human_club(club);
+        let minutes: Vec<(PlayerId, u8)> = r.players[side]
+            .iter()
+            .map(|ps| (ps.player, ps.minutes))
+            .collect();
+        crate::happiness::record_minutes(world, club, &minutes);
         // Suspensions served: anyone banned before this match missed it.
         let squad = world.clubs[club].squad.clone();
         for &p in &squad {

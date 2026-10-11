@@ -128,6 +128,10 @@ pub struct PlayerView {
     pub retired: bool,
     /// Whether the viewer manages this player.
     pub own: bool,
+    /// Their character, once the viewer knows them well enough.
+    pub personality: Option<super::people::Personality>,
+    /// Mood, status and promises, for the player's own manager.
+    pub people: Option<super::people::PlayerPeople>,
 }
 
 /// A group of attributes, such as technical.

@@ -14,6 +14,7 @@ export type Route =
   | { name: 'competitions' }
   | { name: 'prepare' }
   | { name: 'training' }
+  | { name: 'dynamics' }
   | { name: 'match' }
   | { name: 'saves' }
   | { name: 'transfers'; tab?: TransferTab }
@@ -39,6 +40,7 @@ export function parse(hash: string): Route {
     case 'competitions':
     case 'prepare':
     case 'training':
+    case 'dynamics':
       return { name };
     case 'cup':
       return { name, cup: id };

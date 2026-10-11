@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Protocol version. Bump when a request or response changes shape.
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 6;
 
 /// Something the UI asks for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -173,6 +173,18 @@ pub enum Request {
         player: Id,
         training: Option<IndividualTraining>,
     },
+    /// The dressing room. Answered with [`Response::Dynamics`].
+    Dynamics,
+    /// Have a word with one of your players. Answered with
+    /// [`Response::Talk`].
+    TalkToPlayer { player: Id, talk: Talk },
+    /// Accept or refuse a transfer request. Answered with
+    /// [`Response::Dynamics`].
+    AnswerTransferRequest { player: Id, accept: bool },
+    /// Answered with [`Response::Dynamics`].
+    SetCaptain { player: Id },
+    /// Answered with [`Response::Dynamics`].
+    SetSquadStatus { player: Id, status: SquadStatus },
 
     /// Performance test: generate a world of this size beside any game.
     /// Answered with [`Response::Benchmark`]; time the call to measure.
@@ -277,6 +289,12 @@ pub enum Response {
     },
     Training {
         training: TrainingView,
+    },
+    Dynamics {
+        dynamics: DynamicsView,
+    },
+    Talk {
+        result: TalkResult,
     },
     Error {
         error: ApiError,

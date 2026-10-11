@@ -16,10 +16,10 @@ Seasons run from 1 July to 30 June.
 | 20 August, 10 January | Transfer-window squad housekeeping for AI clubs | `squad::maintain_squads` |
 | 1 January | Human managers warned about contracts ending in June | `squad::warn_expiring` |
 | 1 June | AI clubs renew contracts worth keeping; humans warned again | `squad::renew_contracts` |
-| 1st of every month | Sponsorship, television, wages and running costs; boards review the table and the bank | `economy::monthly_accounts`, `board::monthly` |
+| 1st of every month | Sponsorship, television, wages and running costs; boards review the table and the bank; happiness reviewed, transfer requests | `economy::monthly_accounts`, `board::monthly`, `happiness::daily` |
 | 1st-28th of every month | Player development, each club's players on the club's own day | `tick::development` |
 | Every day | Training (formations drilled), recovery, injury healing, training injuries, scouting, completed deals, vacant jobs filled; AI clubs due a tactic review (section 12) | `tick::afternoon` |
-| After every match | Gate receipts; board confidence | `economy::gate_receipts`, `board::after_match` |
+| After every match | Gate receipts; board confidence; playing time | `economy::gate_receipts`, `board::after_match` |
 
 Each day runs in two parts: the morning's calendar business
 (`tick::morning`), then matches, recovery and development
@@ -110,6 +110,61 @@ free agent.
 **Retirement.** It starts at 31 and is near-certain by 37. It comes sooner
 for free agents, and anyone unattached for two summers retires.
 
+**Personality** (`personality.rs`). A label read from the hidden traits
+(model professional, volatile, ambitious, loyal, professional, leader,
+unambitious, casual, big-game, nervous, balanced). It only names what the
+traits do elsewhere. Managers see it for their own players and for players
+their scouts know at least 60%.
+
+**Squad status and playing time** (`happiness.rs`). Every player at a club
+expects a role: key player (70% of the minutes), regular starter (45%),
+squad rotation (16%), backup (5%) or prospect (2%). New worlds and, each
+summer, AI clubs give the five best of the club's first-choice eleven key
+status, the other six regular status and the bench rotation, except the
+reserve keeper. Everyone else is a backup, or a prospect if under 21.
+Newcomers get the highest role whose current holders they are at least as
+good as. After each match, each squad member's share of the minutes
+updates a moving average over about six matches; injured and suspended
+players are left out of it.
+
+**Happiness**, from -100 to 100, is reviewed on the 1st of each month for
+every player at a club, as a sum of visible reasons:
+
+| Reason | Effect |
+| --- | --- |
+| Playing time | Down to -40 well short of the status's share (more for ambitious players); +6 for key players and regulars who get it |
+| Wages | Down to -20 for established players paid under half their worth; +4 when paid well over it |
+| Ambition | Down to -30 for ambitious players far better than the team |
+| Prestige | +4 for adults at a club well above their level |
+| Results | -8 to +12 by league place against the board's target, from six matches in |
+| Future | -6 to -14 when the contract ends within six months (more for loyal players) |
+| Captaincy | +8 |
+| Transfer list | -6 to -20 for players listed without asking (more for loyal players) |
+| Dressing room | 30% of the mood of the three most influential players (leadership, ability, age, years at the club, the armband) |
+| Memories | Talks, promises, requests, demotions and a lost armband, for one to eight months |
+
+Happiness sets where morale drifts back to each day (5000 plus 15 per
+point), so it reaches matches through morale. Clubs without a captain
+name the leader among their best and most experienced players.
+
+**Talks and promises** (`talk.rs`). A manager can speak to each player
+once a week: praise or criticise form, reassure, promise more football (a
+status's share of the minutes within two months) or promise a better
+contract (within two months). Reactions follow the truth (form over at
+least three matches, playing time, the contract) and the personality:
+criticising a player in form always angers; professional players take
+criticism of poor form as a challenge, volatile players react strongly.
+A player who remembers a broken promise does not believe reassurance or
+new promises. Promises are checked when due (a football promise is put
+back while the player is injured): kept ones are remembered for four
+months, broken ones for eight.
+
+**Transfer requests.** A player at or below -30 for three monthly reviews
+in a row may ask to leave (less often when loyal or professional). AI
+clubs list them at once; a human manager lists them or refuses, which the
+player remembers for six months and does not ask again meanwhile. Taking
+an agreed sale off the list counts as a refusal.
+
 ## 4. The 1 July rollover
 
 In order:
@@ -130,7 +185,8 @@ In order:
    players to 27, then signing free agents to cover positional needs
    (two goalkeepers, seven defenders, seven midfielders, four attackers, 24
    in all). The richest clubs choose first, within their wage caps.
-10. AI tactics refreshed; new league fixtures created; cup entrants
+10. AI tactics refreshed; AI clubs reset squad statuses and clubs
+    without a captain name one; new league fixtures created; cup entrants
     decided (continental places from the tables and cups just finished)
     and first rounds drawn; boards set targets; facilities wear and
     boards invest spare money; budgets set.
@@ -397,11 +453,14 @@ the core of it. A 30-season run of the tiny world currently shows:
 | Top-scorer goals | 22-36 | About 31 |
 | Player wages / income (mean) | 35-80% | About 52% (cup money included) |
 | Clubs in debt | Under 20% | 0% |
-| Managers sacked per season | Some, not most | 0 to 6 of 20 |
+| Managers sacked per season | Some, not most | 0 to 10 of 20 |
+| Very unhappy players (-30 or below) | Under 10% | 1 to 7% |
+| Transfer requests per club and season | About one | 9 to 32 in a 20-club world |
 
 In the small world (120 leagues, 26 cups) over ten seasons, 2-3% of clubs
 are in debt, about 15-18% of managers are sacked each season, and a
-season sees 1,100-1,700 transfers and 1,400-1,700 loans. Two slow drifts
+season sees 1,100-1,700 transfers, 1,400-1,800 loans and about 3,300
+transfer requests (1.4 per club), with 5-6% of players very unhappy. Two slow drifts
 predate the cups and are being watched: wages take 52% of income in the
 first season and 64% by the tenth, and the strongest nation's top
 division gets about 3% better (853 to 880) as its richer clubs buy

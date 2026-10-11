@@ -2,6 +2,7 @@
 
 use crate::club::Club;
 use crate::cup::{Continent, Cup};
+use crate::happiness::Relations;
 use crate::ids::{
     ClubId, ClubKind, CupId, CupKind, LeagueId, LeagueKind, ManagerId, ManagerKind, NationId,
     NationKind, PlayerId, StaffId, StaffKind,
@@ -53,6 +54,7 @@ pub struct World {
     pub(crate) staff: IdVec<StaffKind, Staff>,
     pub(crate) scouting: Scouting,
     pub(crate) market: Market,
+    pub(crate) relations: Relations,
     pub(crate) rules: Rules,
     /// Today's matches, waiting for human managers to watch them.
     pub(crate) pending: Option<PendingMatchDay>,
@@ -75,6 +77,7 @@ impl World {
             staff: IdVec::new(),
             scouting: Scouting::default(),
             market: Market::default(),
+            relations: Relations::default(),
             rules: Rules::default(),
             pending: None,
         }
@@ -128,6 +131,11 @@ impl World {
     /// The transfer market: offers, loans, listings and history.
     pub fn market(&self) -> &Market {
         &self.market
+    }
+
+    /// Players' memories, promises and transfer requests.
+    pub fn relations(&self) -> &Relations {
+        &self.relations
     }
 
     /// What clubs know about players.
@@ -345,6 +353,7 @@ impl World {
             .collect();
         self.players.squad_number[i] = (1..=99).find(|n| !used.contains(n));
         self.clubs[club].squad.push(player);
+        crate::happiness::joined(self, player, club);
     }
 
     /// Moves a player to another club's squad without touching their
@@ -354,6 +363,7 @@ impl World {
         if let Some(c) = self.players.club[i].take() {
             self.clubs[c].squad.retain(|&p| p != player);
             self.clubs[c].individual.remove(&player);
+            crate::happiness::left(self, player, c);
         }
         let used: BTreeSet<u8> = self.clubs[club]
             .squad
@@ -363,6 +373,7 @@ impl World {
         self.players.squad_number[i] = (1..=99).find(|n| !used.contains(n));
         self.players.club[i] = Some(club);
         self.clubs[club].squad.push(player);
+        crate::happiness::joined(self, player, club);
     }
 
     /// Removes a player from their club, if any, ending their contract.
@@ -373,6 +384,7 @@ impl World {
         if let Some(c) = self.players.club[i].take() {
             self.clubs[c].squad.retain(|&p| p != player);
             self.clubs[c].individual.remove(&player);
+            crate::happiness::left(self, player, c);
         }
         self.players.contract[i] = None;
         self.players.squad_number[i] = None;
@@ -466,6 +478,11 @@ impl World {
             if let Some(&p) = club.individual.keys().find(|p| !club.squad.contains(p)) {
                 return Err(format!("{cid} trains {p}, who is not in its squad"));
             }
+            if let Some(p) = club.captain
+                && !club.squad.contains(&p)
+            {
+                return Err(format!("{cid} captain {p} is not in its squad"));
+            }
             if let Some(m) = club.manager
                 && self.managers.get(m).and_then(|m| m.club) != Some(cid)
             {
@@ -513,6 +530,25 @@ impl World {
                     return Err(format!("{cid}: a club plays twice on {}", f.date));
                 }
             }
+        }
+        let r = &self.relations;
+        let at_club = |p: &PlayerId| self.players.contains(*p) && self.players.club(*p).is_some();
+        if let Some(p) = r
+            .memories
+            .keys()
+            .chain(r.requests.keys())
+            .chain(r.talks.keys())
+            .chain(r.promises.iter().map(|p| &p.player))
+            .find(|p| !at_club(p))
+        {
+            return Err(format!("{p} has relations with a club but is at none"));
+        }
+        if let Some(p) = r
+            .promises
+            .iter()
+            .find(|p| self.players.club(p.player) != Some(p.club))
+        {
+            return Err(format!("a promise to {} names another club", p.player));
         }
         for pid in self.players.ids() {
             if self.players.club(pid).is_some() && !seen[pid.index()] {

@@ -6,6 +6,7 @@
 //! [`PlayerId`]. Only [`Players::push`] adds rows, so they stay aligned.
 
 use crate::attributes::{Attributes, Hidden, PositionRatings};
+use crate::happiness::SquadStatus;
 use crate::ids::{ClubId, NationId, PlayerId};
 use crate::names::NameRef;
 use fs_core::GameDate;
@@ -161,6 +162,15 @@ pub struct Players {
     pub(crate) seasons_unattached: Vec<u8>,
     pub(crate) season: Vec<SeasonStats>,
     pub(crate) career: Vec<Vec<CareerSeason>>,
+    /// The role the player expects at their club.
+    pub(crate) squad_status: Vec<SquadStatus>,
+    /// Recent share of the club's match minutes, 0-10000, as a moving
+    /// average over about six matches.
+    pub(crate) playing_time: Vec<u16>,
+    /// Happiness, -100 to 100, as of the last monthly review.
+    pub(crate) happiness: Vec<i8>,
+    /// Monthly reviews in a row spent very unhappy.
+    pub(crate) unsettled: Vec<u8>,
 }
 
 impl Players {
@@ -203,6 +213,10 @@ impl Players {
         self.seasons_unattached.push(0);
         self.season.push(SeasonStats::default());
         self.career.push(Vec::new());
+        self.squad_status.push(SquadStatus::Prospect);
+        self.playing_time.push(SquadStatus::Prospect.expected());
+        self.happiness.push(0);
+        self.unsettled.push(0);
         id
     }
 
@@ -290,6 +304,22 @@ impl Players {
         &self.career[id.index()]
     }
 
+    /// The role the player expects at their club.
+    pub fn squad_status(&self, id: PlayerId) -> SquadStatus {
+        self.squad_status[id.index()]
+    }
+
+    /// Recent share of the club's match minutes, 0-10000.
+    pub fn playing_time(&self, id: PlayerId) -> u16 {
+        self.playing_time[id.index()]
+    }
+
+    /// Happiness, -100 to 100, as of the last monthly review (or the last
+    /// conversation with the manager).
+    pub fn happiness(&self, id: PlayerId) -> i8 {
+        self.happiness[id.index()]
+    }
+
     /// Checks that every column has the same length.
     pub fn columns_aligned(&self) -> bool {
         let n = self.bio.len();
@@ -308,6 +338,10 @@ impl Players {
             self.seasons_unattached.len(),
             self.season.len(),
             self.career.len(),
+            self.squad_status.len(),
+            self.playing_time.len(),
+            self.happiness.len(),
+            self.unsettled.len(),
         ]
         .iter()
         .all(|&l| l == n)

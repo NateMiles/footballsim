@@ -45,6 +45,8 @@ pub struct Club {
     /// Players with their own training. Maintained by [`crate::World`]:
     /// only current squad members appear.
     pub(crate) individual: BTreeMap<PlayerId, Individual>,
+    /// The captain. Maintained by [`crate::World`]: always a squad member.
+    pub(crate) captain: Option<PlayerId>,
 }
 
 impl Club {
@@ -68,6 +70,7 @@ impl Club {
             training: Schedule::default(),
             familiarity: Familiarity::default(),
             individual: BTreeMap::new(),
+            captain: None,
         }
     }
 
@@ -102,6 +105,11 @@ impl Club {
     /// Players' own training.
     pub fn individual_training(&self) -> &BTreeMap<PlayerId, Individual> {
         &self.individual
+    }
+
+    /// The captain.
+    pub fn captain(&self) -> Option<PlayerId> {
+        self.captain
     }
 
     /// The club's league, if any.

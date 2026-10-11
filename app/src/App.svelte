@@ -19,6 +19,7 @@
   import Tactics from './screens/Tactics.svelte';
   import Title from './screens/Title.svelte';
   import Training from './screens/Training.svelte';
+  import Dynamics from './screens/Dynamics.svelte';
   import Transfers from './screens/Transfers.svelte';
   import { useGame } from './state/game.svelte';
 
@@ -64,6 +65,8 @@
       <Prepare />
     {:else if route.name === 'training'}
       <Training />
+    {:else if route.name === 'dynamics'}
+      <Dynamics />
     {:else if route.name === 'saves'}
       <Saves />
     {:else if route.name === 'transfers'}

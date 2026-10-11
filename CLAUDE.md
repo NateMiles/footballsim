@@ -48,7 +48,9 @@ npm run build && npm run e2e                    # Playwright career test
   (`staff`), scouting (`scouting`), transfers and loans (`transfer`, AI
   in `market`), boards and jobs (`board`), competition structure as data
   (`format`), cups and coefficients (`cup`), fixtures in any competition
-  (`fixture`), level of detail (`importance`), stage timing (`profile`).
+  (`fixture`), level of detail (`importance`), stage timing (`profile`),
+  training and tactical familiarity (`training`), players as people
+  (`personality`, `happiness`, `talk`), forecasts (`forecast`).
   Rules are described in `docs/WORLD.md`.
 - `fs-save`: save container (header, deflated sections, checksums,
   migrations).
@@ -93,10 +95,10 @@ npm run build && npm run e2e                    # Playwright career test
 ## Rules for the world simulation
 
 - After changing season-loop rules (development, youth, contracts,
-  retirement, squad AI, money, staff, the market, boards, cups), run
-  `fs-cli career --seasons 30` and `fs-cli career --size small --seasons
-  10`, and check the health lines (ages, ability, economy, market,
-  sackings) stay within the targets in `docs/WORLD.md`; the
+  retirement, squad AI, money, staff, the market, boards, cups, training,
+  happiness), run `fs-cli career --seasons 30` and `fs-cli career --size
+  small --seasons 10`, and check the health lines (ages, ability, economy,
+  market, people, sackings) stay within the targets in `docs/WORLD.md`; the
   `ten_seasons_keep_the_world_healthy` test enforces the core of them.
 - Competition structures are data (`fs_world::format`): new structure
   rules belong in the format and `cup.rs`, not in special cases for one

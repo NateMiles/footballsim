@@ -486,6 +486,50 @@ impl Session {
                     training: query::training::view(c.world(), c.club()?),
                 })
             }
+            Request::Dynamics => self.dynamics(),
+            Request::TalkToPlayer { player, talk } => {
+                let c = self.career()?;
+                let player = c.existing_player(player)?;
+                let talk = talk.into();
+                let events = c.submit_quiet(Command::TalkToPlayer { player, talk })?;
+                let reaction = events
+                    .iter()
+                    .find_map(|e| match e {
+                        fs_world::Event::PlayerReacted { reaction, .. } => Some(*reaction),
+                        _ => None,
+                    })
+                    .ok_or_else(|| {
+                        ApiError::new(ErrorCode::Rejected, "the player did not answer")
+                    })?;
+                Ok(Response::Talk {
+                    result: dto::TalkResult {
+                        reaction: reaction.into(),
+                        message: query::people::reaction_text(talk, reaction).into(),
+                        player: query::club::player(c.world(), player, c.club().ok()),
+                    },
+                })
+            }
+            Request::AnswerTransferRequest { player, accept } => {
+                let c = self.career()?;
+                let player = c.existing_player(player)?;
+                c.submit_quiet(Command::AnswerTransferRequest { player, accept })?;
+                self.dynamics()
+            }
+            Request::SetCaptain { player } => {
+                let c = self.career()?;
+                let player = c.existing_player(player)?;
+                c.submit_quiet(Command::SetCaptain { player })?;
+                self.dynamics()
+            }
+            Request::SetSquadStatus { player, status } => {
+                let c = self.career()?;
+                let player = c.existing_player(player)?;
+                c.submit_quiet(Command::SetSquadStatus {
+                    player,
+                    status: status.into(),
+                })?;
+                self.dynamics()
+            }
             Request::HireStaff { staff, wage, years } => {
                 self.career()?.submit(Command::HireStaff {
                     staff: StaffId::new(staff),
@@ -598,6 +642,13 @@ impl Session {
         let c = self.career()?;
         Ok(Response::Overview {
             overview: query::game::overview(c.world(), c.manager, c.club().ok(), c.inbox.unread()),
+        })
+    }
+
+    fn dynamics(&mut self) -> Result<Response> {
+        let c = self.career()?;
+        Ok(Response::Dynamics {
+            dynamics: query::people::dynamics(c.world(), c.club()?),
         })
     }
 

@@ -201,6 +201,20 @@ pub fn player(world: &World, id: PlayerId, viewer: Option<ClubId>) -> dto::Playe
             .collect(),
         retired: p.status(id) == Status::Retired,
         own: viewer.is_some() && p.club(id) == viewer,
+        personality: super::people::personality(
+            world,
+            id,
+            if p.club(id).is_some() && p.club(id) == viewer {
+                100
+            } else {
+                estimate.as_ref().map_or(100, |e| e.knowledge)
+            },
+        ),
+        people: if viewer.is_some() && p.club(id) == viewer {
+            super::people::player_people(world, id)
+        } else {
+            None
+        },
     }
 }
 

@@ -57,6 +57,8 @@ pub enum Stream {
     Cup = 14,
     /// Forecasts (predictions and season odds); never changes the world.
     Forecast = 15,
+    /// Players' moods: talks with the manager, transfer requests.
+    People = 16,
 }
 
 impl Seed {

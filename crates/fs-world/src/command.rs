@@ -5,6 +5,7 @@
 
 use crate::finance::Money;
 use crate::fixture::FixtureRef;
+use crate::happiness::{Feeling, SquadStatus};
 use crate::ids::{ClubId, CupId, LeagueId, ManagerId, PlayerId, StaffId};
 use crate::lineup::Lineup;
 use crate::live::{self, PendingMatchDay};
@@ -12,6 +13,7 @@ use crate::manager::{Control, Manager};
 use crate::people::{age_years, wage_demand};
 use crate::player::{Contract, Status};
 use crate::squad::contract_expiry;
+use crate::talk::{Reaction, Talk};
 use crate::tick;
 use crate::training::{Individual, Schedule};
 use crate::transfer::{Listing, Offer, OfferKind, OfferStatus, Refusal};
@@ -135,6 +137,17 @@ pub enum Command {
     SetIndividualTraining {
         player: PlayerId,
         training: Option<Individual>,
+    },
+    /// Have a private word with one of your players.
+    TalkToPlayer { player: PlayerId, talk: Talk },
+    /// Answer a player's transfer request: list them for sale, or refuse.
+    AnswerTransferRequest { player: PlayerId, accept: bool },
+    /// Give one of your players the armband.
+    SetCaptain { player: PlayerId },
+    /// Change the role a player can expect. A demotion is remembered.
+    SetSquadStatus {
+        player: PlayerId,
+        status: SquadStatus,
     },
 }
 
@@ -305,6 +318,23 @@ pub enum Event {
         year: i32,
         winner: ClubId,
     },
+    /// A player took a talk with the manager.
+    PlayerReacted {
+        player: PlayerId,
+        club: ClubId,
+        talk: Talk,
+        reaction: Reaction,
+    },
+    /// A promise to a human-managed club's player fell due.
+    PromiseSettled {
+        player: PlayerId,
+        club: ClubId,
+        kept: bool,
+    },
+    /// A human-managed club's player asked to leave.
+    TransferRequested { player: PlayerId, club: ClubId },
+    /// A human-managed club's player became very unhappy.
+    PlayerUnhappy { player: PlayerId, club: ClubId },
 }
 
 /// Why a command was rejected.
@@ -394,6 +424,12 @@ pub enum CommandError {
     ApplicationRejected(ClubId),
     #[error("you already manage a club")]
     AlreadyEmployed,
+    #[error("you spoke to {0} less than a week ago")]
+    TalkedRecently(PlayerId),
+    #[error("you have already made {0} that promise")]
+    AlreadyPromised(PlayerId),
+    #[error("{0} has not asked to leave")]
+    NoTransferRequest(PlayerId),
 }
 
 /// Largest squad a club may register.
@@ -670,6 +706,54 @@ impl World {
                     Some(t) => self.clubs[club].individual.insert(player, t),
                     None => self.clubs[club].individual.remove(&player),
                 };
+                Ok(Vec::new())
+            }
+            Command::TalkToPlayer { player, talk } => {
+                let club = self.managed_club(actor)?;
+                self.require_own_player(actor, club, player)?;
+                crate::talk::talk(self, club, player, talk)
+            }
+            Command::AnswerTransferRequest { player, accept } => {
+                let club = self.managed_club(actor)?;
+                self.require_own_player(actor, club, player)?;
+                if self.relations.request(player).is_none_or(|r| r.accepted) {
+                    return Err(CommandError::NoTransferRequest(player));
+                }
+                crate::happiness::answer_request(self, player, accept);
+                Ok(Vec::new())
+            }
+            Command::SetCaptain { player } => {
+                let club = self.managed_club(actor)?;
+                self.require_own_player(actor, club, player)?;
+                if let Some(old) = self.clubs[club].captain.replace(player)
+                    && old != player
+                {
+                    crate::happiness::remember(self, old, Feeling::LostCaptaincy, -12, 120);
+                    crate::happiness::refresh(self, old);
+                }
+                crate::happiness::refresh(self, player);
+                Ok(Vec::new())
+            }
+            Command::SetSquadStatus { player, status } => {
+                let club = self.managed_club(actor)?;
+                self.require_own_player(actor, club, player)?;
+                let old = self.players.squad_status(player);
+                // Lower in the enum is a bigger role.
+                if status > old {
+                    let ambition = crate::personality::trait_of(
+                        self,
+                        player,
+                        fs_core::attributes::HiddenAttr::Ambition,
+                    );
+                    let hurt = -(8.0 + 16.0 * ambition) as i8;
+                    crate::happiness::remember(self, player, Feeling::Demoted, hurt, 120);
+                    crate::happiness::forget(self, player, Feeling::Promoted);
+                } else if status < old {
+                    crate::happiness::remember(self, player, Feeling::Promoted, 6, 60);
+                    crate::happiness::forget(self, player, Feeling::Demoted);
+                }
+                self.players.squad_status[player.index()] = status;
+                crate::happiness::refresh(self, player);
                 Ok(Vec::new())
             }
             Command::SetLineup { ref lineup } => {
@@ -1088,6 +1172,25 @@ impl World {
             return Err(CommandError::AlreadyEmployed);
         }
         Ok(m)
+    }
+
+    /// Checks that `player` exists and plays for `club`, the actor's club.
+    fn require_own_player(
+        &self,
+        actor: Actor,
+        club: ClubId,
+        player: PlayerId,
+    ) -> Result<(), CommandError> {
+        if !self.players.contains(player) {
+            return Err(CommandError::UnknownPlayer(player));
+        }
+        if self.players.club(player) != Some(club) {
+            return Err(CommandError::NotYourPlayer(match actor {
+                Actor::Manager(m) => m,
+                Actor::System => return Err(CommandError::NotPermitted),
+            }));
+        }
+        Ok(())
     }
 
     fn require_system_or_human(&self, actor: Actor) -> Result<(), CommandError> {

@@ -20,6 +20,8 @@ pub enum Category {
     Staff,
     Scouting,
     Cup,
+    /// Players' moods, requests and promises.
+    People,
 }
 
 /// Where a message leads in the UI.
@@ -47,6 +49,8 @@ pub enum Link {
     Staff,
     Jobs,
     Finances,
+    /// The dressing room.
+    Dynamics,
 }
 
 /// One message.

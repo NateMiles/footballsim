@@ -46,6 +46,8 @@
         return { name: 'jobs' };
       case 'finances':
         return { name: 'finances' };
+      case 'dynamics':
+        return { name: 'dynamics' };
     }
   }
 
@@ -60,6 +62,7 @@
     staff: 'Go to staff',
     jobs: 'Look for a job',
     finances: 'Go to finances',
+    dynamics: 'Go to the dressing room',
   };
 </script>
 

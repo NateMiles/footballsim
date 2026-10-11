@@ -49,6 +49,19 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await expect(page.locator('tbody tr').first()).toContainText('/20');
   await page.screenshot({ path: shots('training', project), fullPage: true });
 
+  // The dressing room: moods, then a word with one player.
+  await page.goto('./#/dynamics');
+  await expect(page.getByRole('heading', { name: 'Dressing room' })).toBeVisible();
+  await expect(page.getByTestId('atmosphere')).not.toBeEmpty();
+  await expect(page.getByTestId('moods').locator('tbody tr')).not.toHaveCount(0);
+  await page.screenshot({ path: shots('dynamics', project), fullPage: true });
+  await page.getByTestId('moods').locator('tbody tr a').first().click();
+  await expect(page.getByTestId('mood')).toBeVisible();
+  await page.getByRole('button', { name: 'Reassure' }).click();
+  await expect(page.getByTestId('reaction')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Praise form' })).toBeDisabled();
+  await page.screenshot({ path: shots('player-mood', project), fullPage: true });
+
   // The new club management screens.
   await page.goto('./#/finances');
   await expect(page.getByRole('heading', { name: 'Finances' })).toBeVisible();

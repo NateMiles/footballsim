@@ -94,6 +94,7 @@ pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
     youth_intake(world, events);
     maintain_squads(world, events);
     refresh_ai_tactics(world);
+    crate::happiness::rollover(world);
     start_season(world, year);
     crate::cup::start_editions(world, year, events);
     crate::board::set_targets(world);

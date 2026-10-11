@@ -3,6 +3,10 @@ import type {
   BenchmarkStatus,
   ClubChoices,
   CompetitionsView,
+  DynamicsView,
+  SquadStatus,
+  Talk,
+  TalkResult,
   IndividualTraining,
   OppositionReport,
   TrainingFocus,
@@ -180,6 +184,26 @@ export class Client {
 
   async setIndividualTraining(player: number, training: IndividualTraining | null): Promise<TrainingView> {
     return (await this.send({ type: 'setIndividualTraining', player, training }, 'training')).training;
+  }
+
+  async dynamics(): Promise<DynamicsView> {
+    return (await this.send({ type: 'dynamics' }, 'dynamics')).dynamics;
+  }
+
+  async talkToPlayer(player: number, talk: Talk): Promise<TalkResult> {
+    return (await this.send({ type: 'talkToPlayer', player, talk }, 'talk')).result;
+  }
+
+  async answerTransferRequest(player: number, accept: boolean): Promise<DynamicsView> {
+    return (await this.send({ type: 'answerTransferRequest', player, accept }, 'dynamics')).dynamics;
+  }
+
+  async setCaptain(player: number): Promise<DynamicsView> {
+    return (await this.send({ type: 'setCaptain', player }, 'dynamics')).dynamics;
+  }
+
+  async setSquadStatus(player: number, status: SquadStatus): Promise<DynamicsView> {
+    return (await this.send({ type: 'setSquadStatus', player, status }, 'dynamics')).dynamics;
   }
 
   async competitions(): Promise<CompetitionsView> {
