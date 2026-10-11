@@ -2,17 +2,21 @@
 //!
 //! Each day, in order: calendar events (season rollover on 1 July,
 //! contract renewals on 1 June, expiry warnings on 1 January, transfer
-//! windows), the day's matches, recovery, injuries, and on the 1st of the
-//! month player development and AI tactic refreshes.
+//! windows), the day's matches and cup draws, recovery, injuries, the
+//! market, then staggered work: each club's players develop once a month
+//! on the club's own day, and AI tactics are reviewed on a cycle set by
+//! the club's importance ([`crate::importance`]). Money and boards are
+//! settled on the 1st of the month.
 //!
 //! Per-player passes run in parallel with per-player RNG streams, so the
-//! result does not depend on thread count.
+//! result does not depend on thread count. With the `profile` feature,
+//! [`crate::profile`] times each stage.
 
 use crate::attributes::{ATTR_MAX, Attr, HiddenAttr};
 use crate::command::Event;
 use crate::economy;
 use crate::ids::ClubId;
-use crate::matchday::{play_today, refresh_ai_tactics, sample_injury};
+use crate::matchday::{play_today, review_ai_tactics, sample_injury};
 use crate::people::{GrowthFactors, age_years, develop_month, season_year};
 use crate::player::{CONDITION_MAX, Condition, Players, Status};
 use crate::season::{current_season, rollover};
@@ -40,7 +44,7 @@ pub(crate) fn morning(world: &mut World, events: &mut Vec<Event>) {
         return;
     }
     if (month, day) == (7, 1) && current_season(world).is_some_and(|y| y < season_year(today)) {
-        rollover(world, events);
+        crate::profile::time("rollover", || rollover(world, events));
     }
     match (month, day) {
         (6, 1) => {
@@ -51,7 +55,9 @@ pub(crate) fn morning(world: &mut World, events: &mut Vec<Event>) {
         (8, 20) | (1, 10) => maintain_squads(world, events),
         _ => {}
     }
-    crate::squad::emergency_signings(world, events);
+    crate::profile::time("emergency signings", || {
+        crate::squad::emergency_signings(world, events);
+    });
 }
 
 /// The rest of the day: the matches (with any live instructions), then
@@ -61,25 +67,28 @@ pub(crate) fn afternoon(
     events: &mut Vec<Event>,
     instructions: &BTreeMap<ClubId, Vec<TimedInstruction>>,
 ) {
+    use crate::profile::time;
     if !world.leagues.is_empty() {
-        play_today(world, events, instructions);
-        crate::cup::daily(world, events);
+        time("matches", || play_today(world, events, instructions));
+        time("cups", || crate::cup::daily(world, events));
     }
-    recovery(world);
-    injuries(world, events);
-    crate::scouting::daily(world, events);
+    time("recovery", || recovery(world));
+    time("injuries", || injuries(world, events));
+    time("scouting", || crate::scouting::daily(world, events));
     if !world.leagues.is_empty() {
-        crate::market::daily(world, events);
+        time("market", || crate::market::daily(world, events));
     }
-    crate::board::fill_vacancies(world, events);
+    time("vacancies", || crate::board::fill_vacancies(world, events));
+    // Staggered work: each player develops on their own day of the
+    // month, and each club reviews its tactic on its own days.
+    time("development", || development(world));
+    if !world.leagues.is_empty() {
+        time("ai tactics", || review_ai_tactics(world));
+    }
     if world.date.ymd().2 == 1 {
-        economy::monthly_accounts(world);
+        time("monthly accounts", || economy::monthly_accounts(world));
         if !world.leagues.is_empty() {
-            crate::board::monthly(world, events);
-        }
-        development(world);
-        if !world.leagues.is_empty() {
-            refresh_ai_tactics(world);
+            time("monthly board", || crate::board::monthly(world, events));
         }
     }
 }
@@ -162,10 +171,20 @@ fn injuries(world: &mut World, events: &mut Vec<Event>) {
     }
 }
 
-/// Monthly growth, plateau and decline for every active player.
+/// Days of the month over which development is spread.
+const DEVELOPMENT_DAYS: u32 = 28;
+
+/// Monthly growth, plateau and decline for every active player. Each
+/// club's players develop on the club's own day of the month (free
+/// agents on their own), so the work is spread over the first 28 days.
 fn development(world: &mut World) {
     let seed = world.seed;
     let today = world.date;
+    let day = today.ymd().2;
+    if day > DEVELOPMENT_DAYS {
+        return;
+    }
+    let due = |i: usize| (i as u32) % DEVELOPMENT_DAYS + 1 == day;
     let month = u64::from(today.days());
     // Matches each club has played this season, for playing-time shares.
     let mut played = crate::cup::matches_played(world);
@@ -176,11 +195,14 @@ fn development(world: &mut World) {
             }
         }
     }
-    // Coaching: (seniors, under-21s) per club.
+    // Coaching: (seniors, under-21s), for the clubs developing today.
     let coaching: Vec<(f64, f64)> = world
         .clubs
         .ids()
         .map(|c| {
+            if !due(c.index()) {
+                return (1.0, 1.0);
+            }
             staff::coaching_factors(
                 &staff::ratings(world, c),
                 world.clubs[c].facilities.training,
@@ -199,7 +221,7 @@ fn development(world: &mut World) {
         ..
     } = &mut world.players;
     par::for_each_indexed_mut(attributes, |i, attrs| {
-        if status[i] != Status::Active {
+        if status[i] != Status::Active || !due(club[i].map_or(i, |c| c.index())) {
             return;
         }
         let mut rng = seed.derive(Stream::Development, month, i as u64);

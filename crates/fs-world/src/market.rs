@@ -74,18 +74,19 @@ fn loaned_in(world: &World, club: ClubId, p: PlayerId) -> bool {
 /// The daily market update. Runs every day: agreed deals complete and
 /// unanswered offers lapse even when the window is shut.
 pub(crate) fn daily(world: &mut World, events: &mut Vec<Event>) {
-    complete_agreed(world, events);
-    lapse(world, events);
-    sellers_answer(world, events);
-    buyers_answer_counters(world, events);
+    use crate::profile::time;
+    time("market: complete", || complete_agreed(world, events));
+    time("market: lapse", || lapse(world, events));
+    time("market: sellers", || sellers_answer(world, events));
+    time("market: counters", || buyers_answer_counters(world, events));
     let today = world.date();
     if window_open(today) {
         if matches!(today.ymd(), (_, 7, 1) | (_, 8, 1) | (_, 1, 1)) {
-            list_players(world);
+            time("market: listings", || list_players(world));
         }
-        make_offers(world, events);
+        time("market: offers", || make_offers(world, events));
     }
-    transfer::prune(world);
+    time("market: prune", || transfer::prune(world));
 }
 
 fn is_human(world: &World, club: ClubId) -> bool {

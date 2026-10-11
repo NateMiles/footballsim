@@ -144,21 +144,39 @@ pub fn fixture_input(world: &World, fixture: FixtureRef) -> MatchInput {
 
 /// Recomputes every club's AI tactic from its current squad.
 pub(crate) fn refresh_ai_tactics(world: &mut World) {
-    let mut tactics: Vec<Option<Tactic>> = vec![None; world.clubs.len()];
+    let all: Vec<ClubId> = world.clubs.ids().collect();
+    refresh_tactics_of(world, &all);
+}
+
+/// Daily: the clubs due a review of their AI tactic (more often the more
+/// important they are; see [`crate::importance`]) recompute it.
+pub(crate) fn review_ai_tactics(world: &mut World) {
+    let importance = crate::importance::of_clubs(world);
+    let due: Vec<ClubId> = world
+        .clubs
+        .ids()
+        .filter(|&c| crate::importance::reviews_tactic_today(world, c, importance[c.index()]))
+        .collect();
+    refresh_tactics_of(world, &due);
+}
+
+fn refresh_tactics_of(world: &mut World, clubs: &[ClubId]) {
+    let mut tactics: Vec<Option<Tactic>> = vec![None; clubs.len()];
     {
         let world = &*world;
         fs_core::par::for_each_heavy(&mut tactics, |i, slot| {
-            let c = ClubId::new(i as u32);
+            let c = clubs[i];
             *slot = Some(default_tactic(world, c, &squad(world, c)));
         });
     }
-    for (c, t) in world.clubs.ids().zip(tactics) {
+    for (&c, t) in clubs.iter().zip(tactics) {
         world.clubs[c].ai_tactic = t;
     }
 }
 
-/// Which engine plays a league's matches: the detailed one wherever a
-/// human manager is watching, the fast one elsewhere.
+/// Which engine plays a league's matches: the detailed one in the league
+/// of any human-managed club (its clubs are of high importance, see
+/// [`crate::importance`]), the fast one elsewhere.
 pub fn league_tier(world: &World, league: LeagueId) -> Tier {
     if world.leagues()[league]
         .clubs()
@@ -206,7 +224,7 @@ pub(crate) fn play_today(
         })
         .collect();
     let mut results: Vec<Option<MatchResult>> = vec![None; todo.len()];
-    {
+    crate::profile::time("matches: play", || {
         let world = &*world;
         fs_core::par::for_each_heavy(&mut results, |k, slot| {
             let r = todo[k];
@@ -225,11 +243,13 @@ pub(crate) fn play_today(
             input.instructions.sort_by_key(|x| x.step);
             *slot = Some(fs_match::play(&input, tiers[k]));
         });
-    }
-    for ((r, tier), result) in todo.into_iter().zip(tiers).zip(results) {
-        let result = result.expect("played");
-        apply_result(world, r, tier, &result, events);
-    }
+    });
+    crate::profile::time("matches: apply", || {
+        for ((r, tier), result) in todo.into_iter().zip(tiers).zip(results) {
+            let result = result.expect("played");
+            apply_result(world, r, tier, &result, events);
+        }
+    });
     for league in world.leagues.as_mut_slice() {
         if let Some(season) = &mut league.season {
             while season.next < season.fixtures.len()

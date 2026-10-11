@@ -15,6 +15,10 @@ postcard.workspace = true
 thiserror.workspace = true
 serde-big-array.workspace = true
 
+[features]
+# Time the daily tick's stages (fs_world::profile).
+profile = []
+
 [dev-dependencies]
 serde_json.workspace = true
 
