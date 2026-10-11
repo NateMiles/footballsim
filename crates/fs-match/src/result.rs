@@ -1,5 +1,6 @@
 //! What a match produces.
 
+use crate::shootout::Shootout;
 use fs_core::ids::PlayerId;
 use serde::{Deserialize, Serialize};
 
@@ -199,9 +200,34 @@ pub struct MatchResult {
     pub players: [Vec<PlayerMatchStats>; 2],
     /// Timeline, in minute order.
     pub events: Vec<MatchEvent>,
+    /// Whether the match went to extra time (goals include it).
+    #[serde(default)]
+    pub extra_time: bool,
+    /// The penalty shootout that settled a level tie.
+    #[serde(default)]
+    pub shootout: Option<Shootout>,
 }
 
 impl MatchResult {
+    /// The side that won a tie this match decided, given the goals carried
+    /// from earlier legs: on aggregate, else on penalties.
+    pub fn tie_winner(&self, carried: [u8; 2]) -> Option<Side> {
+        if let Some(s) = &self.shootout {
+            return Some(s.winner());
+        }
+        let total = |s: usize| u32::from(self.goals[s]) + u32::from(carried[s]);
+        match total(0).cmp(&total(1)) {
+            core::cmp::Ordering::Greater => Some(Side::Home),
+            core::cmp::Ordering::Less => Some(Side::Away),
+            core::cmp::Ordering::Equal => None,
+        }
+    }
+
+    /// Minutes played, 90 or 120.
+    pub fn length(&self) -> u8 {
+        if self.extra_time { 120 } else { 90 }
+    }
+
     /// +1 home win, 0 draw, -1 away win.
     pub fn outcome(&self) -> i8 {
         match self.goals[0].cmp(&self.goals[1]) {

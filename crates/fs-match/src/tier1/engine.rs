@@ -4,10 +4,11 @@
 use super::params::Params;
 use super::team::{Team, is_defensive};
 use super::{HALF_SECS, MAX_SUB_WINDOWS, MAX_SUBS};
-use crate::input::{MatchInput, Tactic};
+use crate::input::{Decider, MatchInput, Tactic};
 use crate::instruction::{Instruction, InstructionError, Shout, TimedInstruction};
 use crate::log::{ActionKind, ActionRecord, Outcome, Zone};
 use crate::result::{MatchEvent, MatchResult, Side, TeamStats, rate_players};
+use crate::shootout::{self, Shootout};
 use crate::skills::Skills;
 use fs_core::Rng;
 
@@ -61,6 +62,17 @@ pub(super) struct Engine {
     pub(super) stoppage2: f64,
     /// Real length of the first half, including stoppage time.
     pub(super) first_half_len: f64,
+    /// Seconds since kickoff when the current half began.
+    pub(super) half_offset: f64,
+    /// Match clock when the current half began.
+    pub(super) half_start_clock: f64,
+    /// Seconds since kickoff when each half after the first began.
+    pub(super) half_starts: Vec<f64>,
+    /// How a level knockout tie is settled, if this is one.
+    pub(super) decider: Option<Decider>,
+    /// Extra substitutions (and windows) allowed in extra time.
+    pub(super) extra_subs: u8,
+    pub(super) shootout: Option<Shootout>,
     /// Engine steps completed.
     pub(super) steps: u32,
     pub(super) finished: bool,
@@ -115,6 +127,12 @@ impl Engine {
             next_minute: 60.0,
             stoppage2: 0.0,
             first_half_len: HALF_SECS,
+            half_offset: 0.0,
+            half_start_clock: 0.0,
+            half_starts: Vec::new(),
+            decider: input.decider,
+            extra_subs: 0,
+            shootout: None,
             steps: 0,
             finished: false,
             scheduled: input.instructions.clone(),
@@ -136,7 +154,7 @@ impl Engine {
         if self.half == 0 {
             self.t
         } else {
-            self.first_half_len + (self.t - HALF_SECS)
+            self.half_offset + (self.t - self.half_start_clock)
         }
     }
 
@@ -150,6 +168,9 @@ impl Engine {
         if self.t >= self.end {
             if self.half == 0 {
                 self.first_half_len = self.t;
+                self.half_offset = self.t;
+                self.half_start_clock = HALF_SECS;
+                self.half_starts.push(self.t);
                 self.half = 1;
                 self.t = HALF_SECS;
                 self.next_minute = HALF_SECS + 60.0;
@@ -159,7 +180,13 @@ impl Engine {
                 self.steps += 1;
                 return true;
             }
+            if self.half == 2 || (self.half == 1 && self.extra_time_due()) {
+                self.start_extra_half();
+                self.steps += 1;
+                return true;
+            }
             self.finished = true;
+            self.settle();
             return false;
         }
         while self.t >= self.next_minute {
@@ -172,6 +199,78 @@ impl Engine {
         self.flush_notes(start, in_play, dead);
         self.steps += 1;
         true
+    }
+
+    /// Whether a level knockout tie goes to extra time now.
+    fn extra_time_due(&self) -> bool {
+        self.decider
+            .is_some_and(|d| d.extra_time && d.level(self.goals))
+    }
+
+    /// Starts a 15-minute half of extra time.
+    fn start_extra_half(&mut self) {
+        let len = self.elapsed();
+        self.half += 1;
+        self.t = if self.half == 2 { 90.0 } else { 105.0 } * 60.0;
+        self.half_start_clock = self.t;
+        self.half_offset = len;
+        self.half_starts.push(len);
+        self.next_minute = self.t + 60.0;
+        let stoppage = 30.0 + f64::from(self.rng.below(90));
+        self.end = self.t + 15.0 * 60.0 + stoppage;
+        let fresh = if self.half == 2 { 0.03 } else { 0.01 };
+        for team in &mut self.teams {
+            for p in &mut team.players {
+                p.energy = (p.energy + fresh).min(1.0);
+            }
+        }
+        if self.half == 2 {
+            // One more substitution, in one more window.
+            self.extra_subs = 1;
+        }
+        for side in 0..2 {
+            if self.teams[side].auto_subs {
+                let threshold = self.p.sub_energy + if self.half == 2 { 0.12 } else { 0.1 };
+                self.ai_substitutions(side, 2, threshold);
+            }
+        }
+        self.kickoff(usize::from(self.half % 2));
+    }
+
+    /// At the final whistle: penalties if the tie is still level.
+    fn settle(&mut self) {
+        let Some(d) = self.decider else { return };
+        if !d.level(self.goals) {
+            return;
+        }
+        let lineups = [0, 1].map(|side| {
+            let team = &self.teams[side];
+            let on: Vec<_> = (0..11)
+                .filter_map(|s| team.on[s])
+                .map(|i| (&team.players[i].snap, team.players[i].fat()))
+                .collect();
+            shootout::Lineup::new(&on)
+        });
+        let first = if self.rng.chance(0.5) {
+            Side::Home
+        } else {
+            Side::Away
+        };
+        self.shootout = Some(shootout::play(
+            &mut self.rng,
+            [&lineups[0], &lineups[1]],
+            first,
+        ));
+    }
+
+    /// Substitutions allowed, including extra time's.
+    pub(super) fn max_subs(&self) -> u8 {
+        MAX_SUBS + self.extra_subs
+    }
+
+    /// Substitution windows allowed, including extra time's.
+    fn max_windows(&self) -> u8 {
+        MAX_SUB_WINDOWS + self.extra_subs
     }
 
     /// Plays to the end and returns the result.
@@ -294,8 +393,8 @@ impl Engine {
                     .ok_or(InstructionError::NotOnBench(on))?;
                 let minute = self.minute();
                 let new_window = team.last_manual_sub != Some(minute);
-                if team.subs_made >= MAX_SUBS
-                    || (new_window && team.windows_used >= MAX_SUB_WINDOWS)
+                if team.subs_made >= self.max_subs()
+                    || (new_window && team.windows_used >= self.max_windows())
                 {
                     return Err(InstructionError::NoSubstitutionsLeft);
                 }
@@ -359,7 +458,7 @@ impl Engine {
 
     pub(super) fn minute(&self) -> u8 {
         let m = (self.t / 60.0) as u32 + 1;
-        let cap = if self.half == 0 { 45 } else { 90 };
+        let cap = [45, 90, 105, 120][usize::from(self.half.min(3))];
         m.min(cap) as u8
     }
 
@@ -430,11 +529,9 @@ impl Engine {
     /// Replaces outfielders below `threshold` energy, tiredest first, up to
     /// `max` in this window.
     pub(super) fn ai_substitutions(&mut self, side: usize, max: u8, threshold: f64) {
+        let (max_subs, max_windows) = (self.max_subs(), self.max_windows());
         let team = &self.teams[side];
-        if team.windows_used >= MAX_SUB_WINDOWS
-            || team.subs_made >= MAX_SUBS
-            || team.bench.is_empty()
-        {
+        if team.windows_used >= max_windows || team.subs_made >= max_subs || team.bench.is_empty() {
             return;
         }
         let mut tired: Vec<(usize, f64)> = (1..11)
@@ -444,7 +541,7 @@ impl Engine {
         tired.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
         let mut made = 0;
         for (slot, _) in tired {
-            if made == max || self.teams[side].subs_made >= MAX_SUBS {
+            if made == max || self.teams[side].subs_made >= max_subs {
                 break;
             }
             if self.substitute(side, slot) {
@@ -545,7 +642,10 @@ impl Engine {
     /// time runs out; comfortable leaders sit back.
     pub(super) fn mentality(&self, side: usize) -> f64 {
         let base = f64::from(self.teams[side].tactic.mentality);
-        let diff = i32::from(self.goals[side]) - i32::from(self.goals[1 - side]);
+        let diff = match self.decider {
+            Some(d) => d.aggregate_diff(self.goals, side),
+            None => i32::from(self.goals[side]) - i32::from(self.goals[1 - side]),
+        };
         let minute = self.t / 60.0;
         let shift = match diff {
             d if d < 0 && minute >= 80.0 => 2.0,
@@ -613,6 +713,8 @@ impl Engine {
     /// One action. Returns the seconds it took.
     pub(super) fn finish(mut self) -> MatchResult {
         let total_play = (self.teams[0].in_play_secs + self.teams[1].in_play_secs).max(1.0);
+        let extra_time = self.half >= 2;
+        let full = if extra_time { 120 } else { 90 };
         let mut defensive = [Vec::new(), Vec::new()];
         let mut players = [Vec::new(), Vec::new()];
         let mut stats = [TeamStats::default(); 2];
@@ -622,7 +724,7 @@ impl Engine {
             stats[side] = team.stats;
             for pl in &mut team.players {
                 if pl.stats.started || pl.stats.minutes > 0 {
-                    let off = pl.off_minute.unwrap_or(90);
+                    let off = pl.off_minute.unwrap_or(full);
                     // Anyone who appeared gets at least a minute.
                     pl.stats.minutes = off.saturating_sub(pl.on_minute).max(1);
                     pl.stats.energy = pl.energy as f32;
@@ -637,6 +739,8 @@ impl Engine {
             stats,
             players,
             events: self.events,
+            extra_time,
+            shootout: self.shootout.take(),
         };
         rate_players(&mut result, &defensive);
         result

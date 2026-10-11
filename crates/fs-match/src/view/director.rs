@@ -60,30 +60,29 @@ impl Director {
         self.next_t
     }
 
-    /// Renders frames up to `until` seconds. `half_split` is the length of
-    /// the first half once it has ended. The lineups are the current ones;
-    /// the actions covering `until` must already have been pushed.
+    /// Renders frames up to `until` seconds. `half_starts` are the times
+    /// at which each half after the first began (from
+    /// [`crate::tier1::LiveMatch::half_starts`]). The lineups are the
+    /// current ones; the actions covering `until` must already have been
+    /// pushed.
     pub fn render(
         &mut self,
         until: f64,
         lineups: [&LiveLineup; 2],
-        half_split: Option<f64>,
+        half_starts: &[f64],
     ) -> Vec<Frame> {
         let step = 1.0 / f64::from(FRAME_HZ);
         let mut frames = Vec::new();
         while self.next_t <= until {
             let t = self.next_t;
-            frames.push(self.frame_at(t, lineups, half_split));
+            frames.push(self.frame_at(t, lineups, half_starts));
             self.next_t += step;
         }
         frames
     }
 
-    fn frame_at(&mut self, t: f64, lineups: [&LiveLineup; 2], half_split: Option<f64>) -> Frame {
-        let half = match half_split {
-            Some(split) if t >= split => 1,
-            _ => 0,
-        };
+    fn frame_at(&mut self, t: f64, lineups: [&LiveLineup; 2], half_starts: &[f64]) -> Frame {
+        let half = half_of(t, half_starts);
         while self.cursor + 1 < self.actions.len()
             && f64::from(self.actions[self.cursor + 1].at) <= t
         {
@@ -95,7 +94,7 @@ impl Director {
             .filter(|a| f64::from(a.at) <= t)
             .copied();
         // The action belongs to the other half (the gap at half time).
-        let action = action.filter(|a| half_of(f64::from(a.at), half_split) == half);
+        let action = action.filter(|a| half_of(f64::from(a.at), half_starts) == half);
         let scene = Scene::new(action, t, half);
         let swap_ends = half != self.half;
         self.half = half;
@@ -154,11 +153,8 @@ impl Director {
     }
 }
 
-fn half_of(t: f64, split: Option<f64>) -> u8 {
-    match split {
-        Some(s) if t >= s => 1,
-        _ => 0,
-    }
+fn half_of(t: f64, half_starts: &[f64]) -> u8 {
+    half_starts.iter().filter(|&&s| t >= s).count() as u8
 }
 
 /// Moves a body toward a target by at most `max` metres; returns the
@@ -179,7 +175,7 @@ fn move_toward(body: &mut Body, target: [f32; 2], max: f32) -> f32 {
 
 /// +1 if `side` attacks toward x = 105 in this half, -1 otherwise.
 fn direction(side: Side, half: u8) -> f32 {
-    let home_right = half == 0;
+    let home_right = half % 2 == 0;
     if (side == Side::Home) == home_right {
         1.0
     } else {
@@ -485,9 +481,9 @@ mod tests {
             t += 30.0;
             live.advance_until(t + 10.0);
             d.push(&live.take_actions());
-            let split = (live.half() == 1).then(|| live.first_half_length());
+            let starts = live.half_starts().to_vec();
             let lineups = [live.lineup(Side::Home), live.lineup(Side::Away)];
-            frames.extend(d.render(t.min(live.elapsed()), [&lineups[0], &lineups[1]], split));
+            frames.extend(d.render(t.min(live.elapsed()), [&lineups[0], &lineups[1]], &starts));
         }
         frames
     }

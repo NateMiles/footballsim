@@ -20,6 +20,7 @@ pub mod instruction;
 pub mod log;
 pub mod result;
 pub mod selection;
+pub mod shootout;
 pub mod skills;
 pub mod strength;
 pub mod tier1;
@@ -27,11 +28,12 @@ pub mod tier2;
 pub mod view;
 
 pub use formation::{Formation, Slot};
-pub use input::{MatchInput, PlayerSnapshot, Tactic, TeamSheet};
+pub use input::{Decider, MatchInput, PlayerSnapshot, Tactic, TeamSheet};
 pub use instruction::{Instruction, InstructionError, Shout, TimedInstruction};
 pub use log::{ActionKind, ActionRecord, Outcome, Zone};
 pub use result::{GoalKind, MatchEvent, MatchResult, PlayerMatchStats, Side, TeamStats};
 pub use selection::pick_team;
+pub use shootout::Shootout;
 pub use strength::TeamStrength;
 
 /// Which engine to run.

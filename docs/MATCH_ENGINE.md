@@ -138,6 +138,19 @@ Comfortable leaders sit back. An attacking mentality creates more chances
 but leaves space behind, which the opponent exploits near goal. This
 trade-off is what keeps mentality balanced.
 
+### Knockout ties
+A cup match that must produce a winner carries a `Decider`: the goals
+each side scored in earlier legs, and whether extra time is played. In a
+second leg, game state reacts to the aggregate score rather than the
+match score. If the tie is level at full time, two 15-minute halves of
+extra time follow (ends swap each half, players recover a little, and
+each side gets one more substitution in one more window); if it is still
+level, a penalty shootout (`shootout.rs`) settles it: the best takers go
+first, keepers last, best of five and then sudden death. A kick's chance
+uses the same taker and keeper skills as an in-match penalty, a little
+lower under pressure. Matches without a decider play exactly as before,
+so the calibration is unaffected.
+
 ## 4. Tier 2: statistical simulation (built)
 
 Code: `crates/fs-match/src/tier2.rs`, constants in `fitted.rs`.
@@ -150,6 +163,10 @@ Code: `crates/fs-match/src/tier2.rs`, constants in `fitted.rs`.
 - Shots, xG, passes, possession, fouls, cards, corners, scorers,
   assisters, substitutions and ratings are drawn so season totals match
   tier 1.
+- A level knockout tie gets extra time at 30% of the usual goal rate per
+  minute, then the shared penalty shootout. Both use a second random
+  stream, so the first 90 minutes are the same with or without a
+  decider.
 
 **Known limitation.** Tier 2 matches tier 1 season by season (all checks in
 `docs/CALIBRATION.md` pass), but individual fixtures can differ. The mean

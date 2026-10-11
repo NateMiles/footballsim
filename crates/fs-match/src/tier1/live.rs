@@ -1,6 +1,5 @@
 //! Playing a tier 1 match step by step, for watching live.
 
-use super::MAX_SUBS;
 use super::engine::Engine;
 use super::params::Params;
 use crate::input::{MatchInput, Tactic};
@@ -52,14 +51,25 @@ impl LiveMatch {
         self.engine.elapsed()
     }
 
-    /// The match minute, as shown on a scoreboard (1-45, then 46-90).
+    /// The match minute, as shown on a scoreboard (1-45, then 46-90, and
+    /// 91-120 in extra time).
     pub fn minute(&self) -> u8 {
         self.engine.minute()
     }
 
-    /// 0 in the first half, 1 in the second.
+    /// 0 in the first half, 1 in the second, 2 and 3 in extra time.
     pub fn half(&self) -> u8 {
         self.engine.half
+    }
+
+    /// Seconds since kickoff at which each half after the first began.
+    pub fn half_starts(&self) -> &[f64] {
+        &self.engine.half_starts
+    }
+
+    /// The penalty shootout, once the match has ended in one.
+    pub fn shootout(&self) -> Option<&crate::Shootout> {
+        self.engine.shootout.as_ref()
     }
 
     /// Seconds the first half lasted including stoppage time (45 minutes
@@ -137,7 +147,7 @@ impl LiveMatch {
                 .iter()
                 .map(|&b| team.players[b].snap.id)
                 .collect(),
-            substitutions_left: MAX_SUBS.saturating_sub(team.subs_made),
+            substitutions_left: self.engine.max_subs().saturating_sub(team.subs_made),
             shout: team.shout,
         }
     }

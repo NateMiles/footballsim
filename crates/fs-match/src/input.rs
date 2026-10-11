@@ -134,6 +134,33 @@ pub struct MatchInput {
     /// being replayed). Empty for matches nobody managed live.
     #[serde(default)]
     pub instructions: Vec<TimedInstruction>,
+    /// Set for a knockout match that must produce a winner today.
+    #[serde(default)]
+    pub decider: Option<Decider>,
+}
+
+/// How a knockout match is settled when the tie is level at full time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Decider {
+    /// Goals each side scored in earlier legs of the tie, home then away
+    /// as in this match. The tie is level when the totals are.
+    pub carried: [u8; 2],
+    /// Play 30 minutes of extra time before penalties.
+    pub extra_time: bool,
+}
+
+impl Decider {
+    /// Whether the tie is level with these goals in this match.
+    pub fn level(&self, goals: [u8; 2]) -> bool {
+        u32::from(goals[0]) + u32::from(self.carried[0])
+            == u32::from(goals[1]) + u32::from(self.carried[1])
+    }
+
+    /// Goal difference in the tie from the home side's view.
+    pub fn aggregate_diff(&self, goals: [u8; 2], side: usize) -> i32 {
+        let total = |s: usize| i32::from(goals[s]) + i32::from(self.carried[s]);
+        total(side) - total(1 - side)
+    }
 }
 
 impl MatchInput {
@@ -146,12 +173,19 @@ impl MatchInput {
             seed,
             key,
             instructions: Vec::new(),
+            decider: None,
         }
     }
 
     /// The match's random stream.
     pub fn rng(&self) -> Rng {
         self.seed.derive(Stream::Match, self.key, 0)
+    }
+
+    /// A second random stream for deciding a tie (extra time and
+    /// penalties in tier 2), so the first 90 minutes do not depend on it.
+    pub fn decider_rng(&self) -> Rng {
+        self.seed.derive(Stream::Match, self.key, 1)
     }
 
     /// Checks the sheets are playable.

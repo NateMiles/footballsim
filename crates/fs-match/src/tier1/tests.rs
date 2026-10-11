@@ -343,3 +343,141 @@ mod live {
         }
     }
 }
+
+mod knockouts {
+    use crate::input::Decider;
+    use crate::result::{MatchEvent, MatchResult, Side};
+    use crate::test_support::input;
+    use crate::tier1::{LiveMatch, play};
+
+    fn knockout(key: u64, carried: [u8; 2], extra_time: bool) -> crate::MatchInput {
+        let mut i = input(600, 600, key);
+        i.decider = Some(Decider {
+            carried,
+            extra_time,
+        });
+        i
+    }
+
+    fn check_consistent(r: &MatchResult) {
+        let full = r.length();
+        for side in 0..2 {
+            let goals: u32 = r.players[side].iter().map(|p| u32::from(p.goals)).sum();
+            assert_eq!(goals, u32::from(r.goals[side]));
+            for p in &r.players[side] {
+                assert!(p.minutes <= full, "{} minutes of {full}", p.minutes);
+            }
+        }
+        assert!(r.events.iter().all(|e| e.minute() <= full));
+    }
+
+    #[test]
+    fn knockouts_always_have_a_winner() {
+        let (mut extra, mut shootouts) = (0, 0);
+        for key in 0..300 {
+            let r = play(&knockout(key, [0, 0], true));
+            check_consistent(&r);
+            assert!(r.tie_winner([0, 0]).is_some());
+            if r.extra_time {
+                extra += 1;
+                assert!(
+                    r.players[0].iter().any(|p| p.minutes > 90),
+                    "nobody played extra time"
+                );
+            }
+            if let Some(s) = &r.shootout {
+                shootouts += 1;
+                assert!(r.extra_time);
+                assert_eq!(r.goals[0], r.goals[1]);
+                assert_ne!(s.score[0], s.score[1]);
+            }
+        }
+        // About a quarter of even matches are level after 90 minutes, and
+        // most of those after 120.
+        assert!((40..120).contains(&extra), "{extra} went to extra time");
+        assert!(shootouts > 15 && shootouts < extra, "{shootouts} shootouts");
+    }
+
+    #[test]
+    fn without_extra_time_level_ties_go_straight_to_penalties() {
+        for key in 0..100 {
+            let r = play(&knockout(key, [0, 0], false));
+            assert!(!r.extra_time);
+            assert_eq!(r.shootout.is_some(), r.goals[0] == r.goals[1]);
+        }
+    }
+
+    #[test]
+    fn decided_ties_play_like_ordinary_matches() {
+        for key in 0..60 {
+            let plain = play(&input(600, 600, key));
+            let ko = play(&knockout(key, [0, 0], true));
+            if plain.goals[0] != plain.goals[1] {
+                assert_eq!(plain, ko);
+            }
+        }
+    }
+
+    #[test]
+    fn second_legs_count_the_first() {
+        // Two goals down from the first leg: the home side must score
+        // three to win, and level aggregates still need a decider.
+        let mut away_through = 0;
+        for key in 0..200 {
+            let r = play(&knockout(key, [0, 2], true));
+            check_consistent(&r);
+            let w = r.tie_winner([0, 2]).expect("a winner");
+            away_through += usize::from(w == Side::Away);
+            if r.shootout.is_some() {
+                assert_eq!(r.goals[0], r.goals[1] + 2);
+            }
+        }
+        assert!(away_through > 140, "{away_through}");
+    }
+
+    #[test]
+    fn live_knockouts_match_batch_play() {
+        for key in 0..40 {
+            let i = knockout(key, [0, 0], true);
+            let batch = play(&i);
+            if !batch.extra_time {
+                continue;
+            }
+            let mut live = LiveMatch::new(&i);
+            let mut halves = 0;
+            while live.advance() {
+                halves = halves.max(live.half());
+            }
+            assert_eq!(halves, 3);
+            assert_eq!(live.half_starts().len(), 3);
+            assert!(live.minute() >= 120);
+            assert_eq!(live.shootout().cloned(), batch.shootout);
+            assert_eq!(live.finish(), batch);
+            return;
+        }
+        panic!("no match went to extra time");
+    }
+
+    #[test]
+    fn extra_time_allows_another_substitution() {
+        for key in 0..60 {
+            let r = play(&knockout(key, [0, 0], true));
+            if r.extra_time {
+                let subs = r
+                    .events
+                    .iter()
+                    .filter(|e| {
+                        matches!(
+                            e,
+                            MatchEvent::Substitution {
+                                side: Side::Home,
+                                ..
+                            }
+                        )
+                    })
+                    .count();
+                assert!(subs <= 6);
+            }
+        }
+    }
+}

@@ -6,6 +6,7 @@ use crate::input::MatchInput;
 use crate::instruction::{Instruction, InstructionError, TimedInstruction};
 use crate::log::ActionRecord;
 use crate::result::{MatchEvent, MatchResult, Side, TeamStats};
+use crate::shootout::Shootout;
 use crate::tier1::{LiveLineup, LiveMatch};
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +24,9 @@ pub struct LiveChunk {
     pub elapsed: f64,
     pub finished: bool,
     pub stats: [TeamStats; 2],
+    /// The penalty shootout, in the chunk that ends the match with one.
+    #[serde(default)]
+    pub shootout: Option<Shootout>,
 }
 
 /// A match being watched.
@@ -49,12 +53,11 @@ impl LiveView {
         self.live.advance_until(t);
         let actions = self.live.take_actions();
         self.director.push(&actions);
-        let split = (self.live.half() == 1).then(|| self.live.first_half_length());
         let until = t.min(self.live.elapsed());
         let lineups = [self.live.lineup(Side::Home), self.live.lineup(Side::Away)];
-        let frames = self
-            .director
-            .render(until, [&lineups[0], &lineups[1]], split);
+        let frames =
+            self.director
+                .render(until, [&lineups[0], &lineups[1]], self.live.half_starts());
         let events = self.live.events()[self.events_sent..].to_vec();
         self.events_sent = self.live.events().len();
         LiveChunk {
@@ -66,6 +69,7 @@ impl LiveView {
             elapsed: self.live.elapsed(),
             finished: self.live.is_finished(),
             stats: self.live.stats(),
+            shootout: self.live.shootout().cloned(),
         }
     }
 

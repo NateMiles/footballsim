@@ -9,10 +9,11 @@
 //! [`Coefficients::default`] holds values fitted to tier 1 output by
 //! `fs-cli fit-tier2`.
 
-use crate::input::{MatchInput, Tactic, TeamSheet};
+use crate::input::{MatchInput, PlayerSnapshot, Tactic, TeamSheet};
 use crate::result::{
     GoalKind, MatchEvent, MatchResult, PlayerMatchStats, Side, TeamStats, rate_players,
 };
+use crate::shootout;
 use crate::skills::Skills;
 use crate::strength::TeamStrength;
 use fs_core::attributes::Position;
@@ -218,7 +219,21 @@ pub fn play_with(input: &MatchInput, c: &Coefficients) -> MatchResult {
     let (hs, home_skills) = TeamStrength::with_skills(&input.home);
     let (aw, away_skills) = TeamStrength::with_skills(&input.away);
     let lambda = expected_goals_from(&hs, &aw, input, c);
-    let goals = sample_score(&mut rng, lambda, c.rho);
+    let full_time = sample_score(&mut rng, lambda, c.rho);
+    // Extra time draws from its own stream, so the first 90 minutes are
+    // the same whether or not the match is a knockout.
+    let mut decider_rng = input.decider_rng();
+    let extra_time = input
+        .decider
+        .is_some_and(|d| d.extra_time && d.level(full_time));
+    let mut extra_goals = [0u8; 2];
+    if extra_time {
+        for side in 0..2 {
+            extra_goals[side] =
+                poisson(&mut decider_rng, lambda[side] * EXTRA_TIME_RATE).min(10) as u8;
+        }
+    }
+    let goals = [full_time[0] + extra_goals[0], full_time[1] + extra_goals[1]];
 
     let strengths = [hs, aw];
     let sheets = [&input.home, &input.away];
@@ -279,6 +294,8 @@ pub fn play_with(input: &MatchInput, c: &Coefficients) -> MatchResult {
             c.injuries_per_team,
             side,
             goals,
+            extra_goals[side],
+            extra_time,
             &stats[side],
             &mut events,
         );
@@ -286,14 +303,52 @@ pub fn play_with(input: &MatchInput, c: &Coefficients) -> MatchResult {
         defensive[side] = def;
     }
     events.sort_by_key(MatchEvent::minute);
+    let full = if extra_time { 120 } else { 90 };
+    let shootout = input.decider.filter(|d| d.level(goals)).map(|_| {
+        let lineups = [0, 1].map(|s| on_pitch_at_end(sheets[s], &players[s], full));
+        let first = if decider_rng.chance(0.5) {
+            Side::Home
+        } else {
+            Side::Away
+        };
+        shootout::play(&mut decider_rng, [&lineups[0], &lineups[1]], first)
+    });
     let mut result = MatchResult {
         goals,
         stats,
         players,
         events,
+        extra_time,
+        shootout,
     };
     rate_players(&mut result, &defensive);
     result
+}
+
+/// Goal rate in extra time per minute, relative to normal time: tired
+/// legs and cautious teams.
+const EXTRA_TIME_RATE: f64 = 0.3;
+
+/// The players on the pitch at the final whistle, keeper first, for a
+/// shootout. Everyone is assumed a little tired.
+fn on_pitch_at_end(sheet: &TeamSheet, ps: &[PlayerMatchStats], full: u8) -> shootout::Lineup {
+    let starters = sheet.starters.len();
+    let on: Vec<(&PlayerSnapshot, f64)> = sheet
+        .starters
+        .iter()
+        .chain(&sheet.bench)
+        .zip(ps)
+        .enumerate()
+        .filter(|(i, (_, st))| {
+            if *i < starters {
+                st.minutes == full
+            } else {
+                st.minutes > 0
+            }
+        })
+        .map(|(_, (p, _))| (p, 0.9))
+        .collect();
+    shootout::Lineup::new(&on)
 }
 
 /// Draws a score from two Poissons with the Dixon-Coles low-score
@@ -356,9 +411,12 @@ fn side_players(
     injuries_per_team: f64,
     side: usize,
     goals: [u8; 2],
+    extra_goals: u8,
+    extra_time: bool,
     stats: &TeamStats,
     events: &mut Vec<MatchEvent>,
 ) -> (Vec<PlayerMatchStats>, Vec<bool>) {
+    let full: u8 = if extra_time { 120 } else { 90 };
     let slots = sheet.tactic.formation.slots();
     let n = sheet.starters.len() + sheet.bench.len();
     let mut ps: Vec<PlayerMatchStats> = Vec::with_capacity(n);
@@ -367,7 +425,7 @@ fn side_players(
     let mut defensive = Vec::with_capacity(n);
     for (i, p) in sheet.starters.iter().enumerate() {
         let mut s = PlayerMatchStats::new(p.id, true);
-        s.minutes = 90;
+        s.minutes = full;
         ps.push(s);
         skills.push(starter_skills[i]);
         xs.push(slots[i].x);
@@ -407,7 +465,7 @@ fn side_players(
         // Prefer a bench player who suits the position.
         let minute = 55 + rng.below(31) as u8;
         ps[off].minutes = minute;
-        ps[on_idx].minutes = 90 - minute;
+        ps[on_idx].minutes = full - minute;
         skills[on_idx] = Skills::of(&sheet.bench[bench_used], pos);
         xs[on_idx] = xs[off];
         defensive[on_idx] = defensive[off];
@@ -433,7 +491,7 @@ fn side_players(
         })
         .collect();
     let own_goals = goals[side];
-    for _ in 0..own_goals {
+    for g in 0..own_goals {
         let Some(k) = rng.weighted_index(&scorer_w) else {
             break;
         };
@@ -456,8 +514,13 @@ fn side_players(
         } else {
             GoalKind::OpenPlay
         };
+        let minute = if g < own_goals - extra_goals {
+            1 + rng.below(90) as u8
+        } else {
+            91 + rng.below(30) as u8
+        };
         events.push(MatchEvent::Goal {
-            minute: 1 + rng.below(90) as u8,
+            minute,
             side: Side::from_index(side),
             scorer: ps[scorer].player,
             assist,
@@ -553,5 +616,43 @@ mod tests {
         let i = input(750, 450, 0);
         let [h, a] = expected_goals(&i, &Coefficients::default());
         assert!(h > a * 1.5, "{h} {a}");
+    }
+}
+
+#[cfg(test)]
+mod knockout_tests {
+    use super::*;
+    use crate::input::Decider;
+    use crate::test_support::input;
+
+    #[test]
+    fn knockouts_have_winners_and_keep_normal_time() {
+        let mut extra = 0;
+        for key in 0..400 {
+            let plain = play(&input(600, 600, key));
+            let mut i = input(600, 600, key);
+            i.decider = Some(Decider {
+                carried: [0, 0],
+                extra_time: true,
+            });
+            let r = play(&i);
+            assert!(r.tie_winner([0, 0]).is_some());
+            if plain.goals[0] != plain.goals[1] {
+                assert_eq!(plain, r);
+                continue;
+            }
+            assert!(r.extra_time);
+            extra += 1;
+            let full = 120;
+            for side in 0..2 {
+                let goals: u32 = r.players[side].iter().map(|p| u32::from(p.goals)).sum();
+                assert_eq!(goals, u32::from(r.goals[side]));
+                assert!(r.players[side].iter().all(|p| p.minutes <= full));
+                assert_ne!(r.players[side][1].minutes, 90, "a starter's minutes ignore extra time");
+            }
+            assert!(r.events.iter().all(|e| e.minute() <= full));
+            assert_eq!(r.shootout.is_some(), r.goals[0] == r.goals[1]);
+        }
+        assert!((50..160).contains(&extra), "{extra}");
     }
 }
