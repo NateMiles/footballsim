@@ -11,6 +11,8 @@ pub mod competition;
 pub mod game;
 pub mod inbox;
 pub mod live;
+pub mod management;
+pub mod market;
 
 pub use club::*;
 pub use common::*;
@@ -18,3 +20,5 @@ pub use competition::*;
 pub use game::*;
 pub use inbox::*;
 pub use live::*;
+pub use management::*;
+pub use market::*;

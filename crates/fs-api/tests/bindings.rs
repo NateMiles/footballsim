@@ -18,7 +18,9 @@ macro_rules! decls {
 }
 
 fn generate() -> String {
-    let cfg = Config::new();
+    // Money is i64 in Rust; JSON numbers carry it exactly well past any
+    // club's accounts, so it is a plain number in TypeScript.
+    let cfg = Config::new().with_large_int("number");
     let cfg = &cfg;
     let mut decls = decls![cfg;
         // Protocol.
@@ -40,6 +42,12 @@ fn generate() -> String {
         LiveStart, Pitch, LivePlayerInfo, LiveLineup, OnPitch, Shout, Instruction, LiveChunk,
         Frame, PlayerFrame, Pose, CommentaryKind, Commentary, MatchEvent, TeamStats,
         MatchReport, PlayerRating,
+        // Management.
+        Ledger, SeasonAccounts, Facilities, FinancesView, BoardView, StaffRole, StaffAttributes,
+        StaffMember, StaffRatings, StaffView, Job, JobsView,
+        // Market.
+        OfferKind, OfferStatus, Offer, Listing, OfferResponse, Loan, TransferRecord, Assignment,
+        TransfersView, ListedPlayer, PlayerSearch, SearchRow, SearchView,
     ];
     decls.sort();
     let mut out = String::from(

@@ -7,6 +7,7 @@ use fs_match::Formation;
 use fs_match::selection::{BENCH_SIZE, suitability};
 use fs_world::matchday::{snapshot, team_sheet};
 use fs_world::people::wage_demand;
+use fs_world::scouting;
 use fs_world::{ClubId, Foot, PlayerId, Status, World};
 
 /// Players selected today, as (starters, bench).
@@ -70,9 +71,12 @@ pub fn player(world: &World, id: PlayerId, viewer: Option<ClubId>) -> dto::Playe
     let bio = p.bio(id);
     let c = p.condition(id);
     let attrs = p.attributes(id);
+    // What the viewer's club believes; exact for its own players and for
+    // a viewer without a club.
+    let estimate = viewer.map(|c| scouting::estimate(world, c, id));
     let mut groups: Vec<dto::AttributeGroup> = Vec::new();
     let is_keeper = p.positions(id).best() == Position::Goalkeeper;
-    for a in Attr::ALL {
+    for (k, a) in Attr::ALL.into_iter().enumerate() {
         let group = a.group();
         if group == "goalkeeping" && !is_keeper {
             continue;
@@ -88,12 +92,37 @@ pub fn player(world: &World, id: PlayerId, viewer: Option<ClubId>) -> dto::Playe
             .last_mut()
             .expect("pushed above")
             .attributes
-            .push(dto::AttributeValue {
-                name: a.label().into(),
-                value: attrs.display(a),
+            .push(match &estimate {
+                Some(e) => dto::AttributeValue {
+                    name: a.label().into(),
+                    value: e.attributes[k].value as u8,
+                    low: e.attributes[k].low as u8,
+                    high: e.attributes[k].high as u8,
+                },
+                None => {
+                    let v = attrs.display(a);
+                    dto::AttributeValue {
+                        name: a.label().into(),
+                        value: v,
+                        low: v,
+                        high: v,
+                    }
+                }
             });
     }
     let age = age(world, id);
+    let exact = |v: u16| scouting::Range {
+        value: v,
+        low: v,
+        high: v,
+    };
+    let (ability, potential) = match &estimate {
+        Some(e) => (e.ability, e.potential),
+        None => (
+            exact(p.ability(id)),
+            exact(p.potential(id).max(p.ability(id))),
+        ),
+    };
     dto::PlayerView {
         id: id.raw(),
         name: format!("{first_name} {last_name}"),
@@ -118,8 +147,39 @@ pub fn player(world: &World, id: PlayerId, viewer: Option<ClubId>) -> dto::Playe
             .map(|&pos| p.positions(id).get(pos))
             .collect(),
         attributes: groups,
-        ability: percent_of_1000(p.ability(id)),
-        potential: percent_of_1000(p.potential(id)),
+        knowledge: estimate.as_ref().map_or(100, |e| e.knowledge),
+        ability: percent_of_1000(ability.value),
+        ability_low: percent_of_1000(ability.low),
+        ability_high: percent_of_1000(ability.high),
+        potential: percent_of_1000(potential.value),
+        potential_low: percent_of_1000(potential.low),
+        potential_high: percent_of_1000(potential.high),
+        value: if p.club(id).is_some() {
+            super::market::estimated_value(
+                world,
+                id,
+                f64::from(ability.value),
+                f64::from(potential.value),
+            )
+        } else {
+            0
+        },
+        asking_price: p
+            .club(id)
+            .filter(|&c| Some(c) != viewer && world.ai_runs_squad(c))
+            .and_then(|c| fs_world::market::asking_price(world, c, id)),
+        listing: world.market().listing(id).map(Into::into),
+        loan: world
+            .market()
+            .loan(id)
+            .map(|l| super::market::loan(world, id, l)),
+        scouting: viewer.is_some_and(|c| world.scouting().assignments(c).contains(&id)),
+        offer: viewer.and_then(|c| {
+            world
+                .market()
+                .open_offer(c, id)
+                .map(|o| super::market::offer(world, o))
+        }),
         fitness: percent_of_10000(c.fitness),
         sharpness: percent_of_10000(c.sharpness),
         morale: percent_of_10000(c.morale),

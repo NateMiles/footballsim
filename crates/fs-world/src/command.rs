@@ -689,7 +689,7 @@ impl World {
                     delegate_squad: false,
                     watch_matches: true,
                     // A newcomer: known, but with everything to prove.
-                    reputation: self.clubs[club].reputation / 2,
+                    reputation: (u32::from(self.clubs[club].reputation) * 3 / 4) as u16,
                 });
                 let board = &mut self.clubs[club].board;
                 board.vacant_since = None;

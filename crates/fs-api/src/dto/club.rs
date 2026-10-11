@@ -1,6 +1,7 @@
 //! Squad, player and tactics screens.
 
 use super::common::{ClubRef, Date, Formation, Id, SeasonStats, Tactic};
+use super::market::{Listing, Loan, Offer};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -92,8 +93,26 @@ pub struct PlayerView {
     /// Familiarity with every position, 0-20, in [`PositionInfo`] order.
     pub position_ratings: Vec<u8>,
     pub attributes: Vec<AttributeGroup>,
+    /// What the viewer's club knows about the player, 0-100. At 100 the
+    /// numbers are exact; below, they are the scouts' estimates.
+    pub knowledge: u8,
+    /// Estimated ability and potential, 0-100, with ranges.
     pub ability: u8,
+    pub ability_low: u8,
+    pub ability_high: u8,
     pub potential: u8,
+    pub potential_low: u8,
+    pub potential_high: u8,
+    /// Estimated market value.
+    pub value: i64,
+    /// What the club would sell for, if it is an AI club and would sell.
+    pub asking_price: Option<i64>,
+    pub listing: Option<Listing>,
+    pub loan: Option<Loan>,
+    /// Whether the viewer's scouts are watching the player.
+    pub scouting: bool,
+    /// The viewer's open offer for the player.
+    pub offer: Option<Offer>,
     pub fitness: u8,
     pub sharpness: u8,
     pub morale: u8,
@@ -117,12 +136,15 @@ pub struct AttributeGroup {
     pub attributes: Vec<AttributeValue>,
 }
 
-/// One attribute on the 1-20 scale.
+/// One attribute on the 1-20 scale, with the range the viewer's
+/// scouts give it (equal to the value when known exactly).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct AttributeValue {
     pub name: String,
     pub value: u8,
+    pub low: u8,
+    pub high: u8,
 }
 
 /// One finished season of a career.

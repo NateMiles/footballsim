@@ -15,6 +15,10 @@ pub enum Category {
     Youth,
     Season,
     Club,
+    Finance,
+    Board,
+    Staff,
+    Scouting,
 }
 
 /// Where a message leads in the UI.
@@ -30,6 +34,10 @@ pub enum Link {
     Table { league: Id },
     Squad,
     Tactics,
+    Transfers,
+    Staff,
+    Jobs,
+    Finances,
 }
 
 /// One message.

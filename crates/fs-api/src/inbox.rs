@@ -61,9 +61,27 @@ impl Inbox {
     }
 
     /// Adds messages for the events that concern `manager` and `club`.
-    pub fn record(&mut self, world: &World, manager: ManagerId, club: ClubId, events: &[Event]) {
+    /// `club` is the manager's club now, if any.
+    pub fn record(
+        &mut self,
+        world: &World,
+        manager: ManagerId,
+        club: Option<ClubId>,
+        events: &[Event],
+    ) {
+        // Without a club, only events naming the manager match.
+        let club = club.unwrap_or(ClubId::new(u32::MAX));
+        let my_league = world.clubs().get(club).and_then(|c| c.league());
         let club_name = |c: ClubId| world.clubs()[c].name.clone();
         let player = |p| player_ref(world, p).name;
+        let staff_name = |s: fs_world::StaffId| {
+            let st = &world.staff()[s];
+            format!(
+                "{} {}",
+                world.names().get(st.first_name),
+                world.names().get(st.last_name)
+            )
+        };
         for e in events {
             match e {
                 Event::MatchPlayed {
@@ -223,9 +241,195 @@ impl Inbox {
                         Some(Link::Squad),
                     );
                 }
+                Event::OfferReceived {
+                    offer,
+                    player: p,
+                    buyer,
+                    seller,
+                } if *seller == club => {
+                    let what =
+                        world
+                            .market()
+                            .offer(*offer)
+                            .map_or(String::new(), |o| match o.kind {
+                                fs_world::transfer::OfferKind::Transfer { fee } => {
+                                    format!("a fee of {}", money(fee))
+                                }
+                                fs_world::transfer::OfferKind::Loan { wage_share } => {
+                                    format!("a loan, paying {wage_share}% of the wages")
+                                }
+                            });
+                    self.push(
+                        world,
+                        Category::Transfer,
+                        format!("{} bid for {}", club_name(*buyer), player(*p)),
+                        format!(
+                            "{} have offered {what}. Answer within three days or the offer lapses.",
+                            club_name(*buyer)
+                        ),
+                        Some(Link::Transfers),
+                    );
+                }
+                Event::OfferUpdated {
+                    player: p,
+                    buyer,
+                    seller,
+                    status,
+                    ..
+                } if *buyer == club => {
+                    use fs_world::transfer::OfferStatus as S;
+                    let (title, body) = match status {
+                        S::Countered { fee } => (
+                            format!("{} want more for {}", club_name(*seller), player(*p)),
+                            format!("They would sell for {}.", money(*fee)),
+                        ),
+                        S::Agreed => (
+                            format!("Deal agreed for {}", player(*p)),
+                            "The move completes tomorrow.".to_owned(),
+                        ),
+                        S::Refused(_) => {
+                            let reason = dto::OfferStatus::from(*status);
+                            let why = match reason {
+                                dto::OfferStatus::Refused { reason } => reason,
+                                _ => String::new(),
+                            };
+                            (format!("Bid for {} failed", player(*p)), format!("{why}."))
+                        }
+                        _ => continue,
+                    };
+                    self.push(
+                        world,
+                        Category::Transfer,
+                        title,
+                        body,
+                        Some(Link::Transfers),
+                    );
+                }
+                Event::TransferCompleted {
+                    player: p,
+                    from,
+                    to,
+                    fee,
+                    loan,
+                } if *from == club || *to == club => {
+                    let title = if *to == club {
+                        format!("{} joins", player(*p))
+                    } else {
+                        format!("{} leaves", player(*p))
+                    };
+                    let how = if *loan {
+                        "on loan".to_owned()
+                    } else {
+                        format!("for {}", money(*fee))
+                    };
+                    self.push(
+                        world,
+                        Category::Transfer,
+                        title,
+                        format!(
+                            "{} moves from {} to {} {how}.",
+                            player(*p),
+                            club_name(*from),
+                            club_name(*to)
+                        ),
+                        Some(Link::Player { player: p.raw() }),
+                    );
+                }
+                Event::LoanEnded {
+                    player: p,
+                    from,
+                    to,
+                } if *from == club || *to == club => {
+                    self.push(
+                        world,
+                        Category::Transfer,
+                        format!("{}'s loan is over", player(*p)),
+                        format!("{} returns to {}.", player(*p), club_name(*to)),
+                        Some(Link::Player { player: p.raw() }),
+                    );
+                }
+                Event::ScoutReport { club: c, player: p } if *c == club => self.push(
+                    world,
+                    Category::Scouting,
+                    format!("Scout report: {}", player(*p)),
+                    "The scouts have finished assessing the player.".to_owned(),
+                    Some(Link::Player { player: p.raw() }),
+                ),
+                Event::StaffLeft { staff, club: c } if *c == club => self.push(
+                    world,
+                    Category::Staff,
+                    format!("{} has left the staff", staff_name(*staff)),
+                    "Hire a replacement from the staff screen.".to_owned(),
+                    Some(Link::Staff),
+                ),
+                Event::StaffContractExpiring {
+                    staff,
+                    club: c,
+                    expires,
+                } if *c == club => self.push(
+                    world,
+                    Category::Staff,
+                    format!("{}'s contract is ending", staff_name(*staff)),
+                    format!(
+                        "The contract runs out on {}. Renew it from the staff screen.",
+                        date(*expires)
+                    ),
+                    Some(Link::Staff),
+                ),
+                Event::BoardWarning { club: c, .. } if *c == club => self.push(
+                    world,
+                    Category::Board,
+                    "The board is concerned".to_owned(),
+                    "Results are below what the board expects. Things need to improve.".to_owned(),
+                    None,
+                ),
+                Event::ManagerSacked {
+                    manager: m,
+                    club: c,
+                } if *m == manager => self.push(
+                    world,
+                    Category::Board,
+                    format!("Sacked by {}", club_name(*c)),
+                    "The board has lost confidence in you. Look for a new job.".to_owned(),
+                    Some(Link::Jobs),
+                ),
+                Event::ManagerSacked { club: c, .. }
+                    if my_league.is_some() && world.clubs()[*c].league() == my_league =>
+                {
+                    self.push(
+                        world,
+                        Category::Club,
+                        format!("{} sack their manager", club_name(*c)),
+                        format!("{} are looking for a new manager.", club_name(*c)),
+                        None,
+                    );
+                }
+                Event::ManagerLeft {
+                    manager: m,
+                    club: c,
+                } if *m == manager => self.push(
+                    world,
+                    Category::Board,
+                    format!("You have left {}", club_name(*c)),
+                    "Look for a new job.".to_owned(),
+                    Some(Link::Jobs),
+                ),
                 _ => {}
             }
         }
+    }
+}
+
+/// Money for people: `£1.2m`, `£450k`, `£800`.
+pub fn money(m: i64) -> String {
+    let a = m.abs() as f64;
+    let sign = if m < 0 { "-" } else { "" };
+    if a >= 1e6 {
+        format!("{sign}£{:.1}m", a / 1e6)
+    } else if a >= 1e3 {
+        format!("{sign}£{:.0}k", a / 1e3)
+    } else {
+        format!("{sign}£{a:.0}")
     }
 }
 

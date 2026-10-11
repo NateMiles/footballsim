@@ -186,6 +186,37 @@ pub fn estimate(world: &World, club: ClubId, player: PlayerId) -> Estimate {
     }
 }
 
+/// Just the knowledge, ability and potential of [`estimate`]: cheap
+/// enough to run over thousands of players for a search.
+pub fn quick_estimate(
+    world: &World,
+    club: ClubId,
+    player: PlayerId,
+    ratings: &StaffRatings,
+) -> (u8, Range, Range) {
+    let k = knowledge_with(world, club, player, ratings);
+    let unknown = f64::from(FULL - k) / 100.0;
+    let judge = staff::effect(ratings.scouting_ability, -0.4);
+    let judge_potential = staff::effect(ratings.scouting_potential, -0.4);
+    let [ea, ep] = errors::<2>(world, club, player);
+    let ps = world.players();
+    let ability = range(
+        f64::from(ps.ability(player)),
+        ea,
+        unknown * 150.0 * judge,
+        0.0,
+        1000.0,
+    );
+    let potential = range(
+        f64::from(ps.potential(player).max(ps.ability(player))),
+        ep,
+        unknown * 250.0 * judge_potential,
+        0.0,
+        1000.0,
+    );
+    (k, ability, potential)
+}
+
 /// The ability (0-1000) `club` believes `player` has: what AI clubs act
 /// on when buying.
 pub fn perceived_ability(

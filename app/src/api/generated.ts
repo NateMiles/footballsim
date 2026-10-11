@@ -1,7 +1,7 @@
 // Generated from crates/fs-api by tests/bindings.rs. Do not edit.
 // Regenerate: UPDATE_BINDINGS=1 cargo test -p fs-api --test bindings
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export type ApiErrorBody = { code: ErrorCode, 
 /**
@@ -9,9 +9,29 @@ export type ApiErrorBody = { code: ErrorCode,
  */
 message: string, };
 
+export type Assignment = { player: PlayerRef, club: ClubRef | null, 
+/**
+ * 0-100.
+ */
+knowledge: number, };
+
 export type AttributeGroup = { name: string, attributes: Array<AttributeValue>, };
 
-export type AttributeValue = { name: string, value: number, };
+export type AttributeValue = { name: string, value: number, low: number, high: number, };
+
+export type BoardView = { 
+/**
+ * Finish at this position or better.
+ */
+target: number, 
+/**
+ * Such as `"Finish in the top half"`.
+ */
+objective: string, 
+/**
+ * 0-100.
+ */
+confidence: number, };
 
 export type CareerRow = { 
 /**
@@ -19,7 +39,7 @@ export type CareerRow = {
  */
 season: string, club: ClubRef | null, ability: number, stats: SeasonStats, };
 
-export type Category = "match" | "injury" | "contract" | "transfer" | "youth" | "season" | "club";
+export type Category = "match" | "injury" | "contract" | "transfer" | "youth" | "season" | "club" | "finance" | "board" | "staff" | "scouting";
 
 export type ClubChoice = { club: ClubRef, league: LeagueRef, 
 /**
@@ -54,6 +74,30 @@ export type Contract = {
 wage: number, expires: string, };
 
 export type ErrorCode = "badRequest" | "noGame" | "notFound" | "rejected" | "noMatch" | "badSave";
+
+export type Facilities = { capacity: number, 
+/**
+ * 1-20.
+ */
+training: number, youth: number, };
+
+export type FinancesView = { club: ClubRef, balance: number, transferBudget: number, 
+/**
+ * Weekly.
+ */
+wageBudget: number, 
+/**
+ * Weekly, players.
+ */
+wageBill: number, 
+/**
+ * Weekly, staff.
+ */
+staffBill: number, season: Ledger, 
+/**
+ * Newest first.
+ */
+history: Array<SeasonAccounts>, facilities: Facilities, };
 
 export type Fixture = { league: number, 
 /**
@@ -93,11 +137,29 @@ severity: string, until: string, };
 
 export type Instruction = { "type": "substitute", off: number, on: number, } | { "type": "changeTactic", tactic: Tactic, } | { "type": "shout", shout: Shout, };
 
+export type Job = { club: ClubRef, league: LeagueRef, 
+/**
+ * 1-5.
+ */
+stars: number, 
+/**
+ * Whether the board would take the viewer.
+ */
+wouldHire: boolean, };
+
+export type JobsView = { 
+/**
+ * The viewer's reputation, 0-100.
+ */
+reputation: number, employed: boolean, jobs: Array<Job>, };
+
 export type LeagueRef = { id: number, name: string, nation: string, 
 /**
  * 1 for a nation's top division.
  */
 level: number, };
+
+export type Ledger = { matchday: number, broadcast: number, commercial: number, prizeMoney: number, playerSales: number, playerWages: number, staffWages: number, playerPurchases: number, runningCosts: number, investment: number, income: number, expenses: number, };
 
 export type Lineup = { 
 /**
@@ -105,7 +167,11 @@ export type Lineup = {
  */
 starters: Array<number>, bench: Array<number>, };
 
-export type Link = { "type": "player", player: number, } | { "type": "fixture", league: number, index: number, } | { "type": "table", league: number, } | { "type": "squad" } | { "type": "tactics" };
+export type Link = { "type": "player", player: number, } | { "type": "fixture", league: number, index: number, } | { "type": "table", league: number, } | { "type": "squad" } | { "type": "tactics" } | { "type": "transfers" } | { "type": "staff" } | { "type": "jobs" } | { "type": "finances" };
+
+export type ListedPlayer = { player: PlayerRef, listing: Listing, };
+
+export type Listing = "transfer" | "loan";
 
 export type LiveChunk = { frames: Array<Frame>, commentary: Array<Commentary>, events: Array<MatchEvent>, score: [number, number], 
 /**
@@ -139,6 +205,8 @@ frameHz: number,
  */
 players: Array<LivePlayerInfo>, lineups: [LiveLineup, LiveLineup], shouts: Array<Shout>, };
 
+export type Loan = { player: PlayerRef, parent: ClubRef, borrower: ClubRef, until: string, wageShare: number, };
+
 export type ManagerInfo = { id: number, name: string, };
 
 export type MatchDay = { fixture: Fixture, side: Side, };
@@ -158,6 +226,18 @@ ratings: [Array<PlayerRating>, Array<PlayerRating>], };
 
 export type Message = { id: number, date: string, category: Category, title: string, body: string, read: boolean, link: Link | null, };
 
+export type Offer = { id: number, date: string, player: PlayerRef, buyer: ClubRef, seller: ClubRef, kind: OfferKind, 
+/**
+ * The contract offered to the player (transfers).
+ */
+wage: number, years: number, status: OfferStatus, respondBy: string, };
+
+export type OfferKind = { "type": "transfer", fee: number, } | { "type": "loan", wageShare: number, };
+
+export type OfferResponse = { "type": "accept" } | { "type": "reject" } | { "type": "counter", fee: number, };
+
+export type OfferStatus = { "type": "pending" } | { "type": "countered", fee: number, } | { "type": "agreed" } | { "type": "completed" } | { "type": "refused", reason: string, };
+
 export type OnPitch = { id: number, slot: number, 
 /**
  * 0-1.
@@ -172,7 +252,11 @@ weekday: string,
 /**
  * Such as `"2026/27"`.
  */
-season: string, manager: ManagerInfo, club: ClubRef, league: LeagueRef | null, position: number | null, nextFixture: Fixture | null, lastFixture: Fixture | null, 
+season: string, manager: ManagerInfo, 
+/**
+ * The viewer's club; none while out of work.
+ */
+club: ClubRef | null, league: LeagueRef | null, position: number | null, nextFixture: Fixture | null, lastFixture: Fixture | null, 
 /**
  * Last five league results, oldest first: `"W"`, `"D"` or `"L"`.
  */
@@ -180,7 +264,7 @@ form: Array<string>, unread: number,
 /**
  * Today's match, waiting to be watched.
  */
-matchDay: MatchDay | null, watchMatches: boolean, delegateSquad: boolean, };
+matchDay: MatchDay | null, watchMatches: boolean, delegateSquad: boolean, board: BoardView | null, balance: number | null, transferBudget: number | null, windowOpen: boolean, };
 
 export type Pitch = { length: number, width: number, };
 
@@ -202,6 +286,32 @@ shortName: string, number: number | null,
  */
 position: string, };
 
+export type PlayerSearch = { 
+/**
+ * Best-position codes to include; empty for any.
+ */
+positions: Array<string>, minAge: number | null, maxAge: number | null, 
+/**
+ * Estimated value at most this.
+ */
+maxValue: number | null, 
+/**
+ * Estimated ability at least this (0-100).
+ */
+minAbility: number | null, 
+/**
+ * Only players their clubs have listed.
+ */
+listedOnly: boolean, 
+/**
+ * Only players without a club.
+ */
+freeAgentsOnly: boolean, 
+/**
+ * Name contains this (case-insensitive).
+ */
+name: string | null, };
+
 export type PlayerView = { id: number, name: string, firstName: string, lastName: string, age: number, birthDate: string, nation: string, club: ClubRef | null, number: number | null, 
 /**
  * `"left"`, `"right"` or `"both"`.
@@ -210,7 +320,32 @@ foot: string, heightCm: number, weightKg: number, position: string,
 /**
  * Familiarity with every position, 0-20, in [`PositionInfo`] order.
  */
-positionRatings: Array<number>, attributes: Array<AttributeGroup>, ability: number, potential: number, fitness: number, sharpness: number, morale: number, injury: Injury | null, suspension: number, contract: Contract | null, 
+positionRatings: Array<number>, attributes: Array<AttributeGroup>, 
+/**
+ * What the viewer's club knows about the player, 0-100. At 100 the
+ * numbers are exact; below, they are the scouts' estimates.
+ */
+knowledge: number, 
+/**
+ * Estimated ability and potential, 0-100, with ranges.
+ */
+ability: number, abilityLow: number, abilityHigh: number, potential: number, potentialLow: number, potentialHigh: number, 
+/**
+ * Estimated market value.
+ */
+value: number, 
+/**
+ * What the club would sell for, if it is an AI club and would sell.
+ */
+askingPrice: number | null, listing: Listing | null, loan: Loan | null, 
+/**
+ * Whether the viewer's scouts are watching the player.
+ */
+scouting: boolean, 
+/**
+ * The viewer's open offer for the player.
+ */
+offer: Offer | null, fitness: number, sharpness: number, morale: number, injury: Injury | null, suspension: number, contract: Contract | null, 
 /**
  * What they would ask for in a new contract, per week.
  */
@@ -224,13 +359,13 @@ export type Pose = "standing" | "running" | "passing" | "shooting" | "heading" |
 
 export type PositionInfo = { code: string, name: string, };
 
-export type Request = { "type": "hello" } | { "type": "newWorld", seed: number, size: WorldSize, } | { "type": "startCareer", club: number, firstName: string, lastName: string, } | { "type": "save" } | { "type": "load", data: string, } | { "type": "overview" } | { "type": "inbox" } | { "type": "markRead", id: number | null, } | { "type": "squad", club: number | null, } | { "type": "player", player: number, } | { "type": "tactics" } | { "type": "setTactic", tactic: Tactic | null, } | { "type": "setLineup", lineup: Lineup | null, } | { "type": "fixtures", league: number | null, club: number | null, } | { "type": "table", league: number | null, } | { "type": "setWatchMatches", watch: boolean, } | { "type": "setDelegation", squad: boolean, } | { "type": "offerContract", player: number, wage: number, years: number, } | { "type": "releasePlayer", player: number, } | { "type": "continue" } | { "type": "startMatch" } | { "type": "liveTick", until: number, } | { "type": "liveInstruct", instruction: Instruction, } | { "type": "finishMatch" } | { "type": "skipMatch" };
+export type Request = { "type": "hello" } | { "type": "newWorld", seed: number, size: WorldSize, } | { "type": "startCareer", club: number, firstName: string, lastName: string, } | { "type": "save" } | { "type": "load", data: string, } | { "type": "overview" } | { "type": "inbox" } | { "type": "markRead", id: number | null, } | { "type": "squad", club: number | null, } | { "type": "player", player: number, } | { "type": "tactics" } | { "type": "setTactic", tactic: Tactic | null, } | { "type": "setLineup", lineup: Lineup | null, } | { "type": "fixtures", league: number | null, club: number | null, } | { "type": "table", league: number | null, } | { "type": "setWatchMatches", watch: boolean, } | { "type": "setDelegation", squad: boolean, } | { "type": "offerContract", player: number, wage: number, years: number, } | { "type": "releasePlayer", player: number, } | { "type": "continue" } | { "type": "startMatch" } | { "type": "liveTick", until: number, } | { "type": "liveInstruct", instruction: Instruction, } | { "type": "finishMatch" } | { "type": "skipMatch" } | { "type": "finances" } | { "type": "staff" } | { "type": "hireStaff", staff: number, wage: number, years: number, } | { "type": "releaseStaff", staff: number, } | { "type": "transfers" } | { "type": "searchPlayers", search: PlayerSearch, } | { "type": "makeOffer", player: number, kind: OfferKind, wage: number, years: number, } | { "type": "respondToOffer", offer: number, response: OfferResponse, } | { "type": "acceptCounter", offer: number, } | { "type": "withdrawOffer", offer: number, } | { "type": "setListing", player: number, listing: Listing | null, } | { "type": "scoutPlayer", player: number, } | { "type": "cancelScouting", player: number, } | { "type": "jobs" } | { "type": "applyForJob", club: number, } | { "type": "resign" };
 
 export type Response = { "type": "hello", protocol: number, version: string, 
 /**
  * Whether a game is loaded.
  */
-inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "error", error: ApiErrorBody, };
+inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "error", error: ApiErrorBody, };
 
 export type SaveGame = { 
 /**
@@ -245,6 +380,32 @@ summary: SaveSummary, };
 export type SaveSummary = { date: string, manager: string, club: string, };
 
 export type Scorer = { side: Side, player: PlayerRef, };
+
+export type SearchRow = { player: PlayerRef, club: ClubRef | null, age: number, nation: string, 
+/**
+ * Estimated ability, 0-100, with its range.
+ */
+ability: number, abilityLow: number, abilityHigh: number, potential: number, 
+/**
+ * 0-100.
+ */
+knowledge: number, 
+/**
+ * Estimated value.
+ */
+value: number, wageDemand: number, listing: Listing | null, };
+
+export type SearchView = { rows: Array<SearchRow>, 
+/**
+ * Matches before the limit.
+ */
+total: number, };
+
+export type SeasonAccounts = { 
+/**
+ * Such as `"2026/27"`.
+ */
+season: string, ledger: Ledger, closingBalance: number, };
 
 export type SeasonStats = { appearances: number, starts: number, minutes: number, goals: number, assists: number, yellows: number, reds: number, cleanSheets: number, 
 /**
@@ -317,6 +478,40 @@ academy: boolean, };
 
 export type SquadView = { club: ClubRef, players: Array<SquadPlayer>, };
 
+export type StaffAttributes = { coaching: number, youthCoaching: number, judgingAbility: number, judgingPotential: number, physiotherapy: number, management: number, };
+
+export type StaffMember = { id: number, name: string, role: StaffRole, age: number, nation: string, attributes: StaffAttributes, 
+/**
+ * The rating that matters for the role, 1-20.
+ */
+rating: number, 
+/**
+ * Current weekly wage, for employed staff.
+ */
+wage: number | null, expires: string | null, 
+/**
+ * What they ask for, per week.
+ */
+demand: number, 
+/**
+ * Whether they would join the viewer's club.
+ */
+wouldJoin: boolean, };
+
+export type StaffRatings = { coaching: number, youthCoaching: number, scoutingAbility: number, scoutingPotential: number, physiotherapy: number, management: number, };
+
+export type StaffRole = "assistantManager" | "coach" | "scout" | "physio";
+
+export type StaffView = { club: ClubRef, staff: Array<StaffMember>, ratings: StaffRatings, 
+/**
+ * Free staff, best first.
+ */
+available: Array<StaffMember>, 
+/**
+ * The most of each role a club may employ, in role order.
+ */
+limits: Array<number>, };
+
 export type StopReason = "matchDay" | "messages" | "week";
 
 export type TableRow = { position: number, club: ClubRef, played: number, won: number, drawn: number, lost: number, scored: number, conceded: number, goalDifference: number, points: number, 
@@ -359,5 +554,33 @@ export type TeamStats = {
  * 0-1.
  */
 possession: number, shots: number, shotsOnTarget: number, xg: number, passes: number, passesCompleted: number, crosses: number, tackles: number, fouls: number, yellows: number, reds: number, corners: number, offsides: number, saves: number, };
+
+export type TransferRecord = { date: string, player: PlayerRef, from: ClubRef, to: ClubRef, fee: number, loan: boolean, };
+
+export type TransfersView = { windowOpen: boolean, 
+/**
+ * When the window next opens or closes.
+ */
+windowChanges: string, transferBudget: number, 
+/**
+ * Offers for the viewer's players, newest first.
+ */
+incoming: Array<Offer>, 
+/**
+ * The viewer's offers, newest first.
+ */
+outgoing: Array<Offer>, 
+/**
+ * The viewer's listed players.
+ */
+listed: Array<ListedPlayer>, loansOut: Array<Loan>, loansIn: Array<Loan>, scouting: Array<Assignment>, 
+/**
+ * Scouts available to watch players at once.
+ */
+scouts: number, 
+/**
+ * The biggest recent moves in the world.
+ */
+recent: Array<TransferRecord>, };
 
 export type WorldSize = "tiny" | "small" | "medium";

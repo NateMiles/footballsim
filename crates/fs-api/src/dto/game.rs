@@ -2,6 +2,7 @@
 
 use super::common::{ClubRef, Date, Id, LeagueRef, Side};
 use super::competition::Fixture;
+use super::management::BoardView;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -46,7 +47,8 @@ pub struct Overview {
     /// Such as `"2026/27"`.
     pub season: String,
     pub manager: ManagerInfo,
-    pub club: ClubRef,
+    /// The viewer's club; none while out of work.
+    pub club: Option<ClubRef>,
     pub league: Option<LeagueRef>,
     pub position: Option<u8>,
     pub next_fixture: Option<Fixture>,
@@ -58,6 +60,10 @@ pub struct Overview {
     pub match_day: Option<MatchDay>,
     pub watch_matches: bool,
     pub delegate_squad: bool,
+    pub board: Option<BoardView>,
+    pub balance: Option<i64>,
+    pub transfer_budget: Option<i64>,
+    pub window_open: bool,
 }
 
 /// The viewer.

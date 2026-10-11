@@ -197,3 +197,15 @@ pub fn form(world: &World, club: ClubId, n: usize) -> Vec<String> {
     let all = results(world, club);
     all[all.len().saturating_sub(n)..].to_vec()
 }
+
+/// 1st, 2nd, 3rd, 4th...
+pub fn ordinal(n: u8) -> String {
+    let suffix = match (n % 10, n % 100) {
+        (_, 11..=13) => "th",
+        (1, _) => "st",
+        (2, _) => "nd",
+        (3, _) => "rd",
+        _ => "th",
+    };
+    format!("{n}{suffix}")
+}

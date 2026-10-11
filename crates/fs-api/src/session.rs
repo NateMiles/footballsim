@@ -14,7 +14,9 @@ use crate::save;
 use fs_gen::{GenConfig, Size, generate};
 use fs_match::MatchInput;
 use fs_world::matchday::fixture_input;
-use fs_world::{Actor, ClubId, Command, Event, Game, LeagueId, Lineup, ManagerId, PlayerId, World};
+use fs_world::{
+    Actor, ClubId, Command, Event, Game, LeagueId, Lineup, ManagerId, PlayerId, StaffId, World,
+};
 
 /// Days [`Request::Continue`] moves on at most.
 const CONTINUE_DAYS: u32 = 7;
@@ -313,14 +315,139 @@ impl Session {
                 c.submit(Command::SkipMatch)?;
                 self.overview()
             }
+            Request::Finances => {
+                let c = self.career()?;
+                Ok(Response::Finances {
+                    finances: query::management::finances(c.world(), c.club()?),
+                })
+            }
+            Request::Staff => self.staff_view(),
+            Request::HireStaff { staff, wage, years } => {
+                self.career()?.submit(Command::HireStaff {
+                    staff: StaffId::new(staff),
+                    wage,
+                    years,
+                })?;
+                self.staff_view()
+            }
+            Request::ReleaseStaff { staff } => {
+                self.career()?.submit(Command::ReleaseStaff {
+                    staff: StaffId::new(staff),
+                })?;
+                self.staff_view()
+            }
+            Request::Transfers => self.transfers_view(),
+            Request::SearchPlayers { search } => {
+                let c = self.career()?;
+                Ok(Response::Search {
+                    search: query::market::search(c.world(), c.club().ok(), &search),
+                })
+            }
+            Request::MakeOffer {
+                player,
+                kind,
+                wage,
+                years,
+            } => {
+                let c = self.career()?;
+                let player = c.existing_player(player)?;
+                c.submit_quiet(Command::MakeOffer {
+                    player,
+                    kind: kind.into(),
+                    wage,
+                    years,
+                })?;
+                self.transfers_view()
+            }
+            Request::RespondToOffer { offer, response } => {
+                self.career()?.submit_quiet(Command::RespondToOffer {
+                    offer,
+                    response: match response {
+                        dto::OfferResponse::Accept => fs_world::OfferResponse::Accept,
+                        dto::OfferResponse::Reject => fs_world::OfferResponse::Reject,
+                        dto::OfferResponse::Counter { fee } => {
+                            fs_world::OfferResponse::Counter { fee }
+                        }
+                    },
+                })?;
+                self.transfers_view()
+            }
+            Request::AcceptCounter { offer } => {
+                self.career()?
+                    .submit_quiet(Command::AcceptCounter { offer })?;
+                self.transfers_view()
+            }
+            Request::WithdrawOffer { offer } => {
+                self.career()?
+                    .submit_quiet(Command::WithdrawOffer { offer })?;
+                self.transfers_view()
+            }
+            Request::SetListing { player, listing } => {
+                let c = self.career()?;
+                let id = c.existing_player(player)?;
+                c.submit_quiet(Command::SetListing {
+                    player: id,
+                    listing: listing.map(Into::into),
+                })?;
+                Ok(Response::Player {
+                    player: query::club::player(c.world(), id, c.club().ok()),
+                })
+            }
+            Request::ScoutPlayer { player } => {
+                let c = self.career()?;
+                let id = c.existing_player(player)?;
+                c.submit_quiet(Command::ScoutPlayer { player: id })?;
+                Ok(Response::Player {
+                    player: query::club::player(c.world(), id, c.club().ok()),
+                })
+            }
+            Request::CancelScouting { player } => {
+                let c = self.career()?;
+                let id = c.existing_player(player)?;
+                c.submit_quiet(Command::CancelScouting { player: id })?;
+                Ok(Response::Player {
+                    player: query::club::player(c.world(), id, c.club().ok()),
+                })
+            }
+            Request::Jobs => {
+                let c = self.career()?;
+                Ok(Response::Jobs {
+                    jobs: query::management::jobs(c.world(), c.manager),
+                })
+            }
+            Request::ApplyForJob { club } => {
+                let c = self.career()?;
+                let club = c.existing_club(club)?;
+                c.submit(Command::ApplyForJob { club })?;
+                self.overview()
+            }
+            Request::Resign => {
+                let c = self.career()?;
+                c.live = None;
+                c.submit(Command::Resign)?;
+                self.overview()
+            }
         }
     }
 
     fn overview(&mut self) -> Result<Response> {
         let c = self.career()?;
-        let club = c.club()?;
         Ok(Response::Overview {
-            overview: query::game::overview(c.world(), c.manager, club, c.inbox.unread()),
+            overview: query::game::overview(c.world(), c.manager, c.club().ok(), c.inbox.unread()),
+        })
+    }
+
+    fn staff_view(&mut self) -> Result<Response> {
+        let c = self.career()?;
+        Ok(Response::Staff {
+            staff: query::management::staff(c.world(), c.club()?),
+        })
+    }
+
+    fn transfers_view(&mut self) -> Result<Response> {
+        let c = self.career()?;
+        Ok(Response::Transfers {
+            transfers: query::market::transfers(c.world(), c.club()?),
         })
     }
 }
@@ -377,10 +504,21 @@ impl Career {
 
     /// Adds the events that concern the viewer to the inbox.
     fn record(&mut self, events: &[Event]) {
-        if let Some(club) = self.game.world().human_club(self.manager) {
-            self.inbox
-                .record(self.game.world(), self.manager, club, events);
+        let club = self.game.world().human_club(self.manager);
+        self.inbox
+            .record(self.game.world(), self.manager, club, events);
+    }
+
+    /// Submits a command whose result the viewer sees at once, so nothing
+    /// goes to the inbox (market moves, scouting).
+    fn submit_quiet(&mut self, command: Command) -> Result<Vec<Event>> {
+        if self.live.is_some() {
+            return Err(ApiError::new(
+                ErrorCode::Rejected,
+                "not while a match is being watched",
+            ));
         }
+        Ok(self.game.submit(Actor::Manager(self.manager), command)?)
     }
 
     /// Submits a command as the viewer and files its events.

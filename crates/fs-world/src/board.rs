@@ -148,7 +148,7 @@ pub(crate) fn appoint(world: &mut World, manager: ManagerId, club: ClubId) {
 /// Whether a club's board would hire a manager of this reputation.
 pub fn would_hire(world: &World, club: ClubId, reputation: u16) -> bool {
     let c = &world.clubs()[club];
-    u32::from(reputation) + 2_500 >= u32::from(c.reputation) || c.reputation <= 3_000
+    u32::from(reputation) + 3_000 >= u32::from(c.reputation) || c.reputation <= 3_000
 }
 
 /// The 1st of the month: boards look at the table and the bank.

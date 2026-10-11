@@ -45,7 +45,7 @@ fn career(seed: u32) -> (Session, dto::Overview) {
         ),
         Overview { overview }
     );
-    assert_eq!(overview.club.id, club);
+    assert_eq!(overview.club.as_ref().unwrap().id, club);
     assert_eq!(overview.manager.name, "Sam Reed");
     assert!(overview.watch_matches);
     (s, overview)
@@ -70,7 +70,7 @@ fn hello_and_errors() {
         hello,
         Response::Hello {
             in_game: false,
-            protocol: 1,
+            protocol: fs_api::PROTOCOL_VERSION,
             ..
         }
     ));
@@ -191,7 +191,7 @@ fn a_watched_match_is_the_match_the_world_records() {
     let (mut s, overview) = career(3);
     let day = to_match_day(&mut s);
     assert_eq!(
-        day.fixture.home.id == overview.club.id,
+        day.fixture.home.id == overview.club.as_ref().unwrap().id,
         day.side == dto::Side::Home
     );
     let start = expect!(call(&mut s, Request::StartMatch), LiveStart { start });

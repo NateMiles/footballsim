@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Protocol version. Bump when a request or response changes shape.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 /// Something the UI asks for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -96,6 +96,51 @@ pub enum Request {
     /// Don't watch today's match: the assistant manages it. Answered with
     /// [`Response::Overview`].
     SkipMatch,
+
+    /// Answered with [`Response::Finances`].
+    Finances,
+    /// Answered with [`Response::Staff`].
+    Staff,
+    /// Hire a free staff member or renew one of yours. Answered with
+    /// [`Response::Staff`].
+    HireStaff { staff: Id, wage: u32, years: u8 },
+    /// Answered with [`Response::Staff`].
+    ReleaseStaff { staff: Id },
+    /// Answered with [`Response::Transfers`].
+    Transfers,
+    /// Find players. Answered with [`Response::Search`].
+    SearchPlayers { search: PlayerSearch },
+    /// Bid for a player. Answered with [`Response::Transfers`].
+    MakeOffer {
+        player: Id,
+        kind: OfferKind,
+        wage: u32,
+        years: u8,
+    },
+    /// Answer an offer for one of your players. Answered with
+    /// [`Response::Transfers`].
+    RespondToOffer { offer: u32, response: OfferResponse },
+    /// Accept a selling club's price. Answered with
+    /// [`Response::Transfers`].
+    AcceptCounter { offer: u32 },
+    /// Answered with [`Response::Transfers`].
+    WithdrawOffer { offer: u32 },
+    /// List or unlist one of your players. Answered with
+    /// [`Response::Player`].
+    SetListing {
+        player: Id,
+        listing: Option<Listing>,
+    },
+    /// Send the scouts. Answered with [`Response::Player`].
+    ScoutPlayer { player: Id },
+    /// Answered with [`Response::Player`].
+    CancelScouting { player: Id },
+    /// Vacant jobs. Answered with [`Response::Jobs`].
+    Jobs,
+    /// Take a vacant job. Answered with [`Response::Overview`].
+    ApplyForJob { club: Id },
+    /// Leave your club. Answered with [`Response::Overview`].
+    Resign,
 }
 
 /// The core's answer.
@@ -152,6 +197,21 @@ pub enum Response {
     },
     MatchReport {
         report: MatchReport,
+    },
+    Finances {
+        finances: FinancesView,
+    },
+    Staff {
+        staff: StaffView,
+    },
+    Transfers {
+        transfers: TransfersView,
+    },
+    Search {
+        search: SearchView,
+    },
+    Jobs {
+        jobs: JobsView,
     },
     Error {
         error: ApiError,

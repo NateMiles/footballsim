@@ -56,10 +56,15 @@ pub fn match_day(world: &World, manager: ManagerId) -> Option<dto::MatchDay> {
     })
 }
 
-pub fn overview(world: &World, manager: ManagerId, club: ClubId, unread: u32) -> dto::Overview {
+pub fn overview(
+    world: &World,
+    manager: ManagerId,
+    club: Option<ClubId>,
+    unread: u32,
+) -> dto::Overview {
     let m = &world.managers()[manager];
-    let league = world.clubs()[club].league();
-    let position = league.and_then(|l| {
+    let league = club.and_then(|c| world.clubs()[c].league());
+    let position = club.zip(league).and_then(|(club, l)| {
         let season = world.leagues()[l].season()?;
         season
             .table()
@@ -67,8 +72,9 @@ pub fn overview(world: &World, manager: ManagerId, club: ClubId, unread: u32) ->
             .position(|r| r.club == club)
             .map(|p| (p + 1) as u8)
     });
-    let (next_fixture, last_fixture) = next_and_last(world, club);
+    let (next_fixture, last_fixture) = club.map_or((None, None), |c| next_and_last(world, c));
     let today = world.date();
+    let finances = club.map(|c| world.clubs()[c].finances());
     dto::Overview {
         date: date(today),
         weekday: format!("{:?}", today.weekday()),
@@ -81,15 +87,19 @@ pub fn overview(world: &World, manager: ManagerId, club: ClubId, unread: u32) ->
                 world.names().get(m.last_name)
             ),
         },
-        club: club_ref(world, club),
+        club: club.map(|c| club_ref(world, c)),
         league: league.map(|l| league_ref(world, l)),
         position,
         next_fixture,
         last_fixture,
-        form: form(world, club, 5),
+        form: club.map(|c| form(world, c, 5)).unwrap_or_default(),
         unread,
         match_day: match_day(world, manager),
         watch_matches: m.watch_matches,
         delegate_squad: m.delegate_squad,
+        board: club.map(|c| super::management::board(world, c)),
+        balance: finances.map(|f| f.balance),
+        transfer_budget: finances.map(|f| f.transfer_budget),
+        window_open: fs_world::transfer::window_open(today),
     }
 }
