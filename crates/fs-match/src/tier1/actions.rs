@@ -6,6 +6,7 @@ use super::{BANDS, LANES, MAX_SUB_WINDOWS, MAX_SUBS};
 use crate::instruction::Shout;
 use crate::log::{ActionKind, Outcome, Zone};
 use crate::result::{GoalKind, MatchEvent, Side};
+use crate::roles::Marking;
 use crate::skills::Skills;
 use fs_core::attributes::Position;
 use fs_core::math;
@@ -34,9 +35,17 @@ impl Engine {
         } else {
             1.0
         };
+        // Marked players draw more fouls.
+        let carrier_id =
+            self.teams[att].on[self.ball.carrier].map(|i| self.teams[att].players[i].snap.id);
+        let marked = match carrier_id.and_then(|id| self.teams[def].marking(id)) {
+            Some(Marking::Tight) => 1.3,
+            Some(Marking::CloseDown) => 1.2,
+            None => 1.0,
+        };
         if self
             .rng
-            .chance(self.p.foul_rate * (0.5 + tendency) * (1.0 + 0.1 * press) * calm)
+            .chance(self.p.foul_rate * (0.5 + tendency) * (1.0 + 0.1 * press) * calm * marked)
         {
             return (0.0, self.foul(def, def_slot));
         }
@@ -128,6 +137,13 @@ impl Engine {
             base[4] * (1.0 + 0.05 * m) * (0.5 + s.dribble),
             base[5] * (1.0 + 0.15 * m).max(0.2) * (0.5 + shot_skill),
         ];
+        // The carrier's role and duty.
+        for (w, m) in weights
+            .iter_mut()
+            .zip(team.effects[self.ball.carrier].actions)
+        {
+            *w *= m;
+        }
         if self.ball.carrier == 0 {
             // Goalkeepers only pass.
             weights[2..].fill(0.0);
@@ -172,7 +188,8 @@ impl Engine {
             + self.home_logit(att)
             - self.pressure(def, band)
             - 0.05 * tempo
-            + self.exposure(def, band);
+            + self.exposure(def, band)
+            + self.edge(att, ci);
         self.count_pass(att, ci);
         if self.rng.chance(math::logistic(logit)) {
             self.complete_pass(att, ci);
@@ -245,7 +262,10 @@ impl Engine {
         let c = &self.teams[att].players[ci];
         let d = &self.teams[def].players[di];
         let skill = c.skills.pass_long * c.fat() - 0.8 * d.skills.aerial_def * d.fat();
-        let logit = self.p.long_base + self.p.skill_slope * skill + self.home_logit(att);
+        let logit = self.p.long_base
+            + self.p.skill_slope * skill
+            + self.home_logit(att)
+            + self.edge(att, ci);
         self.count_pass(att, ci);
         if self.rng.chance(math::logistic(logit)) {
             self.complete_pass(att, ci);
@@ -323,7 +343,8 @@ impl Engine {
             + self.p.skill_slope * skill
             + 0.25 * line
             + self.home_logit(att)
-            + 1.5 * self.exposure(def, BANDS - 1);
+            + 1.5 * self.exposure(def, BANDS - 1)
+            + self.edge(att, ci);
         self.count_pass(att, ci);
         if self.rng.chance(math::logistic(logit)) {
             self.complete_pass(att, ci);
@@ -388,8 +409,11 @@ impl Engine {
         let d = &self.teams[def].players[di];
         let skill = c.skills.cross * c.fat() - 0.7 * d.skills.aerial_def * d.fat();
         let width = f64::from(self.teams[att].tactic.width);
-        let logit =
-            self.p.cross_base + self.p.skill_slope * skill + 0.1 * width + self.home_logit(att);
+        let logit = self.p.cross_base
+            + self.p.skill_slope * skill
+            + 0.1 * width
+            + self.home_logit(att)
+            + self.edge(att, ci);
         self.teams[att].stats.crosses += 1;
         if self.rng.chance(math::logistic(logit)) {
             self.teams[att].stats.crosses_completed += 1;
@@ -477,7 +501,8 @@ impl Engine {
         let skill = c.skills.dribble * c.fat() - d.skills.tackle * d.fat();
         let tendency = d.skills.foul_tendency;
         let logit = self.p.dribble_base + self.p.skill_slope * skill + self.home_logit(att)
-            - 0.5 * self.pressure(def, band);
+            - 0.5 * self.pressure(def, band)
+            + self.edge(att, ci);
         self.teams[att].stats.dribbles += 1;
         let cs = &mut self.teams[att].players[ci].stats;
         cs.dribbles = cs.dribbles.saturating_add(1);
@@ -630,13 +655,15 @@ impl Engine {
         }
         // The free kick.
         if band == BANDS - 1 && self.rng.chance(0.35) {
-            let taker = self.teams[att].best_by(|s| s.penalty);
+            let team = &self.teams[att];
+            let taker = team.taker(team.instructions.penalty_taker, |s| s.penalty);
             let taker_slot = self.teams[att].players[taker].slot.expect("on pitch");
             self.ball.carrier = taker_slot;
             return 30.0 + self.shot(att, taker, self.p.xg_penalty, ShotKind::Penalty, None);
         }
         if band == 4 && lane == 1 && self.rng.chance(0.35) {
-            let taker = self.teams[att].best_by(|s| s.free_kick);
+            let team = &self.teams[att];
+            let taker = team.taker(team.instructions.free_kick_taker, |s| s.free_kick);
             let taker_slot = self.teams[att].players[taker].slot.expect("on pitch");
             self.ball.carrier = taker_slot;
             return 25.0 + self.shot(att, taker, self.p.xg_free_kick, ShotKind::FreeKick, None);
@@ -781,7 +808,8 @@ impl Engine {
     pub(super) fn corner(&mut self, att: usize) -> f64 {
         let def = 1 - att;
         self.teams[att].stats.corners += 1;
-        let taker = self.teams[att].best_by(|s| s.corner);
+        let team = &self.teams[att];
+        let taker = team.taker(team.instructions.corner_taker, |s| s.corner);
         let r = self.rng.unit_f64();
         if r < 0.3 {
             let team = &self.teams[att];
@@ -894,11 +922,21 @@ impl Engine {
             };
             s * kp.fat()
         });
-        // Set-piece specialists matter less than open-play finishing.
-        let mut xg = match kind {
-            ShotKind::Penalty => base_xg * (0.85 + 0.25 * skill),
-            _ => base_xg * (0.55 + 0.9 * skill),
+        // Marked players get worse chances in open play.
+        let marked = match kind {
+            ShotKind::Penalty | ShotKind::FreeKick => 1.0,
+            _ => match self.teams[def].marking(shooter_id) {
+                Some(Marking::Tight) => 0.88,
+                Some(Marking::CloseDown) => 0.93,
+                None => 1.0,
+            },
         };
+        // Set-piece specialists matter less than open-play finishing.
+        let mut xg = marked
+            * match kind {
+                ShotKind::Penalty => base_xg * (0.85 + 0.25 * skill),
+                _ => base_xg * (0.55 + 0.9 * skill),
+            };
         if matches!(kind, ShotKind::Header | ShotKind::CornerHeader) {
             let marker = self.pick(def, 0, 1, false, Some(0));
             if let Some(mi) = self.teams[def].on[marker] {
@@ -1037,6 +1075,29 @@ impl Engine {
     }
 
     /// Notes an action starting from the ball's zone in `side`'s frame.
+    /// Logit for the side in possession from roles and duties (presence
+    /// in the ball's zone against the defenders' coverage) and from the
+    /// defenders' instructions on the carrier. Exactly zero when neither
+    /// side has given any.
+    pub(super) fn edge(&self, att: usize, carrier: usize) -> f64 {
+        let def = 1 - att;
+        let (band, lane) = (self.ball.band, self.ball.lane);
+        let presence = self.teams[att].presence[band][lane];
+        let cover = self.teams[def].coverage[BANDS - 1 - band][LANES - 1 - lane];
+        let mut e = self.p.presence_effect * (presence - 1.0) - self.p.cover_effect * (cover - 1.0);
+        let d = &self.teams[def];
+        if !d.instructions.marking.is_empty() {
+            let id = self.teams[att].players[carrier].snap.id;
+            let tight = d.markings(Marking::Tight) as f64;
+            e += match d.marking(id) {
+                Some(Marking::Tight) => -self.p.tight_effect + self.p.tight_stretch * (tight - 1.0),
+                Some(Marking::CloseDown) => -self.p.close_effect + self.p.tight_stretch * tight,
+                None => self.p.tight_stretch * tight,
+            };
+        }
+        e
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn note(
         &mut self,

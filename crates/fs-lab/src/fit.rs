@@ -95,6 +95,7 @@ fn tactics_only_input(tactics: [fs_match::Tactic; 2]) -> MatchInput {
         starters: Vec::new(),
         bench: Vec::new(),
         auto_subs: true,
+        instructions: Default::default(),
     };
     MatchInput::new(sheet(tactics[0]), sheet(tactics[1]), fs_core::Seed(0), 0)
 }

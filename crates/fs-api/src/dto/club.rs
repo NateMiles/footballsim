@@ -223,6 +223,7 @@ pub struct TacticsView {
     pub positions: Vec<PositionInfo>,
     pub sliders: Vec<SliderInfo>,
     pub bench_size: u8,
+    pub instructions: super::instructions::InstructionsView,
 }
 
 /// A player as the team selection screen needs them.

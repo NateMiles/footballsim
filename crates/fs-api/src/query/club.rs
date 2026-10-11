@@ -329,5 +329,6 @@ pub fn tactics(world: &World, club: ClubId) -> dto::TacticsView {
         positions: positions(),
         sliders: sliders(),
         bench_size: BENCH_SIZE as u8,
+        instructions: super::instructions::view(world, &sheet),
     }
 }

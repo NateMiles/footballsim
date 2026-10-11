@@ -3,6 +3,7 @@
   import type { Formation, SelectablePlayer, Tactic, TacticsView } from '../api';
   import FormationPitch from '../components/FormationPitch.svelte';
   import Meter from '../components/Meter.svelte';
+  import RolesCard from '../components/RolesCard.svelte';
   import { useGame } from '../state/game.svelte';
   import { load } from '../state/load.svelte';
 
@@ -170,6 +171,10 @@
         <button onclick={() => saveTactic(null)} disabled={!v.ownTactic}>Let assistant choose</button>
       </div>
     </section>
+
+    <div class="rolesarea">
+      <RolesCard view={v} formationChanged={tactic.formation !== v.tactic.formation} />
+    </div>
   </div>
 {/if}
 
@@ -177,7 +182,7 @@
   .tactics {
     display: grid;
     grid-template-columns: minmax(320px, 480px) 1fr;
-    grid-template-areas: 'board players' 'sliders players';
+    grid-template-areas: 'board players' 'sliders players' 'roles roles';
     gap: var(--gap);
     align-items: start;
   }
@@ -192,6 +197,10 @@
 
   .sliders {
     grid-area: sliders;
+  }
+
+  .rolesarea {
+    grid-area: roles;
   }
 
   .spacer {
@@ -292,7 +301,7 @@
   @media (max-width: 900px) {
     .tactics {
       grid-template-columns: 1fr;
-      grid-template-areas: 'board' 'players' 'sliders';
+      grid-template-areas: 'board' 'players' 'sliders' 'roles';
     }
 
     .slider {

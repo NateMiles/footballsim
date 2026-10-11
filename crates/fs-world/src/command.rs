@@ -19,7 +19,7 @@ use crate::training::{Individual, Schedule};
 use crate::transfer::{Listing, Offer, OfferKind, OfferStatus, Refusal};
 use crate::world::World;
 use fs_core::GameDate;
-use fs_match::{Side, Tactic, TimedInstruction};
+use fs_match::{Instructions, Side, Tactic, TimedInstruction};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -149,6 +149,9 @@ pub enum Command {
         player: PlayerId,
         status: SquadStatus,
     },
+    /// Set roles and duties for the current formation, set-piece takers
+    /// and opposition instructions for the next match, or clear them all.
+    SetInstructions { instructions: Option<Instructions> },
 }
 
 /// A selling club's answer to an offer.
@@ -430,6 +433,8 @@ pub enum CommandError {
     AlreadyPromised(PlayerId),
     #[error("{0} has not asked to leave")]
     NoTransferRequest(PlayerId),
+    #[error("invalid instructions: {0}")]
+    InvalidInstructions(String),
 }
 
 /// Largest squad a club may register.
@@ -754,6 +759,32 @@ impl World {
                 }
                 self.players.squad_status[player.index()] = status;
                 crate::happiness::refresh(self, player);
+                Ok(Vec::new())
+            }
+            Command::SetInstructions { ref instructions } => {
+                let club = self.managed_club(actor)?;
+                self.require_unlocked(club)?;
+                let Some(ins) = instructions else {
+                    self.clubs[club].instructions = None;
+                    return Ok(Vec::new());
+                };
+                let formation = crate::matchday::team_sheet(self, club).tactic.formation;
+                ins.validate(formation)
+                    .map_err(CommandError::InvalidInstructions)?;
+                for p in [ins.penalty_taker, ins.free_kick_taker, ins.corner_taker]
+                    .into_iter()
+                    .flatten()
+                {
+                    self.require_own_player(actor, club, p)?;
+                }
+                for &(p, _) in &ins.marking {
+                    if !self.players.contains(p) || self.players.club(p) == Some(club) {
+                        return Err(CommandError::InvalidInstructions(format!(
+                            "{p} is not an opponent"
+                        )));
+                    }
+                }
+                self.clubs[club].instructions = Some((formation, ins.clone()));
                 Ok(Vec::new())
             }
             Command::SetLineup { ref lineup } => {

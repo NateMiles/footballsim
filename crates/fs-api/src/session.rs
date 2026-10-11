@@ -277,6 +277,40 @@ impl Session {
                     tactics: query::club::tactics(c.world(), c.club()?),
                 })
             }
+            Request::SetInstructions {
+                roles,
+                penalty_taker,
+                free_kick_taker,
+                corner_taker,
+                marking,
+            } => {
+                let c = self.career()?;
+                let club = c.club()?;
+                let mut takers = [None; 3];
+                for (out, id) in
+                    takers
+                        .iter_mut()
+                        .zip([penalty_taker, free_kick_taker, corner_taker])
+                {
+                    if let Some(id) = id {
+                        *out = Some(c.existing_player(id)?);
+                    }
+                }
+                for m in &marking {
+                    c.existing_player(m.player)?;
+                }
+                let formation = fs_world::matchday::team_sheet(c.world(), club)
+                    .tactic
+                    .formation;
+                let instructions =
+                    query::instructions::from_choices(formation, &roles, takers, &marking);
+                c.submit_outside_match(Command::SetInstructions {
+                    instructions: Some(instructions),
+                })?;
+                Ok(Response::Tactics {
+                    tactics: query::club::tactics(c.world(), club),
+                })
+            }
             Request::SetLineup { lineup } => {
                 let c = self.career()?;
                 c.submit_outside_match(Command::SetLineup {

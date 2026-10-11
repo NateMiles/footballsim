@@ -101,5 +101,6 @@ pub fn sheet_from_lineup(
         starters,
         bench,
         auto_subs: true,
+        instructions: Default::default(),
     }
 }

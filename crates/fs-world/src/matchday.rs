@@ -119,7 +119,19 @@ pub fn team_sheet(world: &World, club: ClubId) -> TeamSheet {
         Some(lineup) => sheet_from_lineup(&squad, tactic, lineup),
         None => pick_team(&squad, tactic),
     };
-    with_cohesion(world, club, sheet)
+    with_instructions(world, club, with_cohesion(world, club, sheet))
+}
+
+/// Adds the manager's instructions: roles only when they were set for
+/// the sheet's formation.
+fn with_instructions(world: &World, club: ClubId, mut sheet: TeamSheet) -> TeamSheet {
+    if let Some((formation, ins)) = world.clubs()[club].instructions() {
+        sheet.instructions = ins.clone();
+        if *formation != sheet.tactic.formation {
+            sheet.instructions.roles = Default::default();
+        }
+    }
+    sheet
 }
 
 /// Sets every player's cohesion from how well the club knows the sheet's
@@ -145,7 +157,7 @@ pub fn team_sheet_with(world: &World, club: ClubId, tactic: Tactic) -> TeamSheet
         }
         _ => pick_team(&squad, tactic),
     };
-    with_cohesion(world, club, sheet)
+    with_instructions(world, club, with_cohesion(world, club, sheet))
 }
 
 /// The match input for a scheduled fixture, as a watching manager sees
@@ -395,6 +407,10 @@ fn apply_result(
             .map(|ps| (ps.player, ps.minutes))
             .collect();
         crate::happiness::record_minutes(world, club, &minutes);
+        // Opposition instructions were for this match only.
+        if let Some((_, ins)) = &mut world.clubs[club].instructions {
+            ins.marking.clear();
+        }
         // Suspensions served: anyone banned before this match missed it.
         let squad = world.clubs[club].squad.clone();
         for &p in &squad {

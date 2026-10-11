@@ -4,6 +4,8 @@ import type {
   ClubChoices,
   CompetitionsView,
   DynamicsView,
+  MarkingChoice,
+  RoleChoice,
   SquadStatus,
   Talk,
   TalkResult,
@@ -184,6 +186,26 @@ export class Client {
 
   async setIndividualTraining(player: number, training: IndividualTraining | null): Promise<TrainingView> {
     return (await this.send({ type: 'setIndividualTraining', player, training }, 'training')).training;
+  }
+
+  async setInstructions(
+    roles: RoleChoice[],
+    takers: { penalty: number | null; freeKick: number | null; corner: number | null },
+    marking: MarkingChoice[],
+  ): Promise<TacticsView> {
+    return (
+      await this.send(
+        {
+          type: 'setInstructions',
+          roles,
+          penaltyTaker: takers.penalty,
+          freeKickTaker: takers.freeKick,
+          cornerTaker: takers.corner,
+          marking,
+        },
+        'tactics',
+      )
+    ).tactics;
   }
 
   async dynamics(): Promise<DynamicsView> {

@@ -5,7 +5,7 @@ use crate::finance::{Facilities, Finances};
 use crate::ids::{LeagueId, ManagerId, NationId, PlayerId, StaffId};
 use crate::lineup::Lineup;
 use crate::training::{Familiarity, Individual, Schedule};
-use fs_match::Tactic;
+use fs_match::{Formation, Instructions, Tactic};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -47,6 +47,10 @@ pub struct Club {
     pub(crate) individual: BTreeMap<PlayerId, Individual>,
     /// The captain. Maintained by [`crate::World`]: always a squad member.
     pub(crate) captain: Option<PlayerId>,
+    /// The manager's roles, set-piece takers and opposition instructions,
+    /// with the formation the roles were set for. Opposition instructions
+    /// last one match.
+    pub(crate) instructions: Option<(Formation, Instructions)>,
 }
 
 impl Club {
@@ -71,6 +75,7 @@ impl Club {
             familiarity: Familiarity::default(),
             individual: BTreeMap::new(),
             captain: None,
+            instructions: None,
         }
     }
 
@@ -105,6 +110,11 @@ impl Club {
     /// Players' own training.
     pub fn individual_training(&self) -> &BTreeMap<PlayerId, Individual> {
         &self.individual
+    }
+
+    /// The manager's instructions and the formation their roles are for.
+    pub fn instructions(&self) -> Option<&(Formation, Instructions)> {
+        self.instructions.as_ref()
     }
 
     /// The captain.

@@ -5,6 +5,7 @@ use crate::formation::Slot;
 use crate::input::{PlayerSnapshot, Tactic, TeamSheet};
 use crate::instruction::Shout;
 use crate::result::{PlayerMatchStats, TeamStats};
+use crate::roles::{Effect, Instructions, Marking};
 use crate::skills::Skills;
 use fs_core::attributes::Position;
 use fs_core::math;
@@ -58,6 +59,15 @@ pub(super) struct Team {
     pub(super) last_manual_sub: Option<u8>,
     pub(super) shout: Option<Shout>,
     pub(super) shout_until: f64,
+    /// What each slot's role and duty change.
+    pub(super) effects: [Effect; 11],
+    /// Attacking presence in each zone relative to standard roles (1 when
+    /// every role is standard).
+    pub(super) presence: [[f64; LANES]; BANDS],
+    /// Defensive coverage in each zone relative to standard roles.
+    pub(super) coverage: [[f64; LANES]; BANDS],
+    /// Set-piece takers, roles and opposition instructions.
+    pub(super) instructions: Instructions,
 }
 
 impl Team {
@@ -114,6 +124,12 @@ impl Team {
             last_manual_sub: None,
             shout: None,
             shout_until: 0.0,
+            effects: std::array::from_fn(|s| {
+                Effect::of(slots[s].position, sheet.instructions.roles[s])
+            }),
+            presence: [[1.0; LANES]; BANDS],
+            coverage: [[1.0; LANES]; BANDS],
+            instructions: sheet.instructions.clone(),
         };
         team.rebuild_weights();
         team
@@ -123,9 +139,12 @@ impl Team {
     pub(super) fn rebuild_weights(&mut self) {
         let line = f64::from(self.tactic.defensive_line);
         let width = f64::from(self.tactic.width);
+        let neutral = self.effects.iter().all(Effect::is_neutral);
         for band in 0..BANDS {
             let xb = (band as f64 + 0.5) / BANDS as f64;
             for (lane, &yl) in LANE_Y.iter().enumerate() {
+                // Totals with standard roles, to measure what roles change.
+                let (mut a0, mut d0) = (0.0, 0.0);
                 for s in 0..11 {
                     if self.on[s].is_none() {
                         self.attack_w[band][lane][s] = 0.0;
@@ -156,13 +175,79 @@ impl Team {
                         let a = gauss(slot.x - xb, spread) * gauss(y - yl, 0.26);
                         let dx = (slot.x * 0.7 + 0.04 * line).clamp(0.05, 0.9);
                         let d = gauss(dx - xb, 0.17) * gauss(slot.y - yl, 0.26);
-                        (a, d)
+                        a0 += a;
+                        d0 += d;
+                        let e = &self.effects[s];
+                        if e.is_neutral() {
+                            (a, d)
+                        } else {
+                            // Roles and duties move the player forward or
+                            // back, inside, into the box, and change how
+                            // much they defend.
+                            let ya = if band >= 4 {
+                                y + (0.5 - y) * e.inside
+                            } else {
+                                y
+                            };
+                            let mut a =
+                                gauss(slot.x + e.forward - xb, spread) * gauss(ya - yl, 0.26);
+                            if band == BANDS - 1 {
+                                a *= e.in_box;
+                            }
+                            let dx =
+                                ((slot.x + 0.5 * e.forward) * 0.7 + 0.04 * line).clamp(0.05, 0.9);
+                            let d = gauss(dx - xb, 0.17) * gauss(slot.y - yl, 0.26) * e.defending;
+                            (a, d)
+                        }
                     };
                     self.attack_w[band][lane][s] = attack;
                     self.defend_w[band][lane][s] = defend;
                 }
+                if neutral {
+                    continue;
+                }
+                let ratio = |w: &[f64; 11], base: f64| {
+                    let outfield: f64 = w[1..].iter().sum();
+                    if base > 0.0 {
+                        (outfield / base).clamp(0.5, 2.0)
+                    } else {
+                        1.0
+                    }
+                };
+                self.presence[band][lane] = ratio(&self.attack_w[band][lane], a0);
+                self.coverage[band][lane] = ratio(&self.defend_w[band][lane], d0);
             }
         }
+    }
+
+    /// The set-piece taker the manager chose, if on the pitch, else the
+    /// best by `skill`.
+    pub(super) fn taker(
+        &self,
+        chosen: Option<fs_core::ids::PlayerId>,
+        skill: impl Fn(&Skills) -> f64,
+    ) -> usize {
+        chosen
+            .and_then(|id| self.on_pitch().find(|&i| self.players[i].snap.id == id))
+            .unwrap_or_else(|| self.best_by(skill))
+    }
+
+    /// This team's instruction for an opposition player, if any.
+    pub(super) fn marking(&self, id: fs_core::ids::PlayerId) -> Option<Marking> {
+        self.instructions
+            .marking
+            .iter()
+            .find(|m| m.0 == id)
+            .map(|m| m.1)
+    }
+
+    /// How many of this team's instructions are of a kind.
+    pub(super) fn markings(&self, kind: Marking) -> usize {
+        self.instructions
+            .marking
+            .iter()
+            .filter(|m| m.1 == kind)
+            .count()
     }
 
     pub(super) fn player_in(&self, slot: usize) -> Option<usize> {

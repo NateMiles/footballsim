@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Protocol version. Bump when a request or response changes shape.
-pub const PROTOCOL_VERSION: u32 = 6;
+pub const PROTOCOL_VERSION: u32 = 7;
 
 /// Something the UI asks for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -185,6 +185,17 @@ pub enum Request {
     SetCaptain { player: Id },
     /// Answered with [`Response::Dynamics`].
     SetSquadStatus { player: Id, status: SquadStatus },
+    /// Roles and duties by formation slot (empty for the standard ones),
+    /// set-piece takers (`None` for the best on the pitch) and opposition
+    /// instructions for the next match. Answered with
+    /// [`Response::Tactics`].
+    SetInstructions {
+        roles: Vec<RoleChoice>,
+        penalty_taker: Option<Id>,
+        free_kick_taker: Option<Id>,
+        corner_taker: Option<Id>,
+        marking: Vec<MarkingChoice>,
+    },
 
     /// Performance test: generate a world of this size beside any game.
     /// Answered with [`Response::Benchmark`]; time the call to measure.

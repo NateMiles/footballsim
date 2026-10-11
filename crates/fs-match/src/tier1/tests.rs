@@ -481,3 +481,93 @@ mod knockouts {
         }
     }
 }
+
+/// Every outfield slot on one duty.
+fn all_on(mut i: crate::input::MatchInput, duty: crate::roles::Duty) -> crate::input::MatchInput {
+    use crate::roles::{Role, SlotRole};
+    for sheet in [&mut i.home, &mut i.away] {
+        let slots = sheet.tactic.formation.slots();
+        for (k, s) in slots.iter().enumerate().skip(1) {
+            sheet.instructions.roles[k] = Some(SlotRole {
+                role: Role::standard(s.position),
+                duty,
+            });
+        }
+    }
+    i
+}
+
+#[test]
+fn attacking_duties_open_matches_up() {
+    use crate::roles::Duty;
+    let goals = |duty: Duty| -> u32 {
+        (0..300)
+            .map(|k| {
+                let r = play(&all_on(input(600, 600, k), duty));
+                u32::from(r.goals[0]) + u32::from(r.goals[1])
+            })
+            .sum()
+    };
+    let (defend, attack) = (goals(Duty::Defend), goals(Duty::Attack));
+    assert!(
+        attack > defend * 11 / 10,
+        "attack {attack}, defend {defend}"
+    );
+}
+
+#[test]
+fn the_chosen_penalty_taker_takes_them() {
+    use crate::result::GoalKind;
+    let (mut taken, mut others) = (0, 0);
+    for k in 0..400 {
+        let mut i = input(600, 600, k);
+        // The keeper: with every player equal, not the default taker,
+        // and never substituted for tiredness.
+        let taker = i.home.starters[0].id;
+        i.home.instructions.penalty_taker = Some(taker);
+        let r = play(&i);
+        for e in &r.events {
+            if let MatchEvent::Goal {
+                kind: GoalKind::Penalty,
+                scorer,
+                side,
+                ..
+            } = e
+                && *side == crate::result::Side::Home
+            {
+                if *scorer == taker {
+                    taken += 1;
+                } else {
+                    others += 1; // only after the taker went off
+                }
+            }
+        }
+    }
+    assert!(
+        taken > 0 && others * 5 < taken,
+        "taker {taken}, others {others}"
+    );
+}
+
+#[test]
+fn marking_a_player_quietens_them() {
+    use crate::roles::Marking;
+    let shots = |mark: bool| -> u32 {
+        (0..300)
+            .map(|k| {
+                let mut i = input(600, 600, k);
+                let striker = i.home.starters[9].id;
+                if mark {
+                    i.away.instructions.marking = vec![(striker, Marking::Tight)];
+                }
+                let r = play(&i);
+                r.players[0]
+                    .iter()
+                    .find(|p| p.player == striker)
+                    .map_or(0, |p| u32::from(p.shots))
+            })
+            .sum()
+    };
+    let (free, marked) = (shots(false), shots(true));
+    assert!(marked < free, "marked {marked}, free {free}");
+}

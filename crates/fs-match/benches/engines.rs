@@ -40,6 +40,7 @@ fn sheet(level: u16, first: u32) -> TeamSheet {
             .map(|i| make(11 + i, slots[1 + i as usize].position))
             .collect(),
         auto_subs: true,
+        instructions: Default::default(),
     }
 }
 

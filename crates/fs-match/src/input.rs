@@ -123,6 +123,9 @@ pub struct TeamSheet {
     /// when a human manages the match live. Injuries are always covered.
     #[serde(default = "yes")]
     pub auto_subs: bool,
+    /// Roles, set-piece takers and opposition instructions.
+    #[serde(default)]
+    pub instructions: crate::roles::Instructions,
 }
 
 fn yes() -> bool {

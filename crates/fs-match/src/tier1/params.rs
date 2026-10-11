@@ -67,6 +67,21 @@ pub struct Params {
     /// Extra energy drain from chasing: a side that spends the whole
     /// minute without the ball drains `1 + chase_fatigue / 2` times as fast.
     pub chase_fatigue: f64,
+    /// Logit for the side in possession per unit of extra presence in the
+    /// ball's zone (players pushed there by roles and duties).
+    pub presence_effect: f64,
+    /// Logit against the side in possession per unit of extra defensive
+    /// coverage in the ball's zone.
+    pub cover_effect: f64,
+    /// Logit against a tightly marked player on the ball.
+    pub tight_effect: f64,
+    /// Logit for any other carrier per tight-marking instruction: the
+    /// shape stretches.
+    pub tight_stretch: f64,
+    /// Logit against a player who is closed down at once.
+    pub close_effect: f64,
+    /// Extra energy drain per closing-down instruction.
+    pub close_drain: f64,
 }
 
 impl Default for Params {
@@ -108,6 +123,12 @@ impl Default for Params {
             chase_fatigue: 1.0,
             final_third_spread: 0.3,
             direct_forward: 0.0,
+            presence_effect: 0.75,
+            cover_effect: 0.6,
+            tight_effect: 0.3,
+            tight_stretch: 0.04,
+            close_effect: 0.25,
+            close_drain: 0.03,
         }
     }
 }

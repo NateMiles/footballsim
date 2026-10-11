@@ -23,6 +23,7 @@ cargo run --release -p fs-cli -- career --format FILE          # play an edited 
 cargo run --release -p fs-cli -- match --home 0 --away 5       # match report
 cargo run --release -p fs-cli -- predict --home 0 --away 1     # Monte Carlo
 scripts/calibration-report.sh                   # regenerate docs/CALIBRATION.md
+cargo run --release -p fs-cli -- choices --seasons 10 --seed 5000  # roles, duties
 cargo run --release -p fs-lab --example tune -- slope=3.0      # tier 1 tuning
 cargo run --release -p fs-cli -- fit-tier2 --seasons 40 --seed 1000 \
   --out crates/fs-match/src/fitted.rs           # refit tier 2 to tier 1
@@ -40,7 +41,7 @@ npm run build && npm run e2e                    # Playwright career test
 - `fs-core`: IDs, attributes, deterministic RNG, portable maths, calendar,
   state hashing, parallel helpers.
 - `fs-match`: match engines (tier 1 event, tier 2 statistical), team
-  selection, formations.
+  selection, formations, roles and opposition instructions (`roles`).
 - `fs-world`: world state, players (column storage), commands, daily tick,
   snapshots, leagues and calendar (`league`, `competition`, `season`),
   matchdays (`matchday`), player factory and development (`people`), AI
@@ -90,7 +91,10 @@ npm run build && npm run e2e                    # Playwright career test
   crates/fs-match/src/fitted.rs`. CI fails if either is stale.
 - Tune against the default tuning seeds; the report uses seeds 5000+ so
   it stays an out-of-sample check.
-- No tactic slider may be worth more than 4 points a season either way.
+- No tactic slider, role, duty or opposition instruction may be worth
+  more than 4 points a season either way (`fs-cli choices` measures the
+  last three; it is part of the calibration report). Standard roles must
+  stay exactly neutral.
 
 ## Rules for the world simulation
 

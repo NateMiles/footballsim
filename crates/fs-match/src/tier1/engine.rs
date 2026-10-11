@@ -498,6 +498,7 @@ impl Engine {
             let chase = 1.0 + self.p.chase_fatigue * (chasing - 0.5);
             let press = f64::from(team.tactic.pressing);
             let tempo = f64::from(team.tactic.tempo);
+            let closing = team.markings(crate::roles::Marking::CloseDown) as f64;
             for s in 0..11 {
                 if let Some(i) = team.on[s] {
                     let pl = &mut team.players[i];
@@ -510,6 +511,9 @@ impl Engine {
                     }
                     if team.shout == Some(Shout::DemandMore) {
                         drain *= 1.25;
+                    }
+                    if closing > 0.0 {
+                        drain *= 1.0 + self.p.close_drain * closing;
                     }
                     pl.energy = (pl.energy - drain).max(0.0);
                 }
@@ -615,6 +619,19 @@ impl Engine {
         };
         if let Some(x) = exclude {
             w[x] = 0.0;
+        }
+        // Marked players are harder to find.
+        let opponent = &self.teams[1 - side];
+        if attack && !opponent.instructions.marking.is_empty() {
+            for (s, weight) in w.iter_mut().enumerate() {
+                if let Some(i) = team.on[s] {
+                    match opponent.marking(team.players[i].snap.id) {
+                        Some(crate::roles::Marking::Tight) => *weight *= 0.75,
+                        Some(crate::roles::Marking::CloseDown) => *weight *= 0.9,
+                        None => {}
+                    }
+                }
+            }
         }
         match self.rng.weighted_index(&w) {
             Some(s) => s,

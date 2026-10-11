@@ -138,6 +138,31 @@ Comfortable leaders sit back. An attacking mentality creates more chances
 but leaves space behind, which the opponent exploits near goal. This
 trade-off is what keeps mentality balanced.
 
+### Roles, duties and opposition instructions
+A team sheet carries `Instructions` (`roles.rs`) beside the tactic: a role
+and duty per formation slot, set-piece takers, and up to three
+instructions on opposition players for one match. Every slot has a
+standard role (central defender, full-back, wide midfielder, striker and
+so on) which with a support duty changes nothing, so AI teams and the
+calibration play exactly as before.
+
+Other roles and duties have an `Effect`: multipliers on the carrier's
+action weights (a winger crosses and dribbles more, a playmaker looks for
+through balls, a poacher shoots), a shift of the player's attacking
+position forward or back, a pull inside in the final third, more or less
+presence in the box, and more or less defending. The engine compares each
+zone's attacking presence and defensive coverage with what standard roles
+would give, and adds `presence_effect × (presence - 1)` for the side in
+possession and `cover_effect × (coverage - 1)` against it to every pass,
+cross and dribble contest. Pushing players on therefore creates more at
+one end and costs cover at the other.
+
+Chosen set-piece takers take penalties, free kicks and corners while on
+the pitch; otherwise the best on the pitch does. A tightly marked player
+gets the ball less often, wins fewer contests and gets worse chances, but
+draws more fouls and every other carrier gains a little as the shape
+stretches. Closing a player down hurries them but tires the team.
+
 ### Knockout ties
 A cup match that must produce a winner carries a `Decider`: the goals
 each side scored in earlier legs, and whether extra time is played. In a
@@ -197,11 +222,18 @@ statistic is checked against a target range:
 | Champion points; bottom club points | 80 to 95; 15 to 32 |
 | Top scorer's league goals | 22 to 36 |
 | Season points per step of each tactic slider | -4 to +4 |
+| Season points from each role, duty and opposition instruction | -4 to +4 |
 
 The tactic rows matter as much as the realism rows. They caught that
 direct long-ball play was worth about 13 points a season, a dominant
 strategy, until passing risk, chasing fatigue and mentality exposure were
 modelled.
+
+Roles, duties and opposition instructions are measured by
+`fs-cli choices`: every fixture of ten calibration seasons is replayed
+with the same random stream with the choice made by the home side, then
+by the away side, and the points gained over the standard setup are
+scaled to a season. All are within about 2.5 points either way.
 
 Tuning tool: `cargo run --release -p fs-lab --example tune -- key=value`.
 

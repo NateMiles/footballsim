@@ -37,7 +37,13 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await page.getByRole('button', { name: '4-3-3' }).click();
   await page.getByRole('button', { name: 'Save tactic' }).click();
   await expect(page.getByText('Your tactic')).toBeVisible();
-  await page.screenshot({ path: shots('tactics', project) });
+  // Roles: the striker becomes a poacher on attack.
+  await page.getByLabel('Role for ST').selectOption('poacher');
+  await page.getByLabel('Duty for ST').selectOption('attack');
+  await page.getByRole('button', { name: 'Save instructions' }).click();
+  await expect(page.getByRole('button', { name: 'Save instructions' })).toBeDisabled();
+  await expect(page.getByLabel('Role for ST')).toHaveValue('poacher');
+  await page.screenshot({ path: shots('tactics', project), fullPage: true });
 
   // Training: a schedule and one player's own training.
   await page.goto('./#/training');
@@ -95,6 +101,11 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await expect(page.getByRole('heading', { name: 'Likely eleven' })).toBeVisible();
   await page.getByRole('button', { name: 'Predict with your tactic' }).click();
   await expect(page.getByText(/Win · draw · lose/)).toBeVisible();
+  // Mark their first player tightly for this match.
+  const mark = page.getByLabel(/^Instruction for/).first();
+  await mark.selectOption('tight');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(mark).toHaveValue('tight');
   await page.screenshot({ path: shots('prepare', project), fullPage: true });
 
   // Cups: the national cup's first round is drawn with the season.

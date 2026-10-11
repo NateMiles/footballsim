@@ -1,7 +1,7 @@
 <!-- Before the next match: what the scouts know about the opponent, and
      the match played hundreds of times with your tactic or another. -->
 <script lang="ts">
-  import type { Formation, Prediction, Tactic } from '../api';
+  import type { Formation, Marking, Prediction, Tactic } from '../api';
   import ClubName from '../components/ClubName.svelte';
   import FixtureLine from '../components/FixtureLine.svelte';
   import Form from '../components/Form.svelte';
@@ -19,6 +19,40 @@
   const mine = $derived(game.overview?.club?.id ?? null);
 
   let trial = $state<Tactic | null>(null);
+  /** Opposition instructions being edited, by player. */
+  let marks = $state<Record<number, Marking>>({});
+  let marksDirty = $state(false);
+
+  $effect(() => {
+    const ins = tactics.data?.instructions;
+    if (!ins) return;
+    marks = Object.fromEntries(ins.marking.map((m) => [m.player.id, m.marking]));
+    marksDirty = false;
+  });
+
+  function setMark(player: number, value: string) {
+    const next = { ...marks };
+    if (value === '') delete next[player];
+    else next[player] = value as Marking;
+    marks = next;
+    marksDirty = true;
+  }
+
+  async function saveMarks() {
+    const t = tactics.data;
+    if (!t) return;
+    const ins = t.instructions;
+    const v = await game.run('Saving instructions', () =>
+      game.client.setInstructions(
+        ins.roles.map((r) => ({ role: r.role, duty: r.duty })),
+        { penalty: ins.penaltyTaker, freeKick: ins.freeKickTaker, corner: ins.cornerTaker },
+        Object.entries(marks).map(([player, marking]) => ({ player: Number(player), marking })),
+      ),
+    );
+    if (v) game.changed();
+  }
+
+  const markCount = $derived(Object.keys(marks).length);
   let current = $state<Prediction | null>(null);
   let alternative = $state<Prediction | null>(null);
 
@@ -145,10 +179,34 @@
                 <td><a href="#/player/{p.player.id}">{p.player.name}</a></td>
                 <td class="num">{p.ability}</td>
                 <td class="num dim">{p.goals > 0 ? `${p.goals} gls` : ''}</td>
+                {#if tactics.data}
+                  <td>
+                    <select
+                      aria-label="Instruction for {p.player.name}"
+                      value={marks[p.player.id] ?? ''}
+                      disabled={!marks[p.player.id] && markCount >= tactics.data.instructions.maxMarking}
+                      onchange={(e) => setMark(p.player.id, e.currentTarget.value)}
+                    >
+                      <option value="">–</option>
+                      {#each tactics.data.instructions.markings as m (m.marking)}
+                        <option value={m.marking}>{m.name}</option>
+                      {/each}
+                    </select>
+                  </td>
+                {/if}
               </tr>
             {/each}
           </tbody>
         </table>
+        {#if tactics.data}
+          <div class="row marks">
+            <span class="dim small">
+              Up to {tactics.data.instructions.maxMarking} instructions, for this match only.
+              {#each tactics.data.instructions.markings as m (m.marking)}<br />{m.name}: {m.description}{/each}
+            </span>
+            <button class="primary" disabled={!marksDirty || game.busy !== null} onclick={saveMarks}>Save</button>
+          </div>
+        {/if}
         <h3>Players to watch</h3>
         {#each r.keyPlayers as k (k.player.id)}
           <p><a href="#/player/{k.player.id}">{k.player.name}</a> <span class="dim">– {k.reason}</span></p>
@@ -316,6 +374,12 @@
 
   .small {
     font-size: 0.85rem;
+  }
+
+  .marks {
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-top: 8px;
   }
 
   @media (max-width: 600px) {

@@ -2,6 +2,7 @@
 //! tier 2 fitting and match prediction.
 
 pub mod calibrate;
+pub mod choices;
 pub mod compare;
 pub mod fit;
 pub mod predict;

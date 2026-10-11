@@ -20,6 +20,7 @@ pub mod instruction;
 pub mod log;
 pub mod predict;
 pub mod result;
+pub mod roles;
 pub mod selection;
 pub mod shootout;
 pub mod skills;
@@ -33,6 +34,7 @@ pub use input::{Decider, MatchInput, PlayerSnapshot, Tactic, TeamSheet};
 pub use instruction::{Instruction, InstructionError, Shout, TimedInstruction};
 pub use log::{ActionKind, ActionRecord, Outcome, Zone};
 pub use result::{GoalKind, MatchEvent, MatchResult, PlayerMatchStats, Side, TeamStats};
+pub use roles::{Duty, Instructions, Marking, Role, SlotRole};
 pub use selection::pick_team;
 pub use shootout::Shootout;
 pub use strength::TeamStrength;
@@ -94,6 +96,7 @@ pub(crate) mod test_support {
             starters,
             bench,
             auto_subs: true,
+            instructions: Default::default(),
         }
     }
 

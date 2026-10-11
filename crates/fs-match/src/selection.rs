@@ -89,6 +89,7 @@ pub fn pick_team(squad: &[PlayerSnapshot], tactic: Tactic) -> TeamSheet {
         starters,
         bench,
         auto_subs: true,
+        instructions: Default::default(),
     }
 }
 
