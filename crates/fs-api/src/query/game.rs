@@ -45,9 +45,9 @@ pub fn match_day(world: &World, manager: ManagerId) -> Option<dto::MatchDay> {
         .awaiting
         .iter()
         .find(|w| w.manager == manager)?;
-    let f = &world.leagues()[w.league].season()?.fixtures[w.index];
+    let f = w.fixture.get(world)?;
     Some(dto::MatchDay {
-        fixture: fixture(world, w.league, w.index),
+        fixture: fixture(world, w.fixture),
         side: if f.home == w.club {
             dto::Side::Home
         } else {
@@ -101,5 +101,8 @@ pub fn overview(
         balance: finances.map(|f| f.balance),
         transfer_budget: finances.map(|f| f.transfer_budget),
         window_open: fs_world::transfer::window_open(today),
+        cups: club
+            .map(|c| super::cup::statuses(world, c))
+            .unwrap_or_default(),
     }
 }

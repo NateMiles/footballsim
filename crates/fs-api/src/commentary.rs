@@ -15,22 +15,53 @@ pub trait Names {
     fn team(&self, side: fs_match::Side) -> String;
 }
 
-/// A match clock string: `"12"`, `"45+2"`, `"90+4"`.
+/// A match clock string: `"12"`, `"45+2"`, `"90+4"`, `"105+1"`.
 ///
-/// `first_half` says whether `elapsed` falls in the first half, and
-/// `first_half_length` is how long the first half lasted (seconds).
-pub fn clock(elapsed: f64, first_half: bool, first_half_length: f64) -> String {
-    let (secs, cap) = if first_half {
-        (elapsed, 45)
+/// `half_starts` are the times (seconds since kickoff) at which each half
+/// after the first began; extra time has two more.
+pub fn clock(elapsed: f64, half_starts: &[f64]) -> String {
+    const BASE: [f64; 4] = [0.0, 45.0, 90.0, 105.0];
+    const CAP: [u32; 4] = [45, 90, 105, 120];
+    let half = half_starts.iter().filter(|&&s| elapsed >= s).count().min(3);
+    let start = if half == 0 {
+        0.0
     } else {
-        (elapsed - first_half_length + 45.0 * 60.0, 90)
+        half_starts[half - 1]
     };
+    let secs = elapsed - start + BASE[half] * 60.0;
     let minute = (secs.max(0.0) / 60.0) as u32 + 1;
+    let cap = CAP[half];
     if minute > cap {
         format!("{cap}+{}", minute - cap)
     } else {
         minute.to_string()
     }
+}
+
+/// A line for a penalty in a shootout.
+pub fn kick(
+    t: f32,
+    kick: &fs_match::shootout::Kick,
+    score: [u8; 2],
+    names: &dyn Names,
+) -> dto::Commentary {
+    let who = names.player(kick.taker);
+    let text = if kick.scored {
+        format!("{who} scores. {}-{}", score[0], score[1])
+    } else {
+        format!("{who} misses! {}-{}", score[0], score[1])
+    };
+    line(
+        t,
+        "Pens".into(),
+        if kick.scored {
+            CommentaryKind::Goal
+        } else {
+            CommentaryKind::Chance
+        },
+        Some(kick.side),
+        text,
+    )
 }
 
 fn line(
@@ -218,4 +249,27 @@ pub fn event(e: &MatchEvent, t: f32, clock: String, names: &impl Names) -> dto::
 /// A whistle: kick-off, half time, full time.
 pub fn whistle(t: f32, clock: String, text: &str) -> dto::Commentary {
     line(t, clock, CommentaryKind::Whistle, None, text.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clock;
+
+    #[test]
+    fn clocks_count_stoppage_and_extra_time() {
+        assert_eq!(clock(0.0, &[]), "1");
+        assert_eq!(clock(44.5 * 60.0, &[]), "45");
+        assert_eq!(clock(46.5 * 60.0, &[]), "45+2");
+        // The first half lasted 47 minutes.
+        let starts = [47.0 * 60.0];
+        assert_eq!(clock(47.0 * 60.0, &starts), "46");
+        assert_eq!(clock(93.5 * 60.0, &starts), "90+2");
+        // Extra time began after 95 minutes of play, its second half
+        // after 111.
+        let starts = [47.0 * 60.0, 95.0 * 60.0, 111.0 * 60.0];
+        assert_eq!(clock(95.0 * 60.0, &starts), "91");
+        assert_eq!(clock(110.5 * 60.0, &starts), "105+1");
+        assert_eq!(clock(111.0 * 60.0, &starts), "106");
+        assert_eq!(clock(126.5 * 60.0, &starts), "120+1");
+    }
 }

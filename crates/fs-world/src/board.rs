@@ -107,6 +107,43 @@ pub(crate) fn after_match(world: &mut World, club: ClubId, points: u8, events: &
     check_sacking(world, club, events);
 }
 
+/// Knocked out of a cup: boards mind more the bigger the cup, and much
+/// more when the winners were the smaller club.
+pub(crate) fn cup_exit(
+    world: &mut World,
+    club: ClubId,
+    by: Option<ClubId>,
+    prestige: u8,
+    events: &mut Vec<Event>,
+) {
+    let weight = f64::from(prestige) / 100.0;
+    let upset =
+        by.is_some_and(|b| world.clubs[b].reputation + 1_000 < world.clubs[club].reputation);
+    let delta = if upset { -6.0 } else { -1.0 } * weight;
+    adjust(&mut world.clubs[club].board, delta);
+    check_sacking(world, club, events);
+}
+
+/// Through a knockout round.
+pub(crate) fn cup_progress(world: &mut World, club: ClubId, prestige: u8) {
+    adjust(
+        &mut world.clubs[club].board,
+        2.0 * f64::from(prestige) / 100.0,
+    );
+}
+
+/// Won a cup: the board is delighted, and club and manager gain standing.
+pub(crate) fn trophy(world: &mut World, club: ClubId, prestige: u8) {
+    let p = f64::from(prestige) / 100.0;
+    let c = &mut world.clubs[club];
+    adjust(&mut c.board, 20.0 * p);
+    c.reputation = (f64::from(c.reputation) + 200.0 * p).min(10_000.0) as u16;
+    if let Some(m) = c.manager {
+        let r = &mut world.managers[m].reputation;
+        *r = (f64::from(*r) + 600.0 * p).min(10_000.0) as u16;
+    }
+}
+
 /// Sacks the manager if the board has lost faith.
 fn check_sacking(world: &mut World, club: ClubId, events: &mut Vec<Event>) {
     if world.clubs[club].board.confidence >= SACK_CONFIDENCE {

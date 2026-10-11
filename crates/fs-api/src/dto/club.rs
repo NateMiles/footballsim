@@ -11,6 +11,8 @@ use ts_rs::TS;
 pub struct SquadView {
     pub club: ClubRef,
     pub players: Vec<SquadPlayer>,
+    /// Trophies won while the world has been running.
+    pub honours: Vec<super::competition::Honour>,
 }
 
 /// Where a player stands in the current selection.

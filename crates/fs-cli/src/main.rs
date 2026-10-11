@@ -9,6 +9,7 @@
 //! fs-cli predict     [--seed N] [--home N] [--away N] [--tier 1|2] [--runs N]
 //! fs-cli calibrate   [--seed N] [--seasons N] [--tier 1|2] [--out FILE]
 //! fs-cli career      [--size ...] [--seed N] [--seasons N]
+//! fs-cli format      [--size ...] [--seed N] [--out FILE]
 //! fs-cli economy     [--size ...] [--seed N]
 //! fs-cli compare-tiers [--runs N]
 //! fs-cli fit-tier2   [--seed N] [--seasons N] [--out crates/fs-match/src/fitted.rs]
@@ -16,6 +17,10 @@
 //!
 //! Match commands use the calibration league world; `--home` and
 //! `--away` are club numbers (0 is the strongest).
+//!
+//! `format` writes a world's competition structure as JSON; `gen`, `run`,
+//! `squad`, `career` and `economy` take `--format FILE` to play an edited
+//! one instead of the default for `--size`.
 //!
 //! Builds for native and `wasm32-wasip1`; `scripts/determinism-check.sh`
 //! runs `determinism` on both and compares the output.
@@ -39,11 +44,12 @@ struct Args {
     runs: u32,
     seasons: u32,
     out: Option<String>,
+    format: Option<String>,
 }
 
-const USAGE: &str = "usage: fs-cli <gen|run|squad|determinism|match|predict|calibrate|compare-tiers|fit-tier2|career|economy> \
+const USAGE: &str = "usage: fs-cli <gen|run|squad|determinism|match|predict|calibrate|compare-tiers|fit-tier2|career|economy|format> \
 [--size tiny|small|medium|large] [--seed N] [--days N] [--club N] [--home N] [--away N] \
-[--tier 1|2] [--runs N] [--seasons N] [--out FILE]";
+[--tier 1|2] [--runs N] [--seasons N] [--out FILE] [--format FILE]";
 
 fn parse(mut args: impl Iterator<Item = String>) -> Result<(String, Args), String> {
     let cmd = args.next().ok_or_else(|| USAGE.to_string())?;
@@ -58,6 +64,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<(String, Args), Strin
         runs: 10_000,
         seasons: 10,
         out: None,
+        format: None,
     };
     while let Some(flag) = args.next() {
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
@@ -80,6 +87,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<(String, Args), Strin
             "--runs" => out.runs = value.parse().map_err(bad)?,
             "--seasons" => out.seasons = value.parse().map_err(bad)?,
             "--out" => out.out = Some(value.clone()),
+            "--format" => out.format = Some(value.clone()),
             "--tier" => {
                 out.tier = match value.as_str() {
                     "1" => Tier::Event,
@@ -113,10 +121,48 @@ fn main() -> ExitCode {
         "compare-tiers" => compare_cmd(&args),
         "career" => career_cmd(&args),
         "economy" => economy_cmd(&args),
+        "format" => return format_cmd(&args),
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::from(2);
         }
+    }
+    ExitCode::SUCCESS
+}
+
+/// The world config: the preset for `--size`, with the competition
+/// structure from `--format` if given.
+///
+/// # Panics
+/// Panics if the format file cannot be read or parsed.
+fn config(a: &Args) -> GenConfig {
+    let mut cfg = GenConfig::preset(a.size, a.seed);
+    if let Some(path) = &a.format {
+        let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        let format: fs_world::format::WorldFormat =
+            serde_json::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
+        cfg.format = Some(format);
+    }
+    cfg
+}
+
+/// Writes the competition structure as JSON.
+fn format_cmd(a: &Args) -> ExitCode {
+    let format = fs_gen::format_for(&config(a));
+    if let Err(e) = format.validate() {
+        eprintln!("invalid format: {e}");
+        return ExitCode::FAILURE;
+    }
+    let json = serde_json::to_string_pretty(&format).expect("formats serialise");
+    match &a.out {
+        Some(path) => {
+            if let Err(e) = std::fs::write(path, json + "\n") {
+                eprintln!("{path}: {e}");
+                return ExitCode::FAILURE;
+            }
+            println!("wrote {path}");
+        }
+        None => println!("{json}"),
     }
     ExitCode::SUCCESS
 }
@@ -127,7 +173,7 @@ fn ms(t: Instant) -> f64 {
 
 fn gen_cmd(a: &Args) {
     let t = Instant::now();
-    let world = generate(&GenConfig::preset(a.size, a.seed));
+    let world = generate(&config(a));
     let gen_ms = ms(t);
     let t = Instant::now();
     let snapshot = world.to_snapshot();
@@ -145,7 +191,7 @@ fn gen_cmd(a: &Args) {
 }
 
 fn run_cmd(a: &Args) {
-    let world = generate(&GenConfig::preset(a.size, a.seed));
+    let world = generate(&config(a));
     let players = world.players().len();
     let mut game = Game::new(world);
     let t = Instant::now();
@@ -166,7 +212,7 @@ fn run_cmd(a: &Args) {
 }
 
 fn squad_cmd(a: &Args) {
-    let world = generate(&GenConfig::preset(a.size, a.seed));
+    let world = generate(&config(a));
     let Some(club) = world.clubs().get(ClubId::new(a.club)) else {
         eprintln!("no club {}", a.club);
         return;
@@ -495,7 +541,7 @@ fn compare_cmd(a: &Args) {
 fn career_cmd(a: &Args) {
     use fs_world::Status;
     use fs_world::people::{age_years, season_year};
-    let mut game = Game::new(generate(&GenConfig::preset(a.size, a.seed)));
+    let mut game = Game::new(generate(&config(a)));
     // Holiday mode: the assistant handles the human club's contracts.
     let human_manager = game.world().human_managers().next();
     if let Some(m) = human_manager {
@@ -663,6 +709,7 @@ fn career_cmd(a: &Args) {
             "  Market: {}",
             fs_world::transfer::MarketSummary::of(w, summary.year)
         );
+        cups_line(w, summary.year, human);
         let reps: Vec<u16> = w.clubs().iter().map(|(_, c)| c.reputation).collect();
         println!(
             "  Boards: {sackings} managers sacked; club reputation mean {:.0}, max {}",
@@ -693,11 +740,43 @@ fn career_cmd(a: &Args) {
     }
 }
 
+/// Cup winners of a finished season: the followed club's national cup
+/// and every continental cup, with how many cups found a winner.
+fn cups_line(w: &fs_world::World, year: i32, human: Option<ClubId>) {
+    let won = |c: &fs_world::Cup| {
+        c.history()
+            .iter()
+            .rev()
+            .find(|s| s.year == year)
+            .and_then(|s| s.winner)
+    };
+    let total = w.cups().len();
+    let decided = w.cups().iter().filter(|(_, c)| won(c).is_some()).count();
+    let mut parts = vec![format!("{decided}/{total} cups won")];
+    let nation = human.map(|c| w.clubs()[c].nation);
+    for (_, c) in w.cups().iter() {
+        let show = c.is_continental() || Some(c.scope) == nation.map(fs_world::CupScope::Nation);
+        if !show {
+            continue;
+        }
+        if let Some(winner) = won(c) {
+            let club = &w.clubs()[winner];
+            parts.push(format!(
+                "{}: {} ({})",
+                c.format.short_name,
+                club.name,
+                w.nations()[club.nation].code
+            ));
+        }
+    }
+    println!("  Cups: {}", parts.join("; "));
+}
+
 /// Wage bills and money by reputation band, at the start and after
 /// `--seasons` seasons (default none), for tuning the economy model.
 fn economy_cmd(a: &Args) {
     use fs_world::economy::{player_wage_bill, revenue_potential};
-    let mut game = Game::new(generate(&GenConfig::preset(a.size, a.seed)));
+    let mut game = Game::new(generate(&config(a)));
     let report = |w: &World| {
         let mut rows: Vec<(u16, f64, f64, f64, f64)> = w
             .clubs()

@@ -2,7 +2,7 @@
 
 use crate::dto::{self, Category, Link};
 use crate::query::refs::{club_ref, date, fixture, player_ref, season_label};
-use fs_world::{ClubId, Event, LeagueId, ManagerId, World};
+use fs_world::{ClubId, Event, ManagerId, World};
 use serde::{Deserialize, Serialize};
 
 /// Messages for one manager, oldest first.
@@ -85,45 +85,145 @@ impl Inbox {
         for e in events {
             match e {
                 Event::MatchPlayed {
-                    league,
+                    fixture: r,
                     home,
                     away,
                     goals,
                 } if *home == club || *away == club => {
+                    // The fixture as recorded, if it is still this season's.
+                    let f = r
+                        .get(world)
+                        .filter(|f| f.home == *home && f.away == *away && f.result.is_some())
+                        .map(|_| fixture(world, *r));
+                    let result = f.as_ref().and_then(|f| f.result.clone());
+                    let penalties = result.as_ref().and_then(|x| x.penalties);
                     let (us, them) = if *home == club {
                         (goals[0], goals[1])
                     } else {
                         (goals[1], goals[0])
                     };
-                    let verdict = match us.cmp(&them) {
-                        std::cmp::Ordering::Greater => "Win",
-                        std::cmp::Ordering::Equal => "Draw",
-                        std::cmp::Ordering::Less => "Defeat",
-                    };
-                    let link =
-                        played_today(world, *league, *home, *away).map(|index| Link::Fixture {
-                            league: league.raw(),
-                            index: index as u32,
-                        });
-                    let body = match link {
-                        Some(Link::Fixture { index, .. }) => {
-                            scorers_line(world, *league, index as usize)
+                    let won_on_penalties = penalties.map(|p| {
+                        if *home == club {
+                            p[0] > p[1]
+                        } else {
+                            p[1] > p[0]
                         }
+                    });
+                    let verdict = match (us.cmp(&them), won_on_penalties) {
+                        (std::cmp::Ordering::Greater, _) | (_, Some(true)) => "Win",
+                        (_, Some(false)) | (std::cmp::Ordering::Less, _) => "Defeat",
+                        (std::cmp::Ordering::Equal, None) => "Draw",
+                    };
+                    let after = match (penalties, result.as_ref().is_some_and(|x| x.extra_time)) {
+                        (Some(p), _) => format!(" ({}-{} on penalties)", p[0], p[1]),
+                        (None, true) => " (after extra time)".to_owned(),
                         _ => String::new(),
+                    };
+                    let mut body = f.as_ref().map(scorers_line).unwrap_or_default();
+                    if let Some(f) = &f
+                        && f.competition.kind == dto::CompetitionKind::Cup
+                    {
+                        let round = f.round.clone().unwrap_or_default();
+                        body = format!("{} {round}. {body}", f.competition.name);
+                    }
+                    let link = match f.as_ref().map(|f| (f.competition.kind, f.competition.id)) {
+                        Some((dto::CompetitionKind::Cup, id)) => Some(Link::Cup { cup: id }),
+                        _ => Some(Link::Schedule),
                     };
                     self.push(
                         world,
                         Category::Match,
                         format!(
-                            "{verdict}: {} {}-{} {}",
+                            "{verdict}: {} {}-{} {}{after}",
                             club_name(*home),
                             goals[0],
                             goals[1],
                             club_name(*away)
                         ),
-                        body,
+                        body.trim().to_owned(),
                         link,
                     );
+                }
+                Event::CupDrawn {
+                    cup,
+                    club: c,
+                    stage,
+                    opponent,
+                } if *c == club => {
+                    let cup_name = world.cups()[*cup].format.name.clone();
+                    let stage_name = stage_label(world, *cup, *stage);
+                    let body = match opponent {
+                        Some(o) => format!(
+                            "{} will play {} in the {stage_name}.",
+                            club_name(club),
+                            club_name(*o)
+                        ),
+                        None => format!("The draw for the {stage_name} has been made."),
+                    };
+                    self.push(
+                        world,
+                        Category::Cup,
+                        format!("{cup_name}: {stage_name} draw"),
+                        body,
+                        Some(Link::Cup { cup: cup.raw() }),
+                    );
+                }
+                Event::CupEliminated { cup, club: c, by } if *c == club => {
+                    let cup_name = world.cups()[*cup].format.name.clone();
+                    let body = match by {
+                        Some(b) => format!("{} knocked us out.", club_name(*b)),
+                        None => "We did not get out of the group.".to_owned(),
+                    };
+                    self.push(
+                        world,
+                        Category::Cup,
+                        format!("Out of the {cup_name}"),
+                        body,
+                        Some(Link::Cup { cup: cup.raw() }),
+                    );
+                }
+                Event::CupWon { cup, year, winner } => {
+                    let c = &world.cups()[*cup];
+                    let nearby = match c.scope {
+                        fs_world::CupScope::Nation(n) => {
+                            world.clubs().get(club).is_some_and(|x| x.nation == n)
+                        }
+                        fs_world::CupScope::Continent(k) => {
+                            world.clubs().get(club).is_some_and(|x| {
+                                world
+                                    .continents()
+                                    .get(usize::from(k))
+                                    .is_some_and(|ct| ct.nations.contains(&x.nation))
+                            })
+                        }
+                    };
+                    if *winner == club {
+                        self.push(
+                            world,
+                            Category::Cup,
+                            format!("We have won the {}!", c.format.name),
+                            format!(
+                                "{} win the {} {}.",
+                                club_name(club),
+                                c.format.name,
+                                season_label(*year)
+                            ),
+                            Some(Link::Cup { cup: cup.raw() }),
+                        );
+                    } else if nearby {
+                        self.push(
+                            world,
+                            Category::Cup,
+                            format!("{} win the {}", club_name(*winner), c.format.name),
+                            format!(
+                                "{} win the {} {}.",
+                                club_name(*winner),
+                                c.format.name,
+                                season_label(*year)
+                            ),
+                            Some(Link::Cup { cup: cup.raw() }),
+                        );
+                    }
                 }
                 Event::PlayerInjured {
                     player: p,
@@ -433,17 +533,20 @@ pub fn money(m: i64) -> String {
     }
 }
 
-/// The index of today's played fixture between two clubs.
-fn played_today(world: &World, league: LeagueId, home: ClubId, away: ClubId) -> Option<usize> {
-    let season = world.leagues()[league].season()?;
-    season.fixtures.iter().position(|f| {
-        f.home == home && f.away == away && f.result.is_some() && f.date == world.date()
-    })
+/// A cup stage's name.
+fn stage_label(world: &World, cup: fs_world::CupId, stage: u8) -> String {
+    let c = &world.cups()[cup];
+    let index = c
+        .edition()
+        .and_then(|e| e.stages.get(usize::from(stage)))
+        .map_or(usize::from(stage), |s| s.format_index());
+    c.format.stages[index.min(c.format.stages.len() - 1)]
+        .name
+        .clone()
 }
 
-fn scorers_line(world: &World, league: LeagueId, index: usize) -> String {
-    let f = fixture(world, league, index);
-    let Some(r) = f.result else {
+fn scorers_line(f: &dto::Fixture) -> String {
+    let Some(r) = &f.result else {
         return String::new();
     };
     if r.scorers.is_empty() {

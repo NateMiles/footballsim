@@ -53,6 +53,8 @@ pub enum Stream {
     Staff = 12,
     /// Boards and the managers' job market.
     Board = 13,
+    /// Cup draws.
+    Cup = 14,
 }
 
 impl Seed {

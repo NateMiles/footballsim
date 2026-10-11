@@ -126,6 +126,8 @@ pub struct LiveChunk {
     pub finished: bool,
     pub stats: [TeamStats; 2],
     pub lineups: [LiveLineup; 2],
+    /// The shootout, in the chunk that ends a match with one.
+    pub shootout: Option<Shootout>,
 }
 
 /// Where everything is at one instant.
@@ -266,6 +268,25 @@ pub struct MatchReport {
     pub events: Vec<MatchEvent>,
     /// Everyone who played, by side.
     pub ratings: [Vec<PlayerRating>; 2],
+    pub shootout: Option<Shootout>,
+}
+
+/// A penalty shootout.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct Shootout {
+    pub kicks: Vec<Kick>,
+    /// Home then away.
+    pub score: [u8; 2],
+}
+
+/// One kick of a shootout.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct Kick {
+    pub side: Side,
+    pub taker: Id,
+    pub scored: bool,
 }
 
 /// One player's match.

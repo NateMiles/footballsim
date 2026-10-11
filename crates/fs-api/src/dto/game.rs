@@ -64,6 +64,8 @@ pub struct Overview {
     pub balance: Option<i64>,
     pub transfer_budget: Option<i64>,
     pub window_open: bool,
+    /// The club's cups this season.
+    pub cups: Vec<super::competition::CupStatus>,
 }
 
 /// The viewer.

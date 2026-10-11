@@ -15,12 +15,13 @@ use fs_core::Stream;
 use fs_core::attributes::Position;
 use std::collections::BTreeMap;
 
-/// Sets up the first season of a freshly built world: AI tactics and
-/// fixtures for the season containing today's date.
+/// Sets up the first season of a freshly built world: AI tactics,
+/// league fixtures and cup draws for the season containing today's date.
 pub fn start_first_season(world: &mut World) {
     refresh_ai_tactics(world);
     let year = season_year(world.date());
     start_season(world, year);
+    crate::cup::start_editions(world, year, &mut Vec::new());
 }
 
 /// Creates fixtures and empty tables for every league.
@@ -54,12 +55,19 @@ pub(crate) fn start_season(world: &mut World, year: i32) {
     }
 }
 
-/// The season year currently being played, if any league has one.
+/// The season year currently being played, if any league or cup has
+/// one.
 pub fn current_season(world: &World) -> Option<i32> {
     world
         .leagues()
         .iter()
         .find_map(|(_, l)| l.season().map(|s| s.year))
+        .or_else(|| {
+            world
+                .cups()
+                .iter()
+                .find_map(|(_, c)| c.edition().map(|e| e.year))
+        })
 }
 
 /// 1 July: close the old season and open the new one.
@@ -68,6 +76,7 @@ pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
     economy::close_accounts(world, year - 1);
     crate::board::season_end(world, events);
     close_season(world, events);
+    crate::cup::close_editions(world);
     record_careers(world, year - 1);
     for (player, loan) in crate::transfer::end_loans(world) {
         if world.is_human_club(loan.parent) || world.is_human_club(loan.borrower) {
@@ -86,6 +95,7 @@ pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
     maintain_squads(world, events);
     refresh_ai_tactics(world);
     start_season(world, year);
+    crate::cup::start_editions(world, year, events);
     crate::board::set_targets(world);
     economy::invest(world);
     economy::set_budgets(world);

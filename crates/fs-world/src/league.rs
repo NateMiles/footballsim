@@ -107,6 +107,10 @@ pub struct FixtureResult {
     pub tier: Tier,
     /// Scorers in order, with the side (0 home, 1 away).
     pub scorers: Vec<(u8, PlayerId)>,
+    /// Goals include extra time.
+    pub extra_time: bool,
+    /// Penalties scored in a shootout, home then away.
+    pub penalties: Option<[u8; 2]>,
 }
 
 /// A league table row.

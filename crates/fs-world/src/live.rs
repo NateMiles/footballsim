@@ -7,7 +7,8 @@
 //! all of the day's fixtures are played together, the watched ones with
 //! their instructions, so the result is the one the managers saw.
 
-use crate::ids::{ClubId, LeagueId, ManagerId};
+use crate::fixture::{self, FixtureRef};
+use crate::ids::{ClubId, ManagerId};
 use crate::world::World;
 use fs_match::TimedInstruction;
 use serde::{Deserialize, Serialize};
@@ -18,9 +19,7 @@ use std::collections::BTreeMap;
 pub struct WatchedFixture {
     pub manager: ManagerId,
     pub club: ClubId,
-    pub league: LeagueId,
-    /// Index into the league season's fixtures.
-    pub index: usize,
+    pub fixture: FixtureRef,
 }
 
 /// A match day waiting for human managers.
@@ -34,42 +33,25 @@ pub struct PendingMatchDay {
 
 /// Today's fixtures involving managers who watch matches.
 pub(crate) fn watched_fixtures(world: &World) -> Vec<WatchedFixture> {
-    let today = world.date();
     let mut out = Vec::new();
-    for (league, l) in world.leagues().iter() {
-        let Some(season) = l.season() else { continue };
-        for (index, f) in season.fixtures.iter().enumerate().skip(season.next) {
-            if f.date > today {
-                break;
-            }
-            for club in [f.home, f.away] {
-                if let Some(manager) = world.clubs()[club].manager
-                    && world.watched_live(club)
-                {
-                    out.push(WatchedFixture {
-                        manager,
-                        club,
-                        league,
-                        index,
-                    });
-                }
+    for r in fixture::due(world) {
+        let f = r.get(world).expect("due fixture exists");
+        for club in [f.home, f.away] {
+            if let Some(manager) = world.clubs()[club].manager
+                && world.watched_live(club)
+            {
+                out.push(WatchedFixture {
+                    manager,
+                    club,
+                    fixture: r,
+                });
             }
         }
     }
     out
 }
 
-/// The league fixture `club` plays today, if any.
-pub(crate) fn fixture_today(world: &World, club: ClubId) -> Option<(LeagueId, usize)> {
-    let league = world.clubs()[club].league()?;
-    let season = world.leagues()[league].season()?;
-    let today = world.date();
-    season
-        .fixtures
-        .iter()
-        .enumerate()
-        .skip(season.next)
-        .take_while(|(_, f)| f.date <= today)
-        .find(|(_, f)| f.date == today && (f.home == club || f.away == club))
-        .map(|(i, _)| (league, i))
+/// The fixture `club` plays today, if any.
+pub(crate) fn fixture_today(world: &World, club: ClubId) -> Option<FixtureRef> {
+    fixture::on(world, club, world.date())
 }

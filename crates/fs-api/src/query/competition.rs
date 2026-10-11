@@ -76,7 +76,7 @@ pub fn fixtures(world: &World, league: LeagueId, club: Option<ClubId>) -> dto::F
                 .iter()
                 .enumerate()
                 .filter(|(_, f)| club.is_none_or(|c| f.home == c || f.away == c))
-                .map(|(i, _)| fixture(world, league, i))
+                .map(|(i, _)| league_fixture(world, league, i))
                 .collect()
         })
         .unwrap_or_default();
@@ -87,26 +87,12 @@ pub fn fixtures(world: &World, league: LeagueId, club: Option<ClubId>) -> dto::F
     }
 }
 
-/// The club's next unplayed league fixture, and its last played one.
+/// The club's next unplayed fixture in any competition, and its last
+/// played one.
 pub fn next_and_last(world: &World, club: ClubId) -> (Option<dto::Fixture>, Option<dto::Fixture>) {
-    let Some(league) = world.clubs()[club].league() else {
-        return (None, None);
-    };
-    let Some(season) = world.leagues()[league].season() else {
-        return (None, None);
-    };
-    let mine = |f: &&fs_world::Fixture| f.home == club || f.away == club;
-    let next = season
-        .fixtures
-        .iter()
-        .enumerate()
-        .find(|(_, f)| mine(f) && f.result.is_none())
-        .map(|(i, _)| fixture(world, league, i));
-    let last = season
-        .fixtures
-        .iter()
-        .enumerate()
-        .rfind(|(_, f)| mine(f) && f.result.is_some())
-        .map(|(i, _)| fixture(world, league, i));
+    let all = fs_world::fixture::of_club(world, club);
+    let played = |r: &fs_world::FixtureRef| r.get(world).is_some_and(|f| f.result.is_some());
+    let next = all.iter().find(|r| !played(r)).map(|&r| fixture(world, r));
+    let last = all.iter().rfind(|r| played(r)).map(|&r| fixture(world, r));
     (next, last)
 }

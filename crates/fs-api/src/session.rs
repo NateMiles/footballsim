@@ -250,6 +250,41 @@ impl Session {
                     table: query::competition::table(c.world(), league),
                 })
             }
+            Request::Schedule { club } => {
+                let c = self.career()?;
+                let club = match club {
+                    Some(id) => c.existing_club(id)?,
+                    None => c.club()?,
+                };
+                Ok(Response::Schedule {
+                    schedule: query::cup::schedule(c.world(), club),
+                })
+            }
+            Request::Cup { cup } => {
+                let c = self.career()?;
+                let viewer = c.club().ok();
+                let cup = match cup {
+                    Some(id) => {
+                        let cup = fs_world::CupId::new(id);
+                        c.world()
+                            .cups()
+                            .get(cup)
+                            .map(|_| cup)
+                            .ok_or_else(|| not_found("cup"))?
+                    }
+                    None => query::cup::default_cup(c.world(), viewer)
+                        .ok_or_else(|| not_found("cup"))?,
+                };
+                Ok(Response::Cup {
+                    cup: query::cup::cup(c.world(), cup, viewer),
+                })
+            }
+            Request::Competitions => {
+                let c = self.career()?;
+                Ok(Response::Competitions {
+                    competitions: query::cup::competitions(c.world()),
+                })
+            }
             Request::SetWatchMatches { watch } => {
                 self.career()?
                     .submit_outside_match(Command::SetWatchMatches { watch })?;
@@ -290,7 +325,7 @@ impl Session {
             Request::StartMatch => {
                 let c = self.career()?;
                 let (live, start) = LiveSession::start(c.world(), c.manager)?;
-                let input = fixture_input(c.world(), live.league, live.index);
+                let input = fixture_input(c.world(), live.fixture);
                 c.live = Some((live, input));
                 Ok(Response::LiveStart { start })
             }
@@ -577,8 +612,8 @@ impl Career {
             .live
             .take()
             .ok_or_else(|| ApiError::new(ErrorCode::NoMatch, "no match is being watched"))?;
-        let (league, index) = (live.league, live.index);
-        if fixture_input(self.world(), league, index) != input {
+        let r = live.fixture;
+        if fixture_input(self.world(), r) != input {
             return Err(ApiError::new(
                 ErrorCode::Rejected,
                 "the teams changed during the match",
@@ -586,15 +621,15 @@ impl Career {
         }
         let (instructions, result) = live.finish();
         self.submit(Command::PlayMatch { instructions })?;
-        let recorded = self.world().leagues()[league]
-            .season()
-            .and_then(|s| s.fixtures[index].result.as_ref())
-            .map(|r| r.goals);
+        let recorded = r
+            .get(self.world())
+            .and_then(|f| f.result.as_ref())
+            .map(|x| x.goals);
         debug_assert_eq!(
             recorded,
             Some(result.goals),
             "the world replays the watched match"
         );
-        Ok(report(self.world(), league, index, &result))
+        Ok(report(self.world(), r, &result))
     }
 }

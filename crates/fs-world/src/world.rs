@@ -1,9 +1,10 @@
 //! The world: every entity plus the calendar.
 
 use crate::club::Club;
+use crate::cup::{Continent, Cup};
 use crate::ids::{
-    ClubId, ClubKind, LeagueId, LeagueKind, ManagerId, ManagerKind, NationId, NationKind, PlayerId,
-    StaffId, StaffKind,
+    ClubId, ClubKind, CupId, CupKind, LeagueId, LeagueKind, ManagerId, ManagerKind, NationId,
+    NationKind, PlayerId, StaffId, StaffKind,
 };
 use crate::league::League;
 use crate::live::PendingMatchDay;
@@ -46,6 +47,8 @@ pub struct World {
     pub(crate) clubs: IdVec<ClubKind, Club>,
     pub(crate) managers: IdVec<ManagerKind, Manager>,
     pub(crate) leagues: IdVec<LeagueKind, League>,
+    pub(crate) cups: IdVec<CupKind, Cup>,
+    pub(crate) continents: Vec<Continent>,
     pub(crate) players: Players,
     pub(crate) staff: IdVec<StaffKind, Staff>,
     pub(crate) scouting: Scouting,
@@ -66,6 +69,8 @@ impl World {
             clubs: IdVec::new(),
             managers: IdVec::new(),
             leagues: IdVec::new(),
+            cups: IdVec::new(),
+            continents: Vec::new(),
             players: Players::default(),
             staff: IdVec::new(),
             scouting: Scouting::default(),
@@ -138,6 +143,16 @@ impl World {
     /// All leagues.
     pub fn leagues(&self) -> &IdVec<LeagueKind, League> {
         &self.leagues
+    }
+
+    /// All cups, domestic and continental.
+    pub fn cups(&self) -> &IdVec<CupKind, Cup> {
+        &self.cups
+    }
+
+    /// Groups of nations that meet in continental cups.
+    pub fn continents(&self) -> &[Continent] {
+        &self.continents
     }
 
     /// All players.
@@ -274,6 +289,36 @@ impl World {
             self.leagues[id].clubs.push(c);
         }
         id
+    }
+
+    /// Adds a continent (world generation). Returns its index.
+    ///
+    /// # Panics
+    /// Panics if a nation does not exist.
+    pub fn add_continent(&mut self, continent: Continent) -> u16 {
+        assert!(
+            continent
+                .nations
+                .iter()
+                .all(|&n| self.nations.get(n).is_some())
+        );
+        self.continents.push(continent);
+        (self.continents.len() - 1) as u16
+    }
+
+    /// Adds a cup (world generation). Its first edition starts with the
+    /// first season.
+    ///
+    /// # Panics
+    /// Panics if its nation or continent does not exist.
+    pub fn add_cup(&mut self, cup: Cup) -> CupId {
+        match cup.scope {
+            crate::cup::CupScope::Nation(n) => assert!(self.nations.get(n).is_some()),
+            crate::cup::CupScope::Continent(k) => {
+                assert!(usize::from(k) < self.continents.len());
+            }
+        }
+        self.cups.push(cup)
     }
 
     /// Moves a club from its league to another (promotion and relegation).
@@ -440,6 +485,27 @@ impl World {
                         season.rows.len(),
                         league.clubs.len()
                     ));
+                }
+            }
+        }
+        // Nobody plays twice on one day.
+        let mut days: BTreeSet<(ClubId, GameDate)> = BTreeSet::new();
+        let mut book = |c: ClubId, d: GameDate| days.insert((c, d));
+        for (lid, league) in self.leagues.iter() {
+            for f in league.season.iter().flat_map(|s| &s.fixtures) {
+                if !book(f.home, f.date) || !book(f.away, f.date) {
+                    return Err(format!("{lid}: a club plays twice on {}", f.date));
+                }
+            }
+        }
+        for (cid, cup) in self.cups.iter() {
+            for f in cup.edition.iter().flat_map(|e| &e.fixtures) {
+                let f = &f.fixture;
+                if self.clubs.get(f.home).is_none() || self.clubs.get(f.away).is_none() {
+                    return Err(format!("{cid} has a fixture with an unknown club"));
+                }
+                if !book(f.home, f.date) || !book(f.away, f.date) {
+                    return Err(format!("{cid}: a club plays twice on {}", f.date));
                 }
             }
         }

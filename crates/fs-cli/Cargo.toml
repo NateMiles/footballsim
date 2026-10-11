@@ -17,6 +17,7 @@ fs-world.workspace = true
 fs-gen.workspace = true
 fs-match.workspace = true
 fs-lab.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

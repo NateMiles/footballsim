@@ -19,6 +19,7 @@ pub enum Category {
     Board,
     Staff,
     Scouting,
+    Cup,
 }
 
 /// Where a message leads in the UI.
@@ -29,9 +30,17 @@ pub enum Category {
     rename_all_fields = "camelCase"
 )]
 pub enum Link {
-    Player { player: Id },
-    Fixture { league: Id, index: u32 },
-    Table { league: Id },
+    Player {
+        player: Id,
+    },
+    /// The viewer's matches.
+    Schedule,
+    Table {
+        league: Id,
+    },
+    Cup {
+        cup: Id,
+    },
     Squad,
     Tactics,
     Transfers,

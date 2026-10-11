@@ -6,3 +6,4 @@ crate::define_id!(NationKind, NationId, "nation");
 crate::define_id!(ManagerKind, ManagerId, "manager");
 crate::define_id!(LeagueKind, LeagueId, "league");
 crate::define_id!(StaffKind, StaffId, "staff member");
+crate::define_id!(CupKind, CupId, "cup");

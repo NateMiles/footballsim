@@ -182,6 +182,24 @@ pub(crate) fn gate_receipts(world: &mut World, home: ClubId, away: ClubId, key: 
     crowd
 }
 
+/// Largest crowd at a neutral ground.
+const NEUTRAL_CAPACITY: u32 = 80_000;
+
+/// Gate receipts for a match at a neutral ground (a cup final), shared
+/// equally. Both clubs' supporters come. Returns the attendance.
+pub(crate) fn neutral_receipts(world: &mut World, a: ClubId, b: ClubId, key: u64) -> u32 {
+    let mut rng = world.seed.derive(Stream::Finance, u64::from(a.raw()), key);
+    let (ra, rb) = (world.clubs[a].reputation, world.clubs[b].reputation);
+    let demand = f64::from(fans(ra) + fans(rb)) * rng.range_f64(0.9, 1.1);
+    let crowd = (demand as u32).min(NEUTRAL_CAPACITY);
+    let price = (ticket_price(ra) + ticket_price(rb)) / 2;
+    let share = Money::from(crowd) * price / 2;
+    for c in [a, b] {
+        world.clubs[c].finances.earn(|l| &mut l.matchday, share);
+    }
+    crowd
+}
+
 /// End of season (before promotion and relegation): prize money by final
 /// position, then each club's accounts are archived.
 pub(crate) fn close_accounts(world: &mut World, year: i32) {

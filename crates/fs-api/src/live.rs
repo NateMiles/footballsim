@@ -9,8 +9,9 @@ use fs_core::ids::PlayerId;
 use fs_match::tier1::LiveLineup;
 use fs_match::view::{FRAME_HZ, LiveView, PITCH_LENGTH, PITCH_WIDTH};
 use fs_match::{MatchResult, Side, TimedInstruction};
+use fs_world::FixtureRef;
 use fs_world::matchday::fixture_input;
-use fs_world::{LeagueId, ManagerId, World};
+use fs_world::{ManagerId, World};
 use std::collections::BTreeMap;
 
 /// Names cached at kickoff.
@@ -37,12 +38,15 @@ impl Names for MatchNames {
 #[derive(Debug)]
 pub struct LiveSession {
     view: LiveView,
-    pub(crate) league: LeagueId,
-    pub(crate) index: usize,
+    pub(crate) fixture: FixtureRef,
     side: Side,
     names: MatchNames,
-    /// Kick-off, half time and full time announced.
-    whistles: [bool; 3],
+    /// Kick-off announced.
+    kicked_off: bool,
+    /// Breaks between halves announced.
+    breaks: usize,
+    /// The end announced.
+    ended: bool,
 }
 
 impl LiveSession {
@@ -53,8 +57,8 @@ impl LiveSession {
             .and_then(|p| p.awaiting.iter().find(|w| w.manager == manager))
             .copied()
             .ok_or_else(|| ApiError::new(ErrorCode::NoMatch, "no match to watch today"))?;
-        let input = fixture_input(world, watched.league, watched.index);
-        let f = fixture(world, watched.league, watched.index);
+        let input = fixture_input(world, watched.fixture);
+        let f = fixture(world, watched.fixture);
         let side = if f.home.id == watched.club.raw() {
             Side::Home
         } else {
@@ -73,24 +77,22 @@ impl LiveSession {
             }
         }
         let view = LiveView::new(&input);
-        let fx = &world.leagues()[watched.league]
-            .season()
-            .expect("season")
-            .fixtures[watched.index];
+        let fx = watched.fixture.get(world).expect("fixture exists");
         let teams = [
             world.clubs()[fx.home].short_name.clone(),
             world.clubs()[fx.away].short_name.clone(),
         ];
         let session = Self {
-            league: watched.league,
-            index: watched.index,
+            fixture: watched.fixture,
             side,
             names: MatchNames {
                 players: names,
                 teams,
             },
             view,
-            whistles: [false; 3],
+            kicked_off: false,
+            breaks: 0,
+            ended: false,
         };
         let start = dto::LiveStart {
             fixture: f,
@@ -120,17 +122,15 @@ impl LiveSession {
     }
 
     fn clock_at(&self, t: f64) -> String {
-        let e = self.view.engine();
-        let first = e.half() == 0 || t < e.first_half_length();
-        commentary::clock(t, first, e.first_half_length())
+        commentary::clock(t, self.view.engine().half_starts())
     }
 
     /// Plays up to `until` seconds after kickoff.
     pub fn tick(&mut self, until: f64) -> dto::LiveChunk {
         let chunk = self.view.play_until(until);
         let mut lines = Vec::new();
-        if !self.whistles[0] {
-            self.whistles[0] = true;
+        if !self.kicked_off {
+            self.kicked_off = true;
             lines.push(commentary::whistle(0.0, "1".into(), "Kick-off!"));
         }
         for a in &chunk.actions {
@@ -138,15 +138,16 @@ impl LiveSession {
                 lines.push(l);
             }
         }
-        let e = self.view.engine();
-        if e.half() == 1 && !self.whistles[1] {
-            self.whistles[1] = true;
-            let t = e.first_half_length();
-            lines.push(commentary::whistle(
-                t as f32,
-                self.clock_at(t - 1.0),
-                "Half time.",
-            ));
+        let starts = self.view.engine().half_starts().to_vec();
+        while self.breaks < starts.len() {
+            let t = starts[self.breaks];
+            let text = match self.breaks {
+                0 => "Half time.",
+                1 => "Full time, and level: extra time.",
+                _ => "Half time in extra time.",
+            };
+            self.breaks += 1;
+            lines.push(commentary::whistle(t as f32, self.clock_at(t - 1.0), text));
         }
         let mut events = Vec::with_capacity(chunk.events.len());
         for ev in &chunk.events {
@@ -170,13 +171,30 @@ impl LiveSession {
             ));
             events.push(match_event(ev));
         }
-        if chunk.finished && !self.whistles[2] {
-            self.whistles[2] = true;
+        if chunk.finished && !self.ended {
+            self.ended = true;
+            let text = match (starts.len() > 1, &chunk.shootout) {
+                (_, Some(_)) => "Still level: penalties!",
+                (true, None) => "The end of extra time.",
+                (false, None) => "Full time.",
+            };
             lines.push(commentary::whistle(
                 chunk.elapsed as f32,
                 self.clock_at(chunk.elapsed),
-                "Full time.",
+                text,
             ));
+            if let Some(s) = &chunk.shootout {
+                let mut score = [0u8; 2];
+                for (k, kick) in s.kicks.iter().enumerate() {
+                    score[kick.side.index()] += u8::from(kick.scored);
+                    lines.push(commentary::kick(
+                        chunk.elapsed as f32 + 1.0 + k as f32,
+                        kick,
+                        score,
+                        &self.names,
+                    ));
+                }
+            }
         }
         lines.sort_by(|a, b| a.t.total_cmp(&b.t));
         dto::LiveChunk {
@@ -189,6 +207,7 @@ impl LiveSession {
             finished: chunk.finished,
             stats: [team_stats(&chunk.stats[0]), team_stats(&chunk.stats[1])],
             lineups: self.lineups(),
+            shootout: chunk.shootout.as_ref().map(shootout),
         }
     }
 
@@ -361,13 +380,24 @@ pub(crate) fn match_event(e: &fs_match::MatchEvent) -> dto::MatchEvent {
     }
 }
 
+/// A shootout as the UI sees it.
+pub(crate) fn shootout(s: &fs_match::Shootout) -> dto::Shootout {
+    dto::Shootout {
+        kicks: s
+            .kicks
+            .iter()
+            .map(|k| dto::Kick {
+                side: k.side.into(),
+                taker: k.taker.raw(),
+                scored: k.scored,
+            })
+            .collect(),
+        score: s.score,
+    }
+}
+
 /// The report for a finished match.
-pub(crate) fn report(
-    world: &World,
-    league: LeagueId,
-    index: usize,
-    result: &MatchResult,
-) -> dto::MatchReport {
+pub(crate) fn report(world: &World, r: FixtureRef, result: &MatchResult) -> dto::MatchReport {
     let ratings = |side: usize| {
         result.players[side]
             .iter()
@@ -382,9 +412,10 @@ pub(crate) fn report(
             .collect()
     };
     dto::MatchReport {
-        fixture: fixture(world, league, index),
+        fixture: fixture(world, r),
         stats: [team_stats(&result.stats[0]), team_stats(&result.stats[1])],
         events: result.events.iter().map(match_event).collect(),
         ratings: [ratings(0), ratings(1)],
+        shootout: result.shootout.as_ref().map(shootout),
     }
 }

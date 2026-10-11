@@ -239,6 +239,7 @@ dependencies = [
  "fs-lab",
  "fs-match",
  "fs-world",
+ "serde_json",
 ]
 
 [[package]]
@@ -262,6 +263,7 @@ dependencies = [
  "fs-match",
  "fs-world",
  "rayon",
+ "serde_json",
 ]
 
 [[package]]
@@ -315,6 +317,7 @@ dependencies = [
  "postcard",
  "serde",
  "serde-big-array",
+ "serde_json",
  "thiserror",
 ]
 

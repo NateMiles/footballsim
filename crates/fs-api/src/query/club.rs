@@ -62,6 +62,7 @@ pub fn squad(world: &World, club: ClubId) -> dto::SquadView {
     dto::SquadView {
         club: club_ref(world, club),
         players,
+        honours: super::cup::honours(world, club),
     }
 }
 

@@ -4,7 +4,8 @@
 //! rejected command has no effect and is not recorded.
 
 use crate::finance::Money;
-use crate::ids::{ClubId, LeagueId, ManagerId, PlayerId, StaffId};
+use crate::fixture::FixtureRef;
+use crate::ids::{ClubId, CupId, LeagueId, ManagerId, PlayerId, StaffId};
 use crate::lineup::Lineup;
 use crate::live::{self, PendingMatchDay};
 use crate::manager::{Control, Manager};
@@ -164,9 +165,10 @@ pub enum Event {
         player: PlayerId,
         number: Option<u8>,
     },
-    /// A match in a league with a human-managed club was played.
+    /// A match in a league with a human-managed club, or a cup match of
+    /// a human-managed club, was played.
     MatchPlayed {
-        league: LeagueId,
+        fixture: FixtureRef,
         home: ClubId,
         away: ClubId,
         goals: [u8; 2],
@@ -218,9 +220,7 @@ pub enum Event {
     MatchDayReady {
         manager: ManagerId,
         club: ClubId,
-        league: LeagueId,
-        /// Index into the league season's fixtures.
-        index: usize,
+        fixture: FixtureRef,
         home: ClubId,
         away: ClubId,
     },
@@ -275,6 +275,27 @@ pub enum Event {
         staff: StaffId,
         club: ClubId,
         expires: GameDate,
+    },
+    /// A human-managed club learned its cup opponent (`None` for a group
+    /// or a bye).
+    CupDrawn {
+        cup: CupId,
+        club: ClubId,
+        stage: u8,
+        opponent: Option<ClubId>,
+    },
+    /// A human-managed club went out of a cup.
+    CupEliminated {
+        cup: CupId,
+        club: ClubId,
+        /// The club that beat them in a knockout tie.
+        by: Option<ClubId>,
+    },
+    /// A cup was won.
+    CupWon {
+        cup: CupId,
+        year: i32,
+        winner: ClubId,
     },
 }
 
@@ -395,13 +416,11 @@ impl World {
                     let watched = live::watched_fixtures(self);
                     if !watched.is_empty() {
                         for w in &watched {
-                            let f =
-                                &self.leagues[w.league].season().expect("season").fixtures[w.index];
+                            let f = w.fixture.get(self).expect("fixture");
                             events.push(Event::MatchDayReady {
                                 manager: w.manager,
                                 club: w.club,
-                                league: w.league,
-                                index: w.index,
+                                fixture: w.fixture,
                                 home: f.home,
                                 away: f.away,
                             });
@@ -533,10 +552,7 @@ impl World {
                 if instructions.len() > MAX_MATCH_INSTRUCTIONS {
                     return Err(CommandError::TooManyInstructions(instructions.len()));
                 }
-                let f = &self.leagues[watched.league]
-                    .season()
-                    .expect("season")
-                    .fixtures[watched.index];
+                let f = watched.fixture.get(self).expect("fixture");
                 let side = if f.home == watched.club {
                     Side::Home
                 } else {
@@ -999,13 +1015,10 @@ impl World {
         let Some(pending) = &self.pending else {
             return Ok(());
         };
-        let Some((league, index)) = live::fixture_today(self, club) else {
+        let Some(fixture) = live::fixture_today(self, club) else {
             return Ok(());
         };
-        let mut watchers = pending
-            .awaiting
-            .iter()
-            .filter(|w| w.league == league && w.index == index);
+        let mut watchers = pending.awaiting.iter().filter(|w| w.fixture == fixture);
         match (watchers.next(), watchers.next()) {
             (Some(w), None) if w.club == club => Ok(()),
             _ => Err(CommandError::MatchDayInProgress),

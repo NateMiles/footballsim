@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Protocol version. Bump when a request or response changes shape.
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// Something the UI asks for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -66,6 +66,15 @@ pub enum Request {
     },
     /// Answered with [`Response::Table`].
     Table { league: Option<Id> },
+    /// A club's matches in every competition (the viewer's by default).
+    /// Answered with [`Response::Schedule`].
+    Schedule { club: Option<Id> },
+    /// A cup (the viewer's national cup by default). Answered with
+    /// [`Response::Cup`].
+    Cup { cup: Option<Id> },
+    /// Every league and cup, and continental coefficients. Answered with
+    /// [`Response::Competitions`].
+    Competitions,
     /// Answered with [`Response::Overview`].
     SetWatchMatches { watch: bool },
     /// Let the assistant handle contracts. Answered with
@@ -185,6 +194,15 @@ pub enum Response {
     },
     Table {
         table: TableView,
+    },
+    Schedule {
+        schedule: ScheduleView,
+    },
+    Cup {
+        cup: CupView,
+    },
+    Competitions {
+        competitions: CompetitionsView,
     },
     Continued {
         continued: Continued,

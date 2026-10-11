@@ -3,6 +3,7 @@
 
 use crate::command::Event;
 use crate::economy;
+use crate::fixture::{self, FixtureRef};
 use crate::ids::{ClubId, LeagueId, PlayerId};
 use crate::league::FixtureResult;
 use crate::lineup::sheet_from_lineup;
@@ -112,26 +113,29 @@ pub fn team_sheet(world: &World, club: ClubId) -> TeamSheet {
     }
 }
 
-/// The match input for a scheduled league fixture, as a watching manager
-/// sees it: both team sheets as they stand today and the fixture's random
-/// stream, with automatic substitutions off for clubs managed live. When
-/// the manager submits the instructions they gave
-/// ([`crate::Command::PlayMatch`]), the world plays exactly this input
-/// plus those instructions, so the result is the one they watched.
+/// The match input for a scheduled fixture, as a watching manager sees
+/// it: both team sheets as they stand today, the fixture's random stream
+/// and, for cup ties, the venue and how a level tie is settled, with
+/// automatic substitutions off for clubs managed live. When the manager
+/// submits the instructions they gave ([`crate::Command::PlayMatch`]),
+/// the world plays exactly this input plus those instructions, so the
+/// result is the one they watched.
 ///
 /// # Panics
-/// Panics if the league has no season or the fixture does not exist.
-pub fn fixture_input(world: &World, league: LeagueId, index: usize) -> MatchInput {
-    let season = world.leagues()[league]
-        .season()
-        .expect("season in progress");
-    let f = &season.fixtures[index];
+/// Panics if the fixture does not exist.
+pub fn fixture_input(world: &World, fixture: FixtureRef) -> MatchInput {
+    let f = fixture.get(world).expect("fixture exists");
     let mut input = MatchInput::new(
         team_sheet(world, f.home),
         team_sheet(world, f.away),
         world.seed(),
-        match_key(season.year, league, index),
+        fixture.match_key(world),
     );
+    if let FixtureRef::Cup { cup, index } = fixture {
+        let (neutral, decider) = crate::cup::match_rules(world, cup, index as usize);
+        input.neutral = neutral;
+        input.decider = decider;
+    }
     // A manager watching live makes their own substitutions.
     input.home.auto_subs = !world.watched_live(f.home);
     input.away.auto_subs = !world.watched_live(f.away);
@@ -167,9 +171,20 @@ pub fn league_tier(world: &World, league: LeagueId) -> Tier {
     }
 }
 
-/// A unique key for a fixture's random stream.
-fn match_key(year: i32, league: LeagueId, index: usize) -> u64 {
-    ((year as u64) << 40) ^ (u64::from(league.raw()) << 20) ^ index as u64
+/// Which engine plays a fixture: leagues as [`league_tier`] says, cup
+/// matches in detail when a human-managed club plays.
+pub fn fixture_tier(world: &World, fixture: FixtureRef) -> Tier {
+    match fixture {
+        FixtureRef::League { league, .. } => league_tier(world, league),
+        FixtureRef::Cup { .. } => {
+            let f = fixture.get(world).expect("fixture exists");
+            if world.is_human_club(f.home) || world.is_human_club(f.away) {
+                Tier::Event
+            } else {
+                Tier::Statistical
+            }
+        }
+    }
 }
 
 /// Plays every fixture scheduled for today and applies the results.
@@ -178,28 +193,25 @@ pub(crate) fn play_today(
     events: &mut Vec<Event>,
     instructions: &BTreeMap<ClubId, Vec<TimedInstruction>>,
 ) {
-    let today = world.date();
-    let mut todo: Vec<(LeagueId, usize, i32)> = Vec::new();
-    for (lid, league) in world.leagues.iter() {
-        if let Some(season) = &league.season {
-            let mut i = season.next;
-            while i < season.fixtures.len() && season.fixtures[i].date <= today {
-                todo.push((lid, i, season.year));
-                i += 1;
-            }
-        }
-    }
+    let todo = fixture::due(world);
     if todo.is_empty() {
         return;
     }
-    let tiers: Vec<Tier> = world.leagues.ids().map(|l| league_tier(world, l)).collect();
+    let league_tiers: Vec<Tier> = world.leagues.ids().map(|l| league_tier(world, l)).collect();
+    let tiers: Vec<Tier> = todo
+        .iter()
+        .map(|&r| match r {
+            FixtureRef::League { league, .. } => league_tiers[league.index()],
+            FixtureRef::Cup { .. } => fixture_tier(world, r),
+        })
+        .collect();
     let mut results: Vec<Option<MatchResult>> = vec![None; todo.len()];
     {
         let world = &*world;
         fs_core::par::for_each_heavy(&mut results, |k, slot| {
-            let (lid, i, _) = todo[k];
-            let f = &world.leagues()[lid].season().expect("season").fixtures[i];
-            let mut input = fixture_input(world, lid, i);
+            let r = todo[k];
+            let f = r.get(world).expect("fixture exists");
+            let mut input = fixture_input(world, r);
             // Clubs whose manager watched get exactly their instructions
             // and no automatic substitutions; everyone else (including a
             // watcher who skipped the match) gets the assistant's.
@@ -211,12 +223,12 @@ pub(crate) fn play_today(
                 }
             }
             input.instructions.sort_by_key(|x| x.step);
-            *slot = Some(fs_match::play(&input, tiers[lid.index()]));
+            *slot = Some(fs_match::play(&input, tiers[k]));
         });
     }
-    for ((lid, i, year), result) in todo.into_iter().zip(results) {
+    for ((r, tier), result) in todo.into_iter().zip(tiers).zip(results) {
         let result = result.expect("played");
-        apply_result(world, lid, i, year, tiers[lid.index()], &result, events);
+        apply_result(world, r, tier, &result, events);
     }
     for league in world.leagues.as_mut_slice() {
         if let Some(season) = &mut league.season {
@@ -231,27 +243,34 @@ pub(crate) fn play_today(
 
 fn apply_result(
     world: &mut World,
-    lid: LeagueId,
-    index: usize,
-    year: i32,
+    fixture: FixtureRef,
     tier: Tier,
     r: &MatchResult,
     events: &mut Vec<Event>,
 ) {
     let today = world.date();
     let seed = world.seed();
+    let key = fixture.match_key(world);
     let (home, away) = {
-        let f = &world.leagues[lid].season.as_ref().expect("season").fixtures[index];
+        let f = fixture.get(world).expect("fixture exists");
         (f.home, f.away)
     };
     let clubs = [home, away];
-    economy::gate_receipts(world, home, away, match_key(year, lid, index));
+    let neutral = match fixture {
+        FixtureRef::Cup { cup, index } => crate::cup::match_rules(world, cup, index as usize).0,
+        FixtureRef::League { .. } => false,
+    };
+    if neutral {
+        economy::neutral_receipts(world, home, away, key);
+    } else {
+        economy::gate_receipts(world, home, away, key);
+    }
     for (side, &club) in clubs.iter().enumerate() {
         let opponents: Vec<PlayerId> = r.players[1 - side].iter().map(|p| p.player).collect();
         crate::scouting::after_match(world, club, &opponents);
     }
 
-    // League record.
+    // The competition's record.
     let scorers: Vec<(u8, PlayerId)> = r
         .events
         .iter()
@@ -260,40 +279,51 @@ fn apply_result(
             _ => None,
         })
         .collect();
-    {
-        let season = world.leagues[lid].season.as_mut().expect("season");
-        season.fixtures[index].result = Some(FixtureResult {
-            goals: r.goals,
-            xg: [r.stats[0].xg, r.stats[1].xg],
-            tier,
-            scorers,
-        });
-        for (side, &club) in clubs.iter().enumerate() {
-            if let Some(row) = season.rows.iter_mut().find(|row| row.club == club) {
-                row.record(r.goals[side], r.goals[1 - side]);
+    let record = FixtureResult {
+        goals: r.goals,
+        xg: [r.stats[0].xg, r.stats[1].xg],
+        tier,
+        scorers,
+        extra_time: r.extra_time,
+        penalties: r.shootout.as_ref().map(|s| s.score),
+    };
+    let reported = match fixture {
+        FixtureRef::League { league, index } => {
+            let season = world.leagues[league].season.as_mut().expect("season");
+            season.fixtures[index as usize].result = Some(record);
+            for (side, &club) in clubs.iter().enumerate() {
+                if let Some(row) = season.rows.iter_mut().find(|row| row.club == club) {
+                    row.record(r.goals[side], r.goals[1 - side]);
+                }
             }
+            world.leagues[league]
+                .clubs
+                .iter()
+                .any(|&c| world.is_human_club(c))
         }
-    }
-    if world.leagues[lid]
-        .clubs
-        .iter()
-        .any(|&c| world.is_human_club(c))
-    {
+        FixtureRef::Cup { cup, index } => {
+            crate::cup::record_result(world, cup, index as usize, record);
+            world.is_human_club(home) || world.is_human_club(away)
+        }
+    };
+    if reported {
         events.push(Event::MatchPlayed {
-            league: lid,
+            fixture,
             home,
             away,
             goals: r.goals,
         });
     }
 
-    for (side, &club) in clubs.iter().enumerate() {
-        let points = match r.goals[side].cmp(&r.goals[1 - side]) {
-            core::cmp::Ordering::Greater => 3,
-            core::cmp::Ordering::Equal => 1,
-            core::cmp::Ordering::Less => 0,
-        };
-        crate::board::after_match(world, club, points, events);
+    if let FixtureRef::League { .. } = fixture {
+        for (side, &club) in clubs.iter().enumerate() {
+            let points = match r.goals[side].cmp(&r.goals[1 - side]) {
+                core::cmp::Ordering::Greater => 3,
+                core::cmp::Ordering::Equal => 1,
+                core::cmp::Ordering::Less => 0,
+            };
+            crate::board::after_match(world, club, points, events);
+        }
     }
 
     for (side, &club) in clubs.iter().enumerate() {
@@ -366,11 +396,7 @@ fn apply_result(
                 c.morale = (c.morale + 150).min(CONDITION_MAX);
             }
             if ps.injured {
-                let mut rng = seed.derive(
-                    Stream::Injury,
-                    match_key(year, lid, index),
-                    u64::from(p.raw()),
-                );
+                let mut rng = seed.derive(Stream::Injury, key, u64::from(p.raw()));
                 let proneness = f64::from(
                     world.players.hidden[i].get(fs_core::attributes::HiddenAttr::InjuryProneness),
                 ) / 1000.0;

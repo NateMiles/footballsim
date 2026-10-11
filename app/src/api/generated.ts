@@ -1,7 +1,7 @@
 // Generated from crates/fs-api by tests/bindings.rs. Do not edit.
 // Regenerate: UPDATE_BINDINGS=1 cargo test -p fs-api --test bindings
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export type ApiErrorBody = { code: ErrorCode, 
 /**
@@ -39,7 +39,7 @@ export type CareerRow = {
  */
 season: string, club: ClubRef | null, ability: number, stats: SeasonStats, };
 
-export type Category = "match" | "injury" | "contract" | "transfer" | "youth" | "season" | "club" | "finance" | "board" | "staff" | "scouting";
+export type Category = "match" | "injury" | "contract" | "transfer" | "youth" | "season" | "club" | "finance" | "board" | "staff" | "scouting" | "cup";
 
 export type ClubChoice = { club: ClubRef, league: LeagueRef, 
 /**
@@ -99,13 +99,30 @@ staffBill: number, season: Ledger,
  */
 history: Array<SeasonAccounts>, facilities: Facilities, };
 
-export type Fixture = { league: number, 
+export type Fixture = { competition: CompetitionRef, 
 /**
- * Index into the league season's fixtures.
+ * Index into the competition's fixtures this season.
  */
-index: number, date: string, home: ClubRef, away: ClubRef, result: FixtureResult | null, };
+index: number, date: string, home: ClubRef, away: ClubRef, result: FixtureResult | null, 
+/**
+ * Cup round and leg, such as `"Semi-finals, 2nd leg"` or
+ * `"Group stage, Group B"`.
+ */
+round: string | null, 
+/**
+ * Played at a neutral ground.
+ */
+neutral: boolean, };
 
-export type FixtureResult = { goals: [number, number], xg: [number, number], scorers: Array<Scorer>, };
+export type FixtureResult = { 
+/**
+ * Including extra time.
+ */
+goals: [number, number], xg: [number, number], scorers: Array<Scorer>, extraTime: boolean, 
+/**
+ * Penalties scored in a shootout, home then away.
+ */
+penalties: [number, number] | null, };
 
 export type FixturesView = { league: LeagueRef, club: ClubRef | null, fixtures: Array<Fixture>, };
 
@@ -167,7 +184,7 @@ export type Lineup = {
  */
 starters: Array<number>, bench: Array<number>, };
 
-export type Link = { "type": "player", player: number, } | { "type": "fixture", league: number, index: number, } | { "type": "table", league: number, } | { "type": "squad" } | { "type": "tactics" } | { "type": "transfers" } | { "type": "staff" } | { "type": "jobs" } | { "type": "finances" };
+export type Link = { "type": "player", player: number, } | { "type": "schedule" } | { "type": "table", league: number, } | { "type": "cup", cup: number, } | { "type": "squad" } | { "type": "tactics" } | { "type": "transfers" } | { "type": "staff" } | { "type": "jobs" } | { "type": "finances" };
 
 export type ListedPlayer = { player: PlayerRef, listing: Listing, };
 
@@ -181,7 +198,11 @@ clock: string,
 /**
  * Seconds since kickoff, counting stoppage time.
  */
-elapsed: number, finished: boolean, stats: [TeamStats, TeamStats], lineups: [LiveLineup, LiveLineup], };
+elapsed: number, finished: boolean, stats: [TeamStats, TeamStats], lineups: [LiveLineup, LiveLineup], 
+/**
+ * The shootout, in the chunk that ends a match with one.
+ */
+shootout: Shootout | null, };
 
 export type LiveLineup = { tactic: Tactic, 
 /**
@@ -222,7 +243,7 @@ export type MatchReport = { fixture: Fixture, stats: [TeamStats, TeamStats], eve
 /**
  * Everyone who played, by side.
  */
-ratings: [Array<PlayerRating>, Array<PlayerRating>], };
+ratings: [Array<PlayerRating>, Array<PlayerRating>], shootout: Shootout | null, };
 
 export type Message = { id: number, date: string, category: Category, title: string, body: string, read: boolean, link: Link | null, };
 
@@ -264,7 +285,11 @@ form: Array<string>, unread: number,
 /**
  * Today's match, waiting to be watched.
  */
-matchDay: MatchDay | null, watchMatches: boolean, delegateSquad: boolean, board: BoardView | null, balance: number | null, transferBudget: number | null, windowOpen: boolean, };
+matchDay: MatchDay | null, watchMatches: boolean, delegateSquad: boolean, board: BoardView | null, balance: number | null, transferBudget: number | null, windowOpen: boolean, 
+/**
+ * The club's cups this season.
+ */
+cups: Array<CupStatus>, };
 
 export type Pitch = { length: number, width: number, };
 
@@ -359,13 +384,13 @@ export type Pose = "standing" | "running" | "passing" | "shooting" | "heading" |
 
 export type PositionInfo = { code: string, name: string, };
 
-export type Request = { "type": "hello" } | { "type": "newWorld", seed: number, size: WorldSize, } | { "type": "startCareer", club: number, firstName: string, lastName: string, } | { "type": "save" } | { "type": "load", data: string, } | { "type": "overview" } | { "type": "inbox" } | { "type": "markRead", id: number | null, } | { "type": "squad", club: number | null, } | { "type": "player", player: number, } | { "type": "tactics" } | { "type": "setTactic", tactic: Tactic | null, } | { "type": "setLineup", lineup: Lineup | null, } | { "type": "fixtures", league: number | null, club: number | null, } | { "type": "table", league: number | null, } | { "type": "setWatchMatches", watch: boolean, } | { "type": "setDelegation", squad: boolean, } | { "type": "offerContract", player: number, wage: number, years: number, } | { "type": "releasePlayer", player: number, } | { "type": "continue" } | { "type": "startMatch" } | { "type": "liveTick", until: number, } | { "type": "liveInstruct", instruction: Instruction, } | { "type": "finishMatch" } | { "type": "skipMatch" } | { "type": "finances" } | { "type": "staff" } | { "type": "hireStaff", staff: number, wage: number, years: number, } | { "type": "releaseStaff", staff: number, } | { "type": "transfers" } | { "type": "searchPlayers", search: PlayerSearch, } | { "type": "makeOffer", player: number, kind: OfferKind, wage: number, years: number, } | { "type": "respondToOffer", offer: number, response: OfferResponse, } | { "type": "acceptCounter", offer: number, } | { "type": "withdrawOffer", offer: number, } | { "type": "setListing", player: number, listing: Listing | null, } | { "type": "scoutPlayer", player: number, } | { "type": "cancelScouting", player: number, } | { "type": "jobs" } | { "type": "applyForJob", club: number, } | { "type": "resign" };
+export type Request = { "type": "hello" } | { "type": "newWorld", seed: number, size: WorldSize, } | { "type": "startCareer", club: number, firstName: string, lastName: string, } | { "type": "save" } | { "type": "load", data: string, } | { "type": "overview" } | { "type": "inbox" } | { "type": "markRead", id: number | null, } | { "type": "squad", club: number | null, } | { "type": "player", player: number, } | { "type": "tactics" } | { "type": "setTactic", tactic: Tactic | null, } | { "type": "setLineup", lineup: Lineup | null, } | { "type": "fixtures", league: number | null, club: number | null, } | { "type": "table", league: number | null, } | { "type": "schedule", club: number | null, } | { "type": "cup", cup: number | null, } | { "type": "competitions" } | { "type": "setWatchMatches", watch: boolean, } | { "type": "setDelegation", squad: boolean, } | { "type": "offerContract", player: number, wage: number, years: number, } | { "type": "releasePlayer", player: number, } | { "type": "continue" } | { "type": "startMatch" } | { "type": "liveTick", until: number, } | { "type": "liveInstruct", instruction: Instruction, } | { "type": "finishMatch" } | { "type": "skipMatch" } | { "type": "finances" } | { "type": "staff" } | { "type": "hireStaff", staff: number, wage: number, years: number, } | { "type": "releaseStaff", staff: number, } | { "type": "transfers" } | { "type": "searchPlayers", search: PlayerSearch, } | { "type": "makeOffer", player: number, kind: OfferKind, wage: number, years: number, } | { "type": "respondToOffer", offer: number, response: OfferResponse, } | { "type": "acceptCounter", offer: number, } | { "type": "withdrawOffer", offer: number, } | { "type": "setListing", player: number, listing: Listing | null, } | { "type": "scoutPlayer", player: number, } | { "type": "cancelScouting", player: number, } | { "type": "jobs" } | { "type": "applyForJob", club: number, } | { "type": "resign" };
 
 export type Response = { "type": "hello", protocol: number, version: string, 
 /**
  * Whether a game is loaded.
  */
-inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "error", error: ApiErrorBody, };
+inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "schedule", schedule: ScheduleView, } | { "type": "cup", cup: CupView, } | { "type": "competitions", competitions: CompetitionsView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "error", error: ApiErrorBody, };
 
 export type SaveGame = { 
 /**
@@ -476,7 +501,11 @@ suspension: number, contract: Contract | null, season: SeasonStats, selection: S
  */
 academy: boolean, };
 
-export type SquadView = { club: ClubRef, players: Array<SquadPlayer>, };
+export type SquadView = { club: ClubRef, players: Array<SquadPlayer>, 
+/**
+ * Trophies won while the world has been running.
+ */
+honours: Array<Honour>, };
 
 export type StaffAttributes = { coaching: number, youthCoaching: number, judgingAbility: number, judgingPotential: number, physiotherapy: number, management: number, };
 
@@ -530,7 +559,7 @@ season: string, rows: Array<TableRow>,
  */
 leagues: Array<LeagueRef>, };
 
-export type TableZone = "champion" | "promotion" | "relegation";
+export type TableZone = "champion" | "promotion" | "relegation" | "qualify";
 
 export type Tactic = { formation: Formation, mentality: number, tempo: number, width: number, pressing: number, defensiveLine: number, directness: number, };
 

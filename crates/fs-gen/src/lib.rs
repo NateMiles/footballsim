@@ -3,11 +3,14 @@
 //! Everything is derived from the config's seed, so the same config always
 //! produces the same world, on every platform.
 
+pub mod formats;
 pub mod names;
 pub mod scenario;
 
 use fs_core::{GameDate, Rng, Seed, Stream};
 use fs_world::attributes::Position;
+use fs_world::cup::{Continent, Cup, CupScope};
+use fs_world::format::WorldFormat;
 use fs_world::people::{Age, PlayerSpec, new_player};
 use fs_world::staff::{self, StaffRole};
 use fs_world::{
@@ -26,6 +29,11 @@ pub struct GenConfig {
     /// Clubs per division; each nation's clubs are split into divisions
     /// of this size, strongest first.
     pub clubs_per_league: u16,
+    /// The competition structure. `None` builds the default one from the
+    /// three numbers above ([`formats::default_format`]); a format given
+    /// here replaces them: it sets the number of nations and each
+    /// nation's divisions and cups.
+    pub format: Option<WorldFormat>,
     pub players_per_club: u16,
     pub free_agents: u32,
     /// Clubs (by creation index) whose managers are human.
@@ -63,6 +71,7 @@ impl GenConfig {
             nations,
             clubs_per_nation,
             clubs_per_league: 20,
+            format: None,
             players_per_club: 25,
             free_agents,
             human_clubs: vec![0],
@@ -104,19 +113,29 @@ const SQUAD_TEMPLATE: [Position; 25] = {
     ]
 };
 
-/// Generates a world.
-///
-/// # Panics
-/// Panics if `human_clubs` names a club index that is not generated.
-pub fn generate(cfg: &GenConfig) -> World {
+/// The competition structure a config produces: its own format, or the
+/// default one for its sizes (whose prize money depends on the generated
+/// nations). Write it out, edit it, and pass it back in
+/// [`GenConfig::format`] to play a different structure.
+pub fn format_for(cfg: &GenConfig) -> WorldFormat {
+    if let Some(f) = &cfg.format {
+        return f.clone();
+    }
     let mut world = World::new(cfg.seed, cfg.start);
-    world.set_rules(cfg.rules);
+    add_nations(&mut world, cfg.seed, cfg.nations);
+    formats::default_format(
+        world.nations().as_slice(),
+        cfg.clubs_per_nation,
+        cfg.clubs_per_league,
+    )
+}
 
-    // Nations and their name pools.
-    let mut styles: Vec<&NameStyle> = Vec::with_capacity(usize::from(cfg.nations));
-    for n in 0..cfg.nations {
+/// Nations and their name pools, strongest first.
+fn add_nations(world: &mut World, seed: Seed, nations: u16) -> Vec<&'static NameStyle> {
+    let mut styles: Vec<&NameStyle> = Vec::with_capacity(usize::from(nations));
+    for n in 0..nations {
         let style = &STYLES[usize::from(n) % STYLES.len()];
-        let mut nrng = cfg.seed.derive(Stream::Generation, 1, u64::from(n));
+        let mut nrng = seed.derive(Stream::Generation, 1, u64::from(n));
         let name = style.town(&mut nrng);
         let code: String = name
             .chars()
@@ -124,7 +143,7 @@ pub fn generate(cfg: &GenConfig) -> World {
             .take(3)
             .collect();
         // Strongest nations first, with some noise.
-        let reputation = (9_000 - i32::from(n) * 6_000 / i32::from(cfg.nations.max(1))
+        let reputation = (9_000 - i32::from(n) * 6_000 / i32::from(nations.max(1))
             + nrng.range_i32(-500, 500))
         .clamp(1_000, 10_000) as u16;
         let first_names: Vec<NameRef> = (0..300)
@@ -142,12 +161,41 @@ pub fn generate(cfg: &GenConfig) -> World {
         });
         styles.push(style);
     }
+    styles
+}
+
+/// Generates a world.
+///
+/// # Panics
+/// Panics if `human_clubs` names a club index that is not generated, or
+/// the format is invalid ([`WorldFormat::validate`]).
+pub fn generate(cfg: &GenConfig) -> World {
+    let mut world = World::new(cfg.seed, cfg.start);
+    world.set_rules(cfg.rules);
+    let nations = cfg
+        .format
+        .as_ref()
+        .map_or(cfg.nations, |f| f.nations.len() as u16);
+    let styles = add_nations(&mut world, cfg.seed, nations);
+
+    let format = match &cfg.format {
+        Some(f) => f.clone(),
+        None => formats::default_format(
+            world.nations().as_slice(),
+            cfg.clubs_per_nation,
+            cfg.clubs_per_league,
+        ),
+    };
+    if let Err(e) = format.validate() {
+        panic!("invalid world format: {e}");
+    }
 
     // Clubs, managers and squads.
-    for n in 0..cfg.nations {
+    for n in 0..nations {
         let nation = NationId::new(u32::from(n));
         let nation_rep = i32::from(world.nations()[nation].reputation);
-        for rank in 0..cfg.clubs_per_nation {
+        let clubs_here = format.clubs_in(usize::from(n)) as u16;
+        for rank in 0..clubs_here {
             let index = world.clubs().len() as u32;
             let mut crng = cfg.seed.derive(Stream::Generation, 2, u64::from(index));
             let club_id = add_club(
@@ -157,7 +205,6 @@ pub fn generate(cfg: &GenConfig) -> World {
                 styles[usize::from(n)],
                 nation_rep,
                 rank,
-                cfg.clubs_per_nation,
             );
             let nat = &world.nations()[nation];
             let first = nat.first_names[crng.index(nat.first_names.len())];
@@ -179,10 +226,10 @@ pub fn generate(cfg: &GenConfig) -> World {
             for slot in 0..cfg.players_per_club {
                 let position = SQUAD_TEMPLATE[usize::from(slot) % SQUAD_TEMPLATE.len()];
                 let number = u8::try_from(slot + 1).ok().filter(|n| *n <= 99);
-                let nationality = if crng.chance(0.85) || cfg.nations == 1 {
+                let nationality = if crng.chance(0.85) || nations == 1 {
                     nation
                 } else {
-                    NationId::new(crng.below(u32::from(cfg.nations)))
+                    NationId::new(crng.below(u32::from(nations)))
                 };
                 let p = new_player(
                     world.nations(),
@@ -231,7 +278,7 @@ pub fn generate(cfg: &GenConfig) -> World {
     // Unattached players.
     for i in 0..cfg.free_agents {
         let mut frng = cfg.seed.derive(Stream::Generation, 3, u64::from(i));
-        let nation = NationId::new(frng.below(u32::from(cfg.nations)));
+        let nation = NationId::new(frng.below(u32::from(nations)));
         let position = SQUAD_TEMPLATE[frng.index(SQUAD_TEMPLATE.len())];
         let level = frng.range_i32(150, 550);
         let p = new_player(
@@ -250,25 +297,22 @@ pub fn generate(cfg: &GenConfig) -> World {
         world.add_player(p);
     }
 
-    // Divisions: each nation's clubs, strongest first, in leagues of
-    // `clubs_per_league`.
-    let per = usize::from(cfg.clubs_per_league.max(2));
+    // Divisions: each nation's clubs, strongest first, filling its
+    // divisions from the top.
     let mut first_club = 0;
-    for n in 0..cfg.nations {
-        let nation = NationId::new(u32::from(n));
-        let clubs: Vec<ClubId> = (first_club..first_club + usize::from(cfg.clubs_per_nation))
-            .map(|c| ClubId::new(c as u32))
-            .collect();
-        first_club += usize::from(cfg.clubs_per_nation);
-        for (level, chunk) in clubs.chunks(per).enumerate() {
-            let name = format!(
-                "{} {} Division",
-                world.nations()[nation].name,
-                ORDINALS.get(level).copied().unwrap_or("Lower")
-            );
-            world.add_league(League::new(name, nation, level as u8 + 1, 3), chunk);
+    for (n, nf) in format.nations.iter().enumerate() {
+        let nation = NationId::new(n as u32);
+        let nation_name = world.nations()[nation].name.clone();
+        for (level, lf) in nf.leagues.iter().enumerate() {
+            let clubs: Vec<ClubId> = (first_club..first_club + usize::from(lf.clubs))
+                .map(|c| ClubId::new(c as u32))
+                .collect();
+            first_club += usize::from(lf.clubs);
+            let name = format!("{nation_name} {}", lf.name);
+            world.add_league(League::new(name, nation, level as u8 + 1, lf.swaps), &clubs);
         }
     }
+    add_cups(&mut world, &format);
     fs_world::season::start_first_season(&mut world);
     add_backroom(&mut world, cfg);
     fs_world::economy::initialise(&mut world);
@@ -319,7 +363,7 @@ fn add_backroom(world: &mut World, cfg: &GenConfig) {
     let pool = world.clubs().len().max(20);
     for i in 0..pool {
         let mut rng = cfg.seed.derive(Stream::Staff, 2, i as u64);
-        let nation = NationId::new(rng.below(u32::from(cfg.nations)));
+        let nation = NationId::new(rng.below(world.nations().len() as u32));
         let role = StaffRole::ALL[rng.index(StaffRole::ALL.len())];
         let quality = rng.range_f64(3.0, 15.0);
         let s = staff::new_staff(world.nations(), &mut rng, cfg.start, nation, role, quality);
@@ -327,9 +371,33 @@ fn add_backroom(world: &mut World, cfg: &GenConfig) {
     }
 }
 
-const ORDINALS: [&str; 10] = [
-    "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth",
-];
+/// Continents and cups from the format. Domestic cups are named after
+/// their nation.
+fn add_cups(world: &mut World, format: &WorldFormat) {
+    for (n, nf) in format.nations.iter().enumerate() {
+        let nation = NationId::new(n as u32);
+        for cup in &nf.cups {
+            let mut f = cup.clone();
+            f.name = format!("{} {}", world.nations()[nation].name, cup.name);
+            world.add_cup(Cup::new(f, CupScope::Nation(nation)));
+        }
+    }
+    for c in &format.continents {
+        let nations: Vec<NationId> = c
+            .nations
+            .iter()
+            .map(|&n| NationId::new(u32::from(n)))
+            .collect();
+        let reps: Vec<u16> = nations
+            .iter()
+            .map(|&n| world.nations()[n].reputation)
+            .collect();
+        let k = world.add_continent(Continent::new(c.name.clone(), nations, &reps));
+        for cup in &c.cups {
+            world.add_cup(Cup::new(cup.clone(), CupScope::Continent(k)));
+        }
+    }
+}
 
 fn add_club(
     world: &mut World,
@@ -338,7 +406,6 @@ fn add_club(
     style: &NameStyle,
     nation_rep: i32,
     rank: u16,
-    clubs: u16,
 ) -> ClubId {
     const SUFFIXES: &[&str] = &[
         "FC",
@@ -364,7 +431,6 @@ fn add_club(
     // Reputation falls down the national pyramid at a fixed rate per
     // place, as if the nation had 100 clubs: a 20-club world is a top
     // division, not a whole country squeezed into one league.
-    let _ = clubs;
     let drop = i32::from(rank) * nation_rep * 7 / 1000;
     let reputation = (nation_rep - drop + rng.range_i32(-400, 400)).clamp(200, 10_000) as u16;
     world.add_club(Club::new(name, town, nation, reputation))

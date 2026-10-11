@@ -6,6 +6,7 @@
 
 pub mod club;
 pub mod competition;
+pub mod cup;
 pub mod game;
 pub mod management;
 pub mod market;

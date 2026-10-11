@@ -3,8 +3,9 @@
 use crate::dto;
 use fs_core::GameDate;
 use fs_core::attributes::Position;
+use fs_world::cup::{CupScope, StageDraw};
 use fs_world::people::age_years;
-use fs_world::{ClubId, LeagueId, PlayerId, World};
+use fs_world::{ClubId, CupId, FixtureRef, LeagueId, PlayerId, World};
 
 /// A date as `YYYY-MM-DD`.
 pub fn date(d: GameDate) -> String {
@@ -132,12 +133,95 @@ pub fn contract(world: &World, id: PlayerId) -> Option<dto::Contract> {
     })
 }
 
-/// A league fixture.
-pub fn fixture(world: &World, league: LeagueId, index: usize) -> dto::Fixture {
-    let f = &world.leagues()[league].season().expect("season").fixtures[index];
+/// A cup as other views refer to it.
+pub fn cup_ref(world: &World, id: CupId) -> dto::CupRef {
+    let c = &world.cups()[id];
+    let region = match c.scope {
+        CupScope::Nation(n) => world.nations()[n].name.clone(),
+        CupScope::Continent(k) => world
+            .continents()
+            .get(usize::from(k))
+            .map_or_else(String::new, |x| x.name.clone()),
+    };
+    dto::CupRef {
+        id: id.raw(),
+        name: c.format.name.clone(),
+        short_name: c.format.short_name.clone(),
+        region,
+        continental: c.is_continental(),
+    }
+}
+
+/// The competition a fixture belongs to.
+pub fn competition_ref(world: &World, r: FixtureRef) -> dto::CompetitionRef {
+    match r {
+        FixtureRef::League { league, .. } => {
+            let l = &world.leagues()[league];
+            dto::CompetitionRef {
+                kind: dto::CompetitionKind::League,
+                id: league.raw(),
+                name: l.name.clone(),
+                short_name: if l.level == 1 {
+                    "League".into()
+                } else {
+                    format!("Div {}", l.level)
+                },
+            }
+        }
+        FixtureRef::Cup { cup, .. } => {
+            let c = &world.cups()[cup];
+            dto::CompetitionRef {
+                kind: dto::CompetitionKind::Cup,
+                id: cup.raw(),
+                name: c.format.name.clone(),
+                short_name: c.format.short_name.clone(),
+            }
+        }
+    }
+}
+
+/// A cup fixture's round and leg, such as `"Semi-finals, 2nd leg"`.
+fn round(world: &World, cup: CupId, index: usize) -> Option<String> {
+    let c = &world.cups()[cup];
+    let e = c.edition()?;
+    let f = e.fixtures.get(index)?;
+    let stage = e.stages.get(usize::from(f.stage))?;
+    let name = &c.format.stages[stage.format_index()].name;
+    Some(match stage {
+        StageDraw::Groups { .. } => format!("{name}, {}", group_name(usize::from(f.tie))),
+        StageDraw::Knockout { ties, .. } => {
+            if ties
+                .get(usize::from(f.tie))
+                .is_some_and(|t| t.legs.len() > 1)
+            {
+                format!("{name}, {} leg", ordinal(f.leg + 1))
+            } else {
+                name.clone()
+            }
+        }
+    })
+}
+
+/// `"Group A"`, `"Group B"`...
+pub fn group_name(k: usize) -> String {
+    let letter = char::from(b'A' + (k % 26) as u8);
+    format!("Group {letter}")
+}
+
+/// A fixture in any competition.
+pub fn fixture(world: &World, r: FixtureRef) -> dto::Fixture {
+    let f = r.get(world).expect("fixture exists");
+    let (index, round, neutral) = match r {
+        FixtureRef::League { index, .. } => (index, None, false),
+        FixtureRef::Cup { cup, index } => (
+            index,
+            round(world, cup, index as usize),
+            fs_world::cup::match_rules(world, cup, index as usize).0,
+        ),
+    };
     dto::Fixture {
-        league: league.raw(),
-        index: index as u32,
+        competition: competition_ref(world, r),
+        index,
         date: date(f.date),
         home: club_ref(world, f.home),
         away: club_ref(world, f.away),
@@ -156,8 +240,23 @@ pub fn fixture(world: &World, league: LeagueId, index: usize) -> dto::Fixture {
                     player: player_ref(world, player),
                 })
                 .collect(),
+            extra_time: r.extra_time,
+            penalties: r.penalties,
         }),
+        round,
+        neutral,
     }
+}
+
+/// A league fixture.
+pub fn league_fixture(world: &World, league: LeagueId, index: usize) -> dto::Fixture {
+    fixture(
+        world,
+        FixtureRef::League {
+            league,
+            index: index as u32,
+        },
+    )
 }
 
 /// A club's league results so far this season, oldest first: `"W"`,

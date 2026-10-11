@@ -60,17 +60,16 @@ fn a_watched_match_day_waits_for_the_manager() {
     assert_eq!(watched.manager, m);
     assert_eq!(watched.club, club);
     let w = game.world();
-    let fixture = &w.leagues()[watched.league].season().unwrap().fixtures[watched.index];
+    let fixture = watched.fixture.get(w).unwrap();
     assert_eq!(fixture.date, w.date());
     assert!(fixture.result.is_none(), "the match waits");
 
     // Nobody else's matches were played either.
     let today = w.date();
-    let played_today = w.leagues()[watched.league]
-        .season()
-        .unwrap()
-        .fixtures
+    let played_today = w
+        .leagues()
         .iter()
+        .flat_map(|(_, l)| &l.season().unwrap().fixtures)
         .filter(|f| f.date == today && f.result.is_some())
         .count();
     assert_eq!(played_today, 0);
@@ -99,7 +98,7 @@ fn a_watched_match_day_waits_for_the_manager() {
 fn the_world_plays_the_match_the_manager_watched() {
     let (mut game, m, club) = watching_game(22);
     let watched = advance_to_match_day(&mut game);
-    let input = fixture_input(game.world(), watched.league, watched.index);
+    let input = fixture_input(game.world(), watched.fixture);
     let side = if input
         .home
         .starters
@@ -141,10 +140,7 @@ fn the_world_plays_the_match_the_manager_watched() {
         date,
         "the day finishes without advancing"
     );
-    let fixture = &game.world().leagues()[watched.league]
-        .season()
-        .unwrap()
-        .fixtures[watched.index];
+    let fixture = watched.fixture.get(game.world()).unwrap();
     assert_eq!(fixture.result.as_ref().unwrap().goals, score);
     assert!(
         events
@@ -164,7 +160,7 @@ fn advancing_past_a_watched_match_lets_the_assistant_manage_it() {
     let watched = advance_to_match_day(&mut game);
     let date = game.world().date();
     // The assistant makes the substitutions in a match nobody watched.
-    let mut input = fixture_input(game.world(), watched.league, watched.index);
+    let mut input = fixture_input(game.world(), watched.fixture);
     input.home.auto_subs = true;
     input.away.auto_subs = true;
     let expected = fs_match::play(&input, fs_match::Tier::Event);
@@ -172,10 +168,7 @@ fn advancing_past_a_watched_match_lets_the_assistant_manage_it() {
         .unwrap();
     assert_eq!(game.world().date(), date.add_days(1));
     assert!(game.world().pending().is_none());
-    let fixture = &game.world().leagues()[watched.league]
-        .season()
-        .unwrap()
-        .fixtures[watched.index];
+    let fixture = watched.fixture.get(game.world()).unwrap();
     assert_eq!(fixture.result.as_ref().unwrap().goals, expected.goals);
 }
 
@@ -184,17 +177,14 @@ fn a_skipped_match_is_managed_by_the_assistant() {
     let (mut game, m, _) = watching_game(23);
     let watched = advance_to_match_day(&mut game);
     let date = game.world().date();
-    let mut input = fixture_input(game.world(), watched.league, watched.index);
+    let mut input = fixture_input(game.world(), watched.fixture);
     input.home.auto_subs = true;
     input.away.auto_subs = true;
     let expected = fs_match::play(&input, fs_match::Tier::Event);
     game.submit(Actor::Manager(m), Command::SkipMatch).unwrap();
     assert_eq!(game.world().date(), date);
     assert!(game.world().pending().is_none());
-    let fixture = &game.world().leagues()[watched.league]
-        .season()
-        .unwrap()
-        .fixtures[watched.index];
+    let fixture = watched.fixture.get(game.world()).unwrap();
     assert_eq!(fixture.result.as_ref().unwrap().goals, expected.goals);
     assert_eq!(
         game.submit(Actor::Manager(m), Command::SkipMatch),

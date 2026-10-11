@@ -648,7 +648,10 @@ mod knockout_tests {
                 let goals: u32 = r.players[side].iter().map(|p| u32::from(p.goals)).sum();
                 assert_eq!(goals, u32::from(r.goals[side]));
                 assert!(r.players[side].iter().all(|p| p.minutes <= full));
-                assert_ne!(r.players[side][1].minutes, 90, "a starter's minutes ignore extra time");
+                assert_ne!(
+                    r.players[side][1].minutes, 90,
+                    "a starter's minutes ignore extra time"
+                );
             }
             assert!(r.events.iter().all(|e| e.minute() <= full));
             assert_eq!(r.shootout.is_some(), r.goals[0] == r.goals[1]);

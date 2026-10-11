@@ -63,6 +63,7 @@ pub(crate) fn afternoon(
 ) {
     if !world.leagues.is_empty() {
         play_today(world, events, instructions);
+        crate::cup::daily(world, events);
     }
     recovery(world);
     injuries(world, events);
@@ -167,11 +168,11 @@ fn development(world: &mut World) {
     let today = world.date;
     let month = u64::from(today.days());
     // Matches each club has played this season, for playing-time shares.
-    let mut played = vec![0u32; world.clubs.len()];
+    let mut played = crate::cup::matches_played(world);
     for (_, league) in world.leagues.iter() {
         if let Some(s) = league.season() {
             for row in &s.rows {
-                played[row.club.index()] = u32::from(row.played);
+                played[row.club.index()] += u32::from(row.played);
             }
         }
     }

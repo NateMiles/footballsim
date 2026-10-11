@@ -61,6 +61,7 @@ pub fn league_world(seed: u64) -> World {
         nations: 1,
         clubs_per_nation: 100,
         clubs_per_league: 20,
+        format: None,
         players_per_club: 25,
         free_agents: 0,
         human_clubs: Vec::new(),
