@@ -178,20 +178,45 @@ promises.
 - UI: cup and competitions screens, all-competition fixtures, cup status
   on the home screen, honours, extra time and shootouts in live matches.
 
-### M6: Native polish and distribution
+### M6: Gameplay depth
+More decisions between and during matches, each with consequences the
+manager can see.
+1. Match preparation: an opposition report (likely eleven, shape, form,
+   dangerous players), the match predictor in the app to compare tactics
+   before kick-off, and season odds (title, relegation, continental
+   places) on the table.
+2. Training: a weekly focus and intensity trading development against
+   fatigue and injury risk; individual training (a new position, chosen
+   attributes); tactical familiarity built in training and used in
+   matches.
+3. Players as people: personalities, happiness with visible reasons
+   (playing time against squad status, contract, ambition), private
+   conversations and promises that are tracked, transfer requests, a
+   captain and influential players.
+4. Deeper tactics: a role and duty per position that changes tier 1
+   behaviour, set-piece takers, opposition instructions (calibrated: no
+   choice worth more than 4 points a season).
+5. Contract negotiation: agents, squad status, release clauses,
+   appearance and goal bonuses, signing fees and sell-on clauses.
+6. Post-match analysis: shot maps, xG timeline, pass networks and zone
+   maps; season statistics by competition.
+7. Board objectives beyond the table: cup targets and longer-term aims
+   such as youth and style.
+
+### M7: Native polish and distribution
 - Release-quality Tauri 2 builds for macOS, Windows and iPadOS, with the
   core running natively on all cores.
 - iPad-first touch layout pass on every screen.
 - TestFlight builds for your own devices. App Store and Steam readiness
   checks if a release is on the table by then.
 
-### M7: Beyond FM
-- Match predictor, season projections, tactic lab.
+### M8: Beyond FM
+- Tactic lab: batch-test a tactic against many opponent styles.
 - Replays with branching "what if" from any moment.
 - Scenario editor and data-pack modding.
 - Director of football and owner careers.
 
-### M8+: Later
+### M9+: Later
 - **Online leagues.** Already designed for: see ARCHITECTURE.md section 11.
 - **3D match view.** Already designed for: see MATCH_ENGINE.md section 7.
 - Scripting for mods, women's football world data, more nations.
@@ -205,13 +230,13 @@ promises.
 | iPad memory | iPadOS kills apps that use too much memory; Safari limits WASM memory further. | Compact data layout and memory budgets from day one (see ARCHITECTURE.md). |
 | Cross-platform determinism | Float differences break replays and online play. | Avoid platform maths functions in the sim, test native vs WASM hashes in CI. |
 | Licensing | Real names and data are a legal problem. | Fictional world plus user-loaded data packs. |
-| Scope creep | "More than FM" is unbounded. | Milestones above are strict; M7 features wait until M5 performance is proven. |
+| Scope creep | "More than FM" is unbounded. | Milestones above are strict; M8 features wait until M6 depth is in. |
 
 ## 7. Decisions
 
 | Question | Decision | What it changes |
 | --- | --- | --- |
 | Personal or release? | Personal for now, possible release later. | Build for fun and speed first, but never take shortcuts that block a release: keep the world fictional, keep third-party assets properly licensed, keep saves versioned. |
-| Online leagues? | Not now, but keep the door open. | No online code until M8. Determinism and the command log from M0 make it a later add-on instead of a rewrite. |
+| Online leagues? | Not now, but keep the door open. | No online code until M9 or later. Determinism and the command log from M0 make it a later add-on instead of a rewrite. |
 | Match view | 2D now, 3D possible later. | The engine already simulates ball height. The renderer reads a neutral frame stream, so a 3D renderer can plug in alongside the 2D one. |
-| Mac available? | Yes. | Native iPad dev builds move up from M6 to M3. M6 becomes polish and distribution. |
+| Mac available? | Yes. | Native iPad dev builds move up from M6 to M3. Polish and distribution are now M7. |

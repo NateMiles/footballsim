@@ -9,7 +9,7 @@
 | Delivery | How it runs on iPad | Needs | When |
 | --- | --- | --- | --- |
 | **PWA** (progressive web app) | Core compiled to WebAssembly, runs in a Web Worker inside Safari. "Add to Home Screen" gives a full-screen app icon. | Any web host. No Mac, no Apple account. | From M3 |
-| **Native app via Tauri 2** | Core compiled to native ARM64 and linked into an iPadOS app. UI runs in the system WebView. | A Mac with Xcode (available). A free Apple ID gives 7-day installs on your own iPad; the paid developer account gives year-long installs, TestFlight and the App Store. | Dev builds from M3, polished in M6 |
+| **Native app via Tauri 2** | Core compiled to native ARM64 and linked into an iPadOS app. UI runs in the system WebView. | A Mac with Xcode (available). A free Apple ID gives 7-day installs on your own iPad; the paid developer account gives year-long installs, TestFlight and the App Store. | Dev builds from M3, polished in M7 |
 
 Why this beats the alternatives:
 
@@ -277,7 +277,7 @@ adding them later is an add-on, not a rewrite.
 6. **UI settings never affect the sim.** Anything that changes outcomes
    lives in world state, so the server and every client agree.
 
-### Later work (M8)
+### Later work (M9+)
 - `fs-server` crate: headless host, league lobby, deadlines, accounts.
 - Sync: clients receive command batches and world snapshots per matchday.
 - Hosting: a small server is enough, since a matchday for a medium world
