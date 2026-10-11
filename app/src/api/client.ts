@@ -3,6 +3,9 @@ import type {
   BenchmarkStatus,
   ClubChoices,
   CompetitionsView,
+  OppositionReport,
+  Prediction,
+  ProjectionsView,
   Continued,
   CupView,
   ErrorCode,
@@ -149,6 +152,18 @@ export class Client {
 
   async cup(cup: number | null = null): Promise<CupView> {
     return (await this.send({ type: 'cup', cup }, 'cup')).cup;
+  }
+
+  async oppositionReport(club: number | null = null): Promise<OppositionReport> {
+    return (await this.send({ type: 'oppositionReport', club }, 'oppositionReport')).report;
+  }
+
+  async predict(tactic: Tactic | null, runs: number): Promise<Prediction> {
+    return (await this.send({ type: 'predict', tactic, runs }, 'prediction')).prediction;
+  }
+
+  async projections(league: number | null = null): Promise<ProjectionsView> {
+    return (await this.send({ type: 'projections', league }, 'projections')).projections;
   }
 
   async competitions(): Promise<CompetitionsView> {

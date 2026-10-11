@@ -230,6 +230,7 @@
         <p class="dim">Check your team before kick-off. Once the match starts, the team can only change through substitutions and touchline instructions.</p>
         <div class="row">
           <button class="primary" disabled={game.busy !== null} onclick={kickOff}>Kick off ▸</button>
+          <button onclick={() => game.router.go({ name: 'prepare' })}>Opposition and predictor</button>
           <button onclick={() => game.router.go({ name: 'tactics' })}>Tactics and team</button>
           <button disabled={game.busy !== null} onclick={skip}>Let the assistant manage</button>
         </div>

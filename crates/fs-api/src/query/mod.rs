@@ -10,4 +10,5 @@ pub mod cup;
 pub mod game;
 pub mod management;
 pub mod market;
+pub mod preparation;
 pub mod refs;

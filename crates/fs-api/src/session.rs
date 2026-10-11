@@ -354,6 +354,37 @@ impl Session {
                     competitions: query::cup::competitions(c.world()),
                 })
             }
+            Request::OppositionReport { club } => {
+                let c = self.career()?;
+                let me = c.club()?;
+                let opponent = match club {
+                    Some(id) => c.existing_club(id)?,
+                    None => query::preparation::next_match(c.world(), me)
+                        .map(|(_, o)| o)
+                        .ok_or_else(|| ApiError::new(ErrorCode::NoMatch, "no match to come"))?,
+                };
+                Ok(Response::OppositionReport {
+                    report: query::preparation::report(c.world(), me, opponent),
+                })
+            }
+            Request::Predict { tactic, runs } => {
+                let c = self.career()?;
+                let me = c.club()?;
+                let prediction =
+                    query::preparation::predict(c.world(), me, tactic.map(Into::into), runs)
+                        .ok_or_else(|| ApiError::new(ErrorCode::NoMatch, "no match to come"))?;
+                Ok(Response::Prediction { prediction })
+            }
+            Request::Projections { league } => {
+                let c = self.career()?;
+                let league = match league {
+                    Some(l) => c.existing_league(l)?,
+                    None => c.league_of(c.club()?)?,
+                };
+                Ok(Response::Projections {
+                    projections: query::preparation::projections(c.world(), league),
+                })
+            }
             Request::SetWatchMatches { watch } => {
                 self.career()?
                     .submit_outside_match(Command::SetWatchMatches { watch })?;

@@ -11,6 +11,7 @@
   import Jobs from './screens/Jobs.svelte';
   import Match from './screens/Match.svelte';
   import Player from './screens/Player.svelte';
+  import Prepare from './screens/Prepare.svelte';
   import Saves from './screens/Saves.svelte';
   import Squad from './screens/Squad.svelte';
   import Staff from './screens/Staff.svelte';
@@ -58,6 +59,8 @@
       {#key route.cup}<Cup cup={route.cup} />{/key}
     {:else if route.name === 'competitions'}
       <Competitions />
+    {:else if route.name === 'prepare'}
+      <Prepare />
     {:else if route.name === 'saves'}
       <Saves />
     {:else if route.name === 'transfers'}

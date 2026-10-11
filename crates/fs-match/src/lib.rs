@@ -18,6 +18,7 @@ pub mod formation;
 pub mod input;
 pub mod instruction;
 pub mod log;
+pub mod predict;
 pub mod result;
 pub mod selection;
 pub mod shootout;

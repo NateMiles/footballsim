@@ -9,6 +9,9 @@
   const game = useGame();
   const view = load(() => game.client.table(league ?? null));
   const mine = $derived(game.overview?.club?.id);
+  let showOdds = $state(false);
+  const odds = load(async () => (showOdds ? await game.client.projections(league ?? null) : null));
+  const pct = (x: number) => (x >= 0.995 ? '>99%' : x > 0 && x < 0.005 ? '<1%' : `${Math.round(x * 100)}%`);
 </script>
 
 <div class="screen">
@@ -18,6 +21,10 @@
       <h1>{t.league.name}</h1>
       <span class="dim">{t.season}</span>
       <span class="spacer"></span>
+      <div class="seg" role="group" aria-label="Show">
+        <button class:active={!showOdds} onclick={() => (showOdds = false)}>Table</button>
+        <button class:active={showOdds} onclick={() => (showOdds = true)}>Season odds</button>
+      </div>
       {#if t.leagues.length > 1}
         <select
           aria-label="League"
@@ -30,6 +37,40 @@
         </select>
       {/if}
     </div>
+    {#if showOdds}
+      {#if odds.data}
+        {@const o = odds.data}
+        <div class="card scroll-x">
+          <table class="data">
+            <thead>
+              <tr>
+                <th class="num">#</th>
+                <th>Club</th>
+                <th class="num">Pts</th>
+                <th class="num" title="Expected final points">xPts</th>
+                <th class="num" title="Expected final position">xPos</th>
+                {#each o.zones as z (z.name)}<th class="num" title="Positions {z.from}-{z.to}">{z.name}</th>{/each}
+              </tr>
+            </thead>
+            <tbody>
+              {#each o.rows as r (r.club.id)}
+                <tr class:mine={r.club.id === mine}>
+                  <td class="num">{r.position}</td>
+                  <td><ClubName club={r.club} /></td>
+                  <td class="num">{r.points}</td>
+                  <td class="num">{r.expectedPoints.toFixed(0)}</td>
+                  <td class="num">{r.expectedPosition.toFixed(1)}</td>
+                  {#each r.zones as z, i (i)}<td class="num" class:faint={z < 0.005}>{pct(z)}</td>{/each}
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+        <p class="dim">The rest of the season simulated {o.runs.toLocaleString()} times from today's squads and form.</p>
+      {:else}
+        <p class="dim" role="status">Simulating the rest of the season…</p>
+      {/if}
+    {:else}
     <div class="card scroll-x">
       <table class="data">
         <thead>
@@ -66,6 +107,7 @@
         </tbody>
       </table>
     </div>
+    {/if}
     <p class="dim legend">
       <span class="key champion"></span> Champions
       {#if t.rows.some((r) => r.zone === 'promotion')}<span class="key promotion"></span> Promotion{/if}
@@ -75,6 +117,32 @@
 </div>
 
 <style>
+  .seg {
+    display: inline-flex;
+  }
+
+  .seg button {
+    border-radius: 0;
+  }
+
+  .seg button:first-child {
+    border-radius: var(--radius) 0 0 var(--radius);
+  }
+
+  .seg button:last-child {
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+
+  .seg button.active {
+    background: var(--bg-sunken);
+    border-color: var(--accent);
+  }
+
+  .faint {
+    color: var(--text-dim);
+    opacity: 0.6;
+  }
+
   .head {
     margin-bottom: 12px;
   }

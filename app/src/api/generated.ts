@@ -1,7 +1,7 @@
 // Generated from crates/fs-api by tests/bindings.rs. Do not edit.
 // Regenerate: UPDATE_BINDINGS=1 cargo test -p fs-api --test bindings
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export type ApiErrorBody = { code: ErrorCode, 
 /**
@@ -92,6 +92,20 @@ export type Commentary = {
 t: number, clock: string, kind: CommentaryKind, side: Side | null, text: string, };
 
 export type CommentaryKind = "goal" | "chance" | "save" | "card" | "substitution" | "injury" | "foul" | "setPiece" | "play" | "whistle" | "interval" | "shootout";
+
+export type Comparison = { 
+/**
+ * Such as `"Attack"`.
+ */
+area: string, 
+/**
+ * -2 (they are much weaker) to +2 (much stronger).
+ */
+edge: number, 
+/**
+ * Such as `"Their attack is stronger than yours"`.
+ */
+verdict: string, };
 
 export type CompetitionKind = "league" | "cup";
 
@@ -277,6 +291,8 @@ export type JobsView = {
  */
 reputation: number, employed: boolean, jobs: Array<Job>, };
 
+export type KeyPlayer = { player: PlayerRef, reason: string, };
+
 export type Kick = { side: Side, taker: number, scored: boolean, };
 
 export type LeagueRef = { id: number, name: string, nation: string, 
@@ -375,6 +391,48 @@ export type OnPitch = { id: number, slot: number,
  * 0-1.
  */
 energy: number, yellow: boolean, };
+
+export type OppositionReport = { club: ClubRef, 
+/**
+ * The match this report is for, if they are next.
+ */
+fixture: Fixture | null, league: LeagueRef | null, position: number | null, 
+/**
+ * Their likely tactic.
+ */
+tactic: Tactic, 
+/**
+ * How they play, in words.
+ */
+style: Array<string>, 
+/**
+ * Their likely eleven, by formation slot.
+ */
+likelyXi: Array<ReportPlayer>, 
+/**
+ * Last five results in every competition, oldest first.
+ */
+form: Array<string>, 
+/**
+ * This season in every competition.
+ */
+record: Record, keyPlayers: Array<KeyPlayer>, 
+/**
+ * Regulars who are injured or suspended.
+ */
+absent: Array<KeyPlayer>, 
+/**
+ * Area by area against your team.
+ */
+comparison: Array<Comparison>, 
+/**
+ * Expected goals in the match: theirs, then yours.
+ */
+expectedGoals: [number, number] | null, 
+/**
+ * How well your scouts know their players, 0-100.
+ */
+knowledge: number, };
 
 export type Overview = { date: string, 
 /**
@@ -495,13 +553,78 @@ export type Pose = "standing" | "running" | "passing" | "shooting" | "heading" |
 
 export type PositionInfo = { code: string, name: string, };
 
-export type Request = { "type": "hello" } | { "type": "newWorld", seed: number, size: WorldSize, } | { "type": "startCareer", club: number, firstName: string, lastName: string, } | { "type": "save" } | { "type": "load", data: string, } | { "type": "overview" } | { "type": "inbox" } | { "type": "markRead", id: number | null, } | { "type": "squad", club: number | null, } | { "type": "player", player: number, } | { "type": "tactics" } | { "type": "setTactic", tactic: Tactic | null, } | { "type": "setLineup", lineup: Lineup | null, } | { "type": "fixtures", league: number | null, club: number | null, } | { "type": "table", league: number | null, } | { "type": "schedule", club: number | null, } | { "type": "cup", cup: number | null, } | { "type": "competitions" } | { "type": "setWatchMatches", watch: boolean, } | { "type": "setDelegation", squad: boolean, } | { "type": "offerContract", player: number, wage: number, years: number, } | { "type": "releasePlayer", player: number, } | { "type": "continue" } | { "type": "startMatch" } | { "type": "liveTick", until: number, } | { "type": "liveInstruct", instruction: Instruction, } | { "type": "finishMatch" } | { "type": "skipMatch" } | { "type": "finances" } | { "type": "staff" } | { "type": "hireStaff", staff: number, wage: number, years: number, } | { "type": "releaseStaff", staff: number, } | { "type": "transfers" } | { "type": "searchPlayers", search: PlayerSearch, } | { "type": "makeOffer", player: number, kind: OfferKind, wage: number, years: number, } | { "type": "respondToOffer", offer: number, response: OfferResponse, } | { "type": "acceptCounter", offer: number, } | { "type": "withdrawOffer", offer: number, } | { "type": "setListing", player: number, listing: Listing | null, } | { "type": "scoutPlayer", player: number, } | { "type": "cancelScouting", player: number, } | { "type": "jobs" } | { "type": "applyForJob", club: number, } | { "type": "resign" } | { "type": "benchmarkStart", size: WorldSize, } | { "type": "benchmarkRun", days: number, } | { "type": "benchmarkEnd" };
+export type Prediction = { fixture: Fixture, 
+/**
+ * The tactic your side used.
+ */
+tactic: Tactic, runs: number, 
+/**
+ * Chances from the home side's view, 0-1.
+ */
+homeWin: number, draw: number, awayWin: number, goals: [number, number], xg: [number, number], 
+/**
+ * The likeliest scores, most likely first.
+ */
+scores: Array<ScoreChance>, };
+
+export type ProjectionRow = { club: ClubRef, 
+/**
+ * Position today.
+ */
+position: number, points: number, expectedPoints: number, expectedPosition: number, 
+/**
+ * Chance of finishing in each zone, in [`ProjectionsView::zones`]
+ * order, 0-1.
+ */
+zones: Array<number>, 
+/**
+ * Chance of each final position, first first.
+ */
+positions: Array<number>, };
+
+export type ProjectionZone = { 
+/**
+ * Such as `"Champions"`, `"Champions Cup"`, `"Relegation"`.
+ */
+name: string, from: number, to: number, cup: CupRef | null, };
+
+export type ProjectionsView = { league: LeagueRef, season: string, 
+/**
+ * Seasons simulated.
+ */
+runs: number, 
+/**
+ * Likeliest finish first.
+ */
+rows: Array<ProjectionRow>, 
+/**
+ * Places that lead somewhere, best first.
+ */
+zones: Array<ProjectionZone>, };
+
+export type Record = { played: number, won: number, drawn: number, lost: number, scored: number, conceded: number, };
+
+export type ReportPlayer = { player: PlayerRef, 
+/**
+ * The position they would play.
+ */
+position: string, 
+/**
+ * Estimated ability, 0-100.
+ */
+ability: number, 
+/**
+ * Goals this season, every competition.
+ */
+goals: number, };
+
+export type Request = { "type": "hello" } | { "type": "newWorld", seed: number, size: WorldSize, } | { "type": "startCareer", club: number, firstName: string, lastName: string, } | { "type": "save" } | { "type": "load", data: string, } | { "type": "overview" } | { "type": "inbox" } | { "type": "markRead", id: number | null, } | { "type": "squad", club: number | null, } | { "type": "player", player: number, } | { "type": "tactics" } | { "type": "setTactic", tactic: Tactic | null, } | { "type": "setLineup", lineup: Lineup | null, } | { "type": "fixtures", league: number | null, club: number | null, } | { "type": "table", league: number | null, } | { "type": "schedule", club: number | null, } | { "type": "cup", cup: number | null, } | { "type": "competitions" } | { "type": "oppositionReport", club: number | null, } | { "type": "predict", tactic: Tactic | null, runs: number, } | { "type": "projections", league: number | null, } | { "type": "setWatchMatches", watch: boolean, } | { "type": "setDelegation", squad: boolean, } | { "type": "offerContract", player: number, wage: number, years: number, } | { "type": "releasePlayer", player: number, } | { "type": "continue" } | { "type": "startMatch" } | { "type": "liveTick", until: number, } | { "type": "liveInstruct", instruction: Instruction, } | { "type": "finishMatch" } | { "type": "skipMatch" } | { "type": "finances" } | { "type": "staff" } | { "type": "hireStaff", staff: number, wage: number, years: number, } | { "type": "releaseStaff", staff: number, } | { "type": "transfers" } | { "type": "searchPlayers", search: PlayerSearch, } | { "type": "makeOffer", player: number, kind: OfferKind, wage: number, years: number, } | { "type": "respondToOffer", offer: number, response: OfferResponse, } | { "type": "acceptCounter", offer: number, } | { "type": "withdrawOffer", offer: number, } | { "type": "setListing", player: number, listing: Listing | null, } | { "type": "scoutPlayer", player: number, } | { "type": "cancelScouting", player: number, } | { "type": "jobs" } | { "type": "applyForJob", club: number, } | { "type": "resign" } | { "type": "benchmarkStart", size: WorldSize, } | { "type": "benchmarkRun", days: number, } | { "type": "benchmarkEnd" };
 
 export type Response = { "type": "hello", protocol: number, version: string, 
 /**
  * Whether a game is loaded.
  */
-inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "schedule", schedule: ScheduleView, } | { "type": "cup", cup: CupView, } | { "type": "competitions", competitions: CompetitionsView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "benchmark", benchmark: BenchmarkStatus, } | { "type": "error", error: ApiErrorBody, };
+inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "schedule", schedule: ScheduleView, } | { "type": "cup", cup: CupView, } | { "type": "competitions", competitions: CompetitionsView, } | { "type": "oppositionReport", report: OppositionReport, } | { "type": "prediction", prediction: Prediction, } | { "type": "projections", projections: ProjectionsView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "benchmark", benchmark: BenchmarkStatus, } | { "type": "error", error: ApiErrorBody, };
 
 export type SaveGame = { 
 /**
@@ -516,6 +639,8 @@ summary: SaveSummary, };
 export type SaveSummary = { date: string, manager: string, club: string, };
 
 export type ScheduleView = { club: ClubRef, fixtures: Array<Fixture>, };
+
+export type ScoreChance = { goals: [number, number], chance: number, };
 
 export type Scorer = { side: Side, player: PlayerRef, };
 

@@ -15,6 +15,7 @@ pub mod cup;
 pub mod economy;
 pub mod finance;
 pub mod fixture;
+pub mod forecast;
 pub mod format;
 pub mod game;
 pub mod importance;

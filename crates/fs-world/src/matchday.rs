@@ -113,6 +113,20 @@ pub fn team_sheet(world: &World, club: ClubId) -> TeamSheet {
     }
 }
 
+/// The club's team sheet if it played `tactic` today: its chosen lineup
+/// when that fits the formation, otherwise the best available eleven
+/// for it. For trying tactics out (predictions); changes nothing.
+pub fn team_sheet_with(world: &World, club: ClubId, tactic: Tactic) -> TeamSheet {
+    let squad = squad(world, club);
+    let c = &world.clubs()[club];
+    match c.lineup() {
+        Some(lineup) if c.tactic().is_some_and(|t| t.formation == tactic.formation) => {
+            sheet_from_lineup(&squad, tactic, lineup)
+        }
+        _ => pick_team(&squad, tactic),
+    }
+}
+
 /// The match input for a scheduled fixture, as a watching manager sees
 /// it: both team sheets as they stand today, the fixture's random stream
 /// and, for cup ties, the venue and how a level tie is settled, with

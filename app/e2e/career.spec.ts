@@ -63,6 +63,16 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
 
   await page.getByRole('link', { name: /Table/ }).click();
   await expect(page.locator('tbody tr')).toHaveCount(20);
+  await page.getByRole('button', { name: 'Season odds' }).click();
+  await expect(page.getByText(/simulated 2,000 times/)).toBeVisible();
+  await page.screenshot({ path: shots('odds', project) });
+
+  // Preparing for the first match: the opposition and the predictor.
+  await page.goto('./#/prepare');
+  await expect(page.getByRole('heading', { name: 'Likely eleven' })).toBeVisible();
+  await page.getByRole('button', { name: 'Predict with your tactic' }).click();
+  await expect(page.getByText(/Win · draw · lose/)).toBeVisible();
+  await page.screenshot({ path: shots('prepare', project), fullPage: true });
 
   // Cups: the national cup's first round is drawn with the season.
   await page.goto('./#/cup');

@@ -79,6 +79,7 @@
         <h3>Next match</h3>
         {#if o.nextFixture}
           <FixtureLine fixture={o.nextFixture} mine={club.id} competition />
+          <div class="row"><button onclick={() => game.router.go({ name: 'prepare' })}>Prepare ▸</button></div>
         {:else}
           <p class="dim">No fixtures scheduled.</p>
         {/if}

@@ -353,7 +353,7 @@ fn on_pitch_at_end(sheet: &TeamSheet, ps: &[PlayerMatchStats], full: u8) -> shoo
 
 /// Draws a score from two Poissons with the Dixon-Coles low-score
 /// adjustment, by rejection sampling.
-fn sample_score(rng: &mut Rng, lambda: [f64; 2], rho: f64) -> [u8; 2] {
+pub fn sample_score(rng: &mut Rng, lambda: [f64; 2], rho: f64) -> [u8; 2] {
     let (lh, la) = (lambda[0], lambda[1]);
     let tau = |x: u32, y: u32| match (x, y) {
         (0, 0) => 1.0 - lh * la * rho,

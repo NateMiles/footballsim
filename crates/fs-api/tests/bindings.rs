@@ -51,6 +51,9 @@ fn generate() -> String {
         // Market.
         OfferKind, OfferStatus, Offer, Listing, OfferResponse, Loan, TransferRecord, Assignment,
         TransfersView, ListedPlayer, PlayerSearch, SearchRow, SearchView,
+        // Preparation.
+        OppositionReport, ReportPlayer, KeyPlayer, Record, Comparison, Prediction, ScoreChance,
+        ProjectionsView, ProjectionZone, ProjectionRow,
     ];
     decls.sort();
     let mut out = String::from(

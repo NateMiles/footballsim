@@ -55,6 +55,8 @@ pub enum Stream {
     Board = 13,
     /// Cup draws.
     Cup = 14,
+    /// Forecasts (predictions and season odds); never changes the world.
+    Forecast = 15,
 }
 
 impl Seed {
