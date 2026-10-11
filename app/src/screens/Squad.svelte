@@ -10,7 +10,7 @@
   let { club = undefined }: { club?: number } = $props();
   const game = useGame();
   const squad = load(() => game.client.squad(club ?? null));
-  const own = $derived(club === undefined || club === game.overview?.club.id);
+  const own = $derived(club === undefined || club === game.overview?.club?.id);
 
   type Key = keyof Pick<SquadPlayer, 'number' | 'name' | 'position' | 'age' | 'ability' | 'potential' | 'fitness' | 'morale'> | 'apps' | 'goals' | 'rating';
   const columns: { key: Key; label: string; num?: boolean }[] = [

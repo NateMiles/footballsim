@@ -10,24 +10,45 @@
   const game = useGame();
   const o = $derived(game.overview);
 
-  const nav: { route: Route; label: string; icon: string }[] = [
+  type Item = { route: Route; label: string; icon: string };
+  const employed: Item[] = [
     { route: { name: 'home' }, label: 'Home', icon: '⌂' },
     { route: { name: 'inbox' }, label: 'Inbox', icon: '✉' },
     { route: { name: 'squad' }, label: 'Squad', icon: '☰' },
     { route: { name: 'tactics' }, label: 'Tactics', icon: '◎' },
+    { route: { name: 'transfers' }, label: 'Transfers', icon: '⇄' },
+    { route: { name: 'staff' }, label: 'Staff', icon: '♟' },
+    { route: { name: 'finances' }, label: 'Finances', icon: '£' },
     { route: { name: 'fixtures' }, label: 'Fixtures', icon: '▦' },
     { route: { name: 'table' }, label: 'Table', icon: '≡' },
     { route: { name: 'saves' }, label: 'Saves', icon: '⇩' },
   ];
+  const unemployed: Item[] = [
+    { route: { name: 'home' }, label: 'Home', icon: '⌂' },
+    { route: { name: 'inbox' }, label: 'Inbox', icon: '✉' },
+    { route: { name: 'jobs' }, label: 'Jobs', icon: '✎' },
+    { route: { name: 'saves' }, label: 'Saves', icon: '⇩' },
+  ];
+  const nav = $derived(o?.club ? employed : unemployed);
+  /** On phones and portrait iPad: the first four, then "More". */
+  const PRIMARY = 4;
+  let more = $state(false);
   const current = $derived(game.router.route.name);
+  const active = (item: Item) =>
+    current === item.route.name || (item.route.name === 'squad' && current === 'player');
 </script>
 
 <div class="shell">
   <header>
     {#if o}
       <a class="club" href="#/home">
-        <Crest club={o.club} size={32} />
-        <span class="name">{o.club.name}</span>
+        {#if o.club}
+          <Crest club={o.club} size={32} />
+          <span class="name">{o.club.name}</span>
+        {:else}
+          <span class="name">{o.manager.name}</span>
+          <span class="pill">Out of work</span>
+        {/if}
       </a>
       <span class="date">
         <span class="dim">{o.weekday}</span>
@@ -44,8 +65,13 @@
   </header>
 
   <nav aria-label="Main">
-    {#each nav as item (item.label)}
-      <a href={href(item.route)} class:active={current === item.route.name || (item.route.name === 'squad' && current === 'player')}>
+    {#each nav as item, i (item.label)}
+      <a
+        href={href(item.route)}
+        class:active={active(item)}
+        class:secondary={i >= PRIMARY}
+        onclick={() => (more = false)}
+      >
         <span class="icon" aria-hidden="true">{item.icon}</span>
         <span class="label">{item.label}</span>
         {#if item.route.name === 'inbox' && o && o.unread > 0}
@@ -53,7 +79,23 @@
         {/if}
       </a>
     {/each}
+    {#if nav.length > PRIMARY}
+      <button class="more" class:active={more || nav.slice(PRIMARY).some(active)} onclick={() => (more = !more)} aria-expanded={more}>
+        <span class="icon" aria-hidden="true">⋯</span>
+        <span class="label">More</span>
+      </button>
+    {/if}
   </nav>
+  {#if more}
+    <div class="sheet" role="menu">
+      {#each nav.slice(PRIMARY) as item (item.label)}
+        <a role="menuitem" href={href(item.route)} class:active={active(item)} onclick={() => (more = false)}>
+          <span class="icon" aria-hidden="true">{item.icon}</span>
+          {item.label}
+        </a>
+      {/each}
+    </div>
+  {/if}
 
   <main>
     {#if game.error}
@@ -151,6 +193,11 @@
     text-align: center;
   }
 
+  .more,
+  .sheet {
+    display: none;
+  }
+
   .badge {
     margin-left: auto;
     min-width: 20px;
@@ -208,6 +255,56 @@
       position: absolute;
       top: 0;
       right: 0;
+    }
+
+    nav a.secondary {
+      display: none;
+    }
+
+    .more {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: var(--tap);
+      padding: 4px 6px;
+      border: 0;
+      background: none;
+      color: var(--text-dim);
+      font-size: 0.72rem;
+    }
+
+    .more.active {
+      color: var(--text);
+    }
+
+    .sheet {
+      display: grid;
+      position: fixed;
+      right: 8px;
+      bottom: calc(64px + env(safe-area-inset-bottom));
+      min-width: 200px;
+      padding: 6px;
+      gap: 2px;
+      background: var(--bg-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      z-index: 10;
+    }
+
+    .sheet a {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      min-height: var(--tap);
+      padding: 0 12px;
+      border-radius: var(--radius);
+      color: var(--text-dim);
+    }
+
+    .sheet a.active {
+      color: var(--text);
+      background: var(--bg-sunken);
     }
 
     .name,

@@ -18,7 +18,7 @@
   });
 
   async function save() {
-    const slot = name.trim() || `${game.overview?.club.shortName ?? 'Game'} ${game.overview?.date ?? ''}`;
+    const slot = name.trim() || `${game.overview?.club?.shortName ?? 'Game'} ${game.overview?.date ?? ''}`;
     const s = await game.run('Saving', () => game.client.save());
     if (!s) return;
     await game.saves.put(slot, s);

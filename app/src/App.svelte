@@ -2,16 +2,20 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Shell from './components/Shell.svelte';
+  import Finances from './screens/Finances.svelte';
   import Fixtures from './screens/Fixtures.svelte';
   import Home from './screens/Home.svelte';
   import Inbox from './screens/Inbox.svelte';
+  import Jobs from './screens/Jobs.svelte';
   import Match from './screens/Match.svelte';
   import Player from './screens/Player.svelte';
   import Saves from './screens/Saves.svelte';
   import Squad from './screens/Squad.svelte';
+  import Staff from './screens/Staff.svelte';
   import Table from './screens/Table.svelte';
   import Tactics from './screens/Tactics.svelte';
   import Title from './screens/Title.svelte';
+  import Transfers from './screens/Transfers.svelte';
   import { useGame } from './state/game.svelte';
 
   const game = useGame();
@@ -50,6 +54,14 @@
       {#key route.league}<Table league={route.league} />{/key}
     {:else if route.name === 'saves'}
       <Saves />
+    {:else if route.name === 'transfers'}
+      {#key route.tab}<Transfers tab={route.tab} />{/key}
+    {:else if route.name === 'staff'}
+      <Staff />
+    {:else if route.name === 'finances'}
+      <Finances />
+    {:else if route.name === 'jobs'}
+      <Jobs />
     {:else}
       <Home />
     {/if}

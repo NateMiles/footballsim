@@ -39,6 +39,28 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await expect(page.getByText('Your tactic')).toBeVisible();
   await page.screenshot({ path: shots('tactics', project) });
 
+  // The new club management screens.
+  await page.goto('./#/finances');
+  await expect(page.getByRole('heading', { name: 'Finances' })).toBeVisible();
+  await expect(page.getByText('Transfer budget')).toBeVisible();
+  await page.goto('./#/staff');
+  await expect(page.getByRole('heading', { name: 'Your staff' })).toBeVisible();
+  await page.screenshot({ path: shots('staff', project) });
+  await page.goto('./#/transfers/search');
+  await page.getByLabel('Position').selectOption('ST');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page.locator('tbody tr').first()).toBeVisible();
+  await page.screenshot({ path: shots('transfers', project) });
+  await page.locator('tbody tr').first().click();
+  await expect(page.getByRole('heading', { name: 'Market' })).toBeVisible();
+  await page.getByRole('button', { name: 'Scout this player' }).click();
+  await expect(page.getByText('Being scouted')).toBeVisible();
+  await page.screenshot({ path: shots('scouted-player', project) });
+  await page.getByRole('button', { name: 'Make offer' }).click();
+  await expect(page.getByText(/Your offer|budget is|transfer budget/i).first()).toBeVisible();
+  await page.goto('./#/transfers/offers');
+  await expect(page.getByRole('heading', { name: 'Your offers' })).toBeVisible();
+
   await page.getByRole('link', { name: /Table/ }).click();
   await expect(page.locator('tbody tr')).toHaveCount(20);
 

@@ -36,6 +36,14 @@
         return { name: 'squad' };
       case 'tactics':
         return { name: 'tactics' };
+      case 'transfers':
+        return { name: 'transfers', tab: 'offers' };
+      case 'staff':
+        return { name: 'staff' };
+      case 'jobs':
+        return { name: 'jobs' };
+      case 'finances':
+        return { name: 'finances' };
     }
   }
 
@@ -45,6 +53,10 @@
     table: 'View table',
     squad: 'View squad',
     tactics: 'View tactics',
+    transfers: 'Go to transfers',
+    staff: 'Go to staff',
+    jobs: 'Look for a job',
+    finances: 'Go to finances',
   };
 </script>
 

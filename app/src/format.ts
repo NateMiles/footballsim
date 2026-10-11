@@ -32,3 +32,13 @@ export function ordinal(n: number): string {
   const v = n % 100;
   return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
 }
+
+/** Money: `£1.2m`, `£450k`, `£800`. */
+export function money(m: number): string {
+  const a = Math.abs(m);
+  const sign = m < 0 ? '-' : '';
+  if (a >= 1e9) return `${sign}£${(a / 1e9).toFixed(2)}bn`;
+  if (a >= 1e6) return `${sign}£${(a / 1e6).toFixed(1)}m`;
+  if (a >= 1e3) return `${sign}£${Math.round(a / 1e3)}k`;
+  return `${sign}£${Math.round(a)}`;
+}

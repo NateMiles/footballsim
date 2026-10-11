@@ -2,8 +2,11 @@
 <script lang="ts">
   import AttrValue from '../components/AttrValue.svelte';
   import ClubName from '../components/ClubName.svelte';
+  import DevelopmentChart from '../components/DevelopmentChart.svelte';
   import Meter from '../components/Meter.svelte';
-  import { longDate, wage } from '../format';
+  import OfferForm from '../components/OfferForm.svelte';
+  import type { Listing, OfferKind } from '../api';
+  import { longDate, money, wage } from '../format';
   import { useGame } from '../state/game.svelte';
   import { load } from '../state/load.svelte';
 
@@ -24,6 +27,34 @@
   async function offer() {
     const r = await game.run('Offering', () => game.client.offerContract(id, offerWage, offerYears));
     if (r) await game.refresh();
+  }
+
+  const own = $derived(p?.own ?? false);
+  const mine = $derived(game.overview?.club ?? null);
+  const development = $derived(
+    p ? [...p.career.map((c) => ({ label: c.season.slice(2), value: c.ability })), { label: 'now', value: p.ability }] : [],
+  );
+
+  async function bid(kind: OfferKind, wage: number, years: number) {
+    if (!p) return;
+    // A free agent is signed with a contract offer; anyone else is bid for.
+    if (!p.club) {
+      const r = await game.run('Offering', () => game.client.offerContract(id, wage, years));
+      if (r) game.changed();
+      return;
+    }
+    const r = await game.run('Making the offer', () => game.client.makeOffer(id, kind, wage, years));
+    if (r) game.changed();
+  }
+
+  async function scout(on: boolean) {
+    const r = await game.run('Updating', () => (on ? game.client.scoutPlayer(id) : game.client.cancelScouting(id)));
+    if (r) game.changed();
+  }
+
+  async function list(listing: Listing | null) {
+    const r = await game.run('Updating', () => game.client.setListing(id, listing));
+    if (r) game.changed();
   }
 
   async function release() {
@@ -47,8 +78,13 @@
         {#if p.club}<ClubName club={p.club} />{:else}<span class="pill">{p.retired ? 'Retired' : 'Free agent'}</span>{/if}
       </div>
       <div class="abil">
-        <span class="dim">Ability</span> <strong>{p.ability}</strong>
-        <span class="dim">Potential</span> <strong>{p.potential}</strong>
+        <span class="dim">Ability</span>
+        <strong>{p.ability}{#if p.abilityHigh > p.abilityLow}<small class="dim"> {p.abilityLow}-{p.abilityHigh}</small>{/if}</strong>
+        <span class="dim">Potential</span>
+        <strong>{p.potential}{#if p.potentialHigh > p.potentialLow}<small class="dim"> {p.potentialLow}-{p.potentialHigh}</small>{/if}</strong>
+        {#if p.knowledge < 100}
+          <span class="dim">Known</span> <strong>{p.knowledge}%</strong>
+        {/if}
       </div>
     </section>
 
@@ -57,7 +93,13 @@
         <div class="card">
           <h3>{g.name}</h3>
           {#each g.attributes as a (a.name)}
-            <div class="attr"><span>{a.name}</span><AttrValue value={a.value} /></div>
+            <div class="attr">
+              <span>{a.name}</span>
+              <span>
+                {#if a.high > a.low}<small class="dim">{a.low}-{a.high}</small>{/if}
+                <AttrValue value={a.value} />
+              </span>
+            </div>
           {/each}
         </div>
       {/each}
@@ -78,6 +120,46 @@
       </div>
     </section>
 
+    {#if !p.retired && mine}
+      <section class="card market">
+        <h3>Market</h3>
+        <p>
+          {#if p.club}<span class="dim">Estimated value</span> <strong>{money(p.value)}</strong>{/if}
+          {#if p.askingPrice}· <span class="dim">They would sell for about</span> <strong>{money(p.askingPrice)}</strong>{/if}
+          {#if p.listing}<span class="pill warn">{p.listing === 'loan' ? 'Available for loan' : 'Listed for sale'}</span>{/if}
+          {#if p.loan}<span class="pill">On loan at {p.loan.borrower.name} from {p.loan.parent.name}</span>{/if}
+        </p>
+        {#if own}
+          {#if !p.loan}
+            <div class="row">
+              <span class="dim">List the player:</span>
+              <button class:active={p.listing === null} onclick={() => list(null)}>Not listed</button>
+              <button class:active={p.listing === 'transfer'} onclick={() => list('transfer')}>For sale</button>
+              <button class:active={p.listing === 'loan'} onclick={() => list('loan')}>For loan</button>
+            </div>
+          {/if}
+        {:else}
+          <div class="row">
+            {#if p.knowledge < 100}
+              {#if p.scouting}
+                <span class="pill good">Being scouted</span>
+                <button onclick={() => scout(false)}>Stop scouting</button>
+              {:else}
+                <button onclick={() => scout(true)}>Scout this player</button>
+              {/if}
+            {/if}
+          </div>
+          {#if p.offer}
+            <p>Your offer: <strong>{p.offer.status.type === 'refused' ? p.offer.status.reason : p.offer.status.type}</strong> · <a href="#/transfers/offers">Transfers</a></p>
+          {:else if !p.loan && (game.overview?.windowOpen || !p.club)}
+            <OfferForm player={p} budget={game.overview?.transferBudget ?? 0} onsubmit={bid} />
+          {:else if !p.loan}
+            <p class="dim">The transfer window is closed.</p>
+          {/if}
+        {/if}
+      </section>
+    {/if}
+
     <div class="cols">
       <section class="card">
         <h3>Contract</h3>
@@ -87,7 +169,7 @@
           <p class="dim">No contract.</p>
         {/if}
         <p class="dim">Asks for {wage(p.wageDemand)}.</p>
-        {#if (p.own || (!p.club && !p.retired))}
+        {#if p.own}
           <div class="row">
             <label class="row">Wage <input type="number" step="100" min="0" bind:value={offerWage} /></label>
             <label class="row">Years
@@ -122,6 +204,13 @@
         </div>
       </section>
     </div>
+
+    {#if development.length >= 2}
+      <section class="card">
+        <h3>Development</h3>
+        <DevelopmentChart points={development} />
+      </section>
+    {/if}
 
     {#if p.career.length > 0}
       <section class="card scroll-x">
@@ -239,5 +328,15 @@
 
   input[type='number'] {
     width: 110px;
+  }
+  .market .row button.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  small {
+    font-size: 0.75rem;
+    font-weight: 400;
+    margin-right: 4px;
   }
 </style>

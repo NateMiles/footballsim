@@ -9,7 +9,7 @@
   let { league = undefined }: { league?: number } = $props();
   const game = useGame();
   let whole = $state(false);
-  const mine = $derived(game.overview?.club.id ?? null);
+  const mine = $derived(game.overview?.club?.id ?? null);
   const view = load(() =>
     whole || league !== undefined ? game.client.fixtures(league ?? game.overview?.league?.id ?? null, null) : game.client.fixtures(),
   );

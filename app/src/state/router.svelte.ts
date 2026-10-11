@@ -11,7 +11,14 @@ export type Route =
   | { name: 'fixtures'; league?: number }
   | { name: 'table'; league?: number }
   | { name: 'match' }
-  | { name: 'saves' };
+  | { name: 'saves' }
+  | { name: 'transfers'; tab?: TransferTab }
+  | { name: 'staff' }
+  | { name: 'finances' }
+  | { name: 'jobs' };
+
+export type TransferTab = 'search' | 'offers' | 'scouting' | 'squad' | 'news';
+const TABS: TransferTab[] = ['search', 'offers', 'scouting', 'squad', 'news'];
 
 export function parse(hash: string): Route {
   const [name, arg] = hash.replace(/^#\/?/, '').split('/');
@@ -22,7 +29,12 @@ export function parse(hash: string): Route {
     case 'tactics':
     case 'match':
     case 'saves':
+    case 'staff':
+    case 'finances':
+    case 'jobs':
       return { name };
+    case 'transfers':
+      return { name, tab: TABS.find((t) => t === arg) };
     case 'squad':
       return { name, club: id };
     case 'player':
@@ -44,6 +56,8 @@ export function href(route: Route): string {
     case 'fixtures':
     case 'table':
       return route.league === undefined ? `#/${route.name}` : `#/${route.name}/${route.league}`;
+    case 'transfers':
+      return route.tab === undefined ? '#/transfers' : `#/transfers/${route.tab}`;
     default:
       return `#/${route.name}`;
   }

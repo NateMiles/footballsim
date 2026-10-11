@@ -2,7 +2,8 @@
 <script lang="ts">
   import FixtureLine from '../components/FixtureLine.svelte';
   import Form from '../components/Form.svelte';
-  import { ordinal } from '../format';
+  import Meter from '../components/Meter.svelte';
+  import { money, ordinal } from '../format';
   import { useGame } from '../state/game.svelte';
   import { load } from '../state/load.svelte';
 
@@ -16,6 +17,14 @@
     if (next) game.changed(next);
   }
 
+  let resigning = $state(false);
+
+  async function resign() {
+    const next = await game.run('Resigning', () => game.client.resign());
+    resigning = false;
+    if (next) game.changed(next);
+  }
+
   async function toggleDelegate() {
     if (!o) return;
     const next = await game.run('Saving', () => game.client.setDelegation(!o.delegateSquad));
@@ -23,11 +32,23 @@
   }
 </script>
 
-{#if o}
+{#if o && !o.club}
+  <div class="screen grid home">
+    <section class="card">
+      <h1>Out of work</h1>
+      <p class="dim">{o.manager.name} · {o.season}</p>
+      <p>Clubs that sack their managers advertise the job. Apply for one, or press Continue to wait for more to come up.</p>
+      <div class="row">
+        <button class="primary" onclick={() => game.router.go({ name: 'jobs' })}>Look for a job</button>
+      </div>
+    </section>
+  </div>
+{:else if o && o.club}
+  {@const club = o.club}
   <div class="screen grid home">
     <section class="card hero">
       <div>
-        <h1>{o.club.name}</h1>
+        <h1>{club.name}</h1>
         <p class="dim">
           {o.manager.name} · {o.season}
           {#if o.league}· {o.league.name}{/if}
@@ -44,7 +65,7 @@
     {#if o.matchDay}
       <section class="card matchday">
         <h3>Match day</h3>
-        <FixtureLine fixture={o.matchDay.fixture} mine={o.club.id} />
+        <FixtureLine fixture={o.matchDay.fixture} mine={club.id} />
         <div class="row">
           <button class="primary" onclick={() => game.router.go({ name: 'match' })}>Go to the match</button>
         </div>
@@ -55,13 +76,13 @@
       <section class="card">
         <h3>Next match</h3>
         {#if o.nextFixture}
-          <FixtureLine fixture={o.nextFixture} mine={o.club.id} />
+          <FixtureLine fixture={o.nextFixture} mine={club.id} />
         {:else}
           <p class="dim">No fixtures scheduled.</p>
         {/if}
         <h3 class="gap">Last match</h3>
         {#if o.lastFixture}
-          <FixtureLine fixture={o.lastFixture} mine={o.club.id} />
+          <FixtureLine fixture={o.lastFixture} mine={club.id} />
         {:else}
           <p class="dim">The season has not started.</p>
         {/if}
@@ -81,6 +102,32 @@
       </section>
     </div>
 
+    <div class="cols">
+      {#if o.board}
+        <section class="card">
+          <h3>The board</h3>
+          <p><strong>{o.board.objective}</strong></p>
+          <div class="row">
+            <span class="dim">Confidence</span>
+            <Meter value={o.board.confidence} label="Board confidence" good={55} ok={35} />
+            <span>{o.board.confidence}%</span>
+          </div>
+        </section>
+      {/if}
+      <section class="card">
+        <h3>Money</h3>
+        <p>
+          <span class="dim">Balance</span> <strong>{money(o.balance ?? 0)}</strong> ·
+          <span class="dim">Transfer budget</span> <strong>{money(o.transferBudget ?? 0)}</strong>
+        </p>
+        <p class="dim">The transfer window is {o.windowOpen ? 'open' : 'closed'}.</p>
+        <div class="row">
+          <button onclick={() => game.router.go({ name: 'transfers' })}>Transfers</button>
+          <button onclick={() => game.router.go({ name: 'finances' })}>Finances</button>
+        </div>
+      </section>
+    </div>
+
     <section class="card grid">
       <h3>Settings</h3>
       <label class="toggle">
@@ -91,6 +138,15 @@
         <input type="checkbox" checked={o.delegateSquad} onchange={toggleDelegate} />
         <span>Let the assistant handle contracts and signings</span>
       </label>
+      <div class="row">
+        {#if resigning}
+          <span>Leave {club.name}? You will have to find a new job.</span>
+          <button class="danger" onclick={resign}>Resign</button>
+          <button onclick={() => (resigning = false)}>Stay</button>
+        {:else}
+          <button class="danger" onclick={() => (resigning = true)}>Resign…</button>
+        {/if}
+      </div>
     </section>
   </div>
 {/if}

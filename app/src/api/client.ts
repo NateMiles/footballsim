@@ -3,10 +3,19 @@ import type {
   ClubChoices,
   Continued,
   ErrorCode,
+  FinancesView,
   FixturesView,
   InboxView,
   Instruction,
+  JobsView,
   Lineup,
+  Listing,
+  OfferKind,
+  OfferResponse,
+  PlayerSearch,
+  SearchView,
+  StaffView,
+  TransfersView,
   LiveChunk,
   LiveStart,
   MatchReport,
@@ -168,6 +177,70 @@ export class Client {
 
   async skipMatch(): Promise<Overview> {
     return (await this.send({ type: 'skipMatch' }, 'overview')).overview;
+  }
+
+  async finances(): Promise<FinancesView> {
+    return (await this.send({ type: 'finances' }, 'finances')).finances;
+  }
+
+  async staff(): Promise<StaffView> {
+    return (await this.send({ type: 'staff' }, 'staff')).staff;
+  }
+
+  async hireStaff(staff: number, wage: number, years: number): Promise<StaffView> {
+    return (await this.send({ type: 'hireStaff', staff, wage, years }, 'staff')).staff;
+  }
+
+  async releaseStaff(staff: number): Promise<StaffView> {
+    return (await this.send({ type: 'releaseStaff', staff }, 'staff')).staff;
+  }
+
+  async transfers(): Promise<TransfersView> {
+    return (await this.send({ type: 'transfers' }, 'transfers')).transfers;
+  }
+
+  async searchPlayers(search: PlayerSearch): Promise<SearchView> {
+    return (await this.send({ type: 'searchPlayers', search }, 'search')).search;
+  }
+
+  async makeOffer(player: number, kind: OfferKind, wage: number, years: number): Promise<TransfersView> {
+    return (await this.send({ type: 'makeOffer', player, kind, wage, years }, 'transfers')).transfers;
+  }
+
+  async respondToOffer(offer: number, response: OfferResponse): Promise<TransfersView> {
+    return (await this.send({ type: 'respondToOffer', offer, response }, 'transfers')).transfers;
+  }
+
+  async acceptCounter(offer: number): Promise<TransfersView> {
+    return (await this.send({ type: 'acceptCounter', offer }, 'transfers')).transfers;
+  }
+
+  async withdrawOffer(offer: number): Promise<TransfersView> {
+    return (await this.send({ type: 'withdrawOffer', offer }, 'transfers')).transfers;
+  }
+
+  async setListing(player: number, listing: Listing | null): Promise<PlayerView> {
+    return (await this.send({ type: 'setListing', player, listing }, 'player')).player;
+  }
+
+  async scoutPlayer(player: number): Promise<PlayerView> {
+    return (await this.send({ type: 'scoutPlayer', player }, 'player')).player;
+  }
+
+  async cancelScouting(player: number): Promise<PlayerView> {
+    return (await this.send({ type: 'cancelScouting', player }, 'player')).player;
+  }
+
+  async jobs(): Promise<JobsView> {
+    return (await this.send({ type: 'jobs' }, 'jobs')).jobs;
+  }
+
+  async applyForJob(club: number): Promise<Overview> {
+    return (await this.send({ type: 'applyForJob', club }, 'overview')).overview;
+  }
+
+  async resign(): Promise<Overview> {
+    return (await this.send({ type: 'resign' }, 'overview')).overview;
   }
 
   close(): void {

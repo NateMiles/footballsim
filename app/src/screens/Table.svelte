@@ -8,7 +8,7 @@
   let { league = undefined }: { league?: number } = $props();
   const game = useGame();
   const view = load(() => game.client.table(league ?? null));
-  const mine = $derived(game.overview?.club.id);
+  const mine = $derived(game.overview?.club?.id);
 </script>
 
 <div class="screen">
