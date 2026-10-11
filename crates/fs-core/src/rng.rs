@@ -208,6 +208,20 @@ impl Rng {
         }
     }
 
+    /// Two independent normal samples from one polar draw: half the cost
+    /// of two calls to [`Rng::normal`].
+    pub fn normal_pair(&mut self, mean: f64, std_dev: f64) -> (f64, f64) {
+        loop {
+            let u = 2.0 * self.unit_f64() - 1.0;
+            let v = 2.0 * self.unit_f64() - 1.0;
+            let s = u * u + v * v;
+            if s > 0.0 && s < 1.0 {
+                let factor = std_dev * math::sqrt(-2.0 * math::ln(s) / s);
+                return (mean + u * factor, mean + v * factor);
+            }
+        }
+    }
+
     /// Picks an index with probability proportional to `weights[i]`.
     /// Returns `None` if the slice is empty or every weight is zero or
     /// negative.
@@ -366,5 +380,26 @@ mod tests {
         let bytes = postcard::to_allocvec(&rng).unwrap();
         let mut back: Rng = postcard::from_bytes(&bytes).unwrap();
         assert_eq!(rng.next_u64(), back.next_u64());
+    }
+
+    #[test]
+    fn normal_pairs_are_standard_normal() {
+        let mut rng = Rng::from_u64(3);
+        let n = 40_000;
+        let (mut sum, mut sq, mut cross) = (0.0, 0.0, 0.0);
+        for _ in 0..n {
+            let (a, b) = rng.normal_pair(0.0, 1.0);
+            sum += a + b;
+            sq += a * a + b * b;
+            cross += a * b;
+        }
+        let m = f64::from(2 * n);
+        assert!((sum / m).abs() < 0.02, "mean {}", sum / m);
+        assert!((sq / m - 1.0).abs() < 0.03, "variance {}", sq / m);
+        assert!(
+            (cross / f64::from(n)).abs() < 0.02,
+            "correlation {}",
+            cross / f64::from(n)
+        );
     }
 }

@@ -306,7 +306,16 @@ pub fn develop_month(
     let key = best.key_attributes();
     let secondary = best.secondary_attributes();
     let is_gk = best == Position::Goalkeeper;
-    for attr in Attr::ALL {
+    // Noise for every attribute, drawn in pairs.
+    let mut noise = [0.0f64; Attr::ALL.len()];
+    for pair in noise.chunks_mut(2) {
+        let (a, b) = rng.normal_pair(0.0, 1.5);
+        pair[0] = a;
+        if let Some(x) = pair.get_mut(1) {
+            *x = b;
+        }
+    }
+    for (attr, noise) in Attr::ALL.into_iter().zip(noise) {
         let group = attr.group();
         let weight = if key.contains(&attr) {
             1.3
@@ -317,7 +326,7 @@ pub fn develop_month(
         } else {
             0.6
         };
-        let mut delta = growth * weight + rng.normal(0.0, 1.5);
+        let mut delta = growth * weight + noise;
         match group {
             "physical" if attr != Attr::Strength => {
                 if age < 21.0 {

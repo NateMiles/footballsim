@@ -37,17 +37,24 @@ pub fn pick_team(squad: &[PlayerSnapshot], tactic: Tactic) -> TeamSheet {
     let mut order: Vec<usize> = (0..11).collect();
     order.sort_by_key(|&i| scarcity(slots[i].position));
 
+    // Every player's suitability for each position the formation uses,
+    // computed once.
+    let mut positions: Vec<Position> = Vec::with_capacity(11);
+    let mut scores: Vec<Vec<f64>> = Vec::with_capacity(11);
+    for s in &slots {
+        if !positions.contains(&s.position) {
+            positions.push(s.position);
+            scores.push(squad.iter().map(|p| suitability(p, s.position)).collect());
+        }
+    }
     let mut taken = vec![false; squad.len()];
     let mut chosen: [Option<usize>; 11] = [None; 11];
     for &slot in &order {
         let pos = slots[slot].position;
+        let score = &scores[positions.iter().position(|&p| p == pos).expect("listed")];
         let best = (0..squad.len())
             .filter(|&i| !taken[i])
-            .max_by(|&a, &b| {
-                suitability(&squad[a], pos)
-                    .total_cmp(&suitability(&squad[b], pos))
-                    .then(b.cmp(&a))
-            })
+            .max_by(|&a, &b| score[a].total_cmp(&score[b]).then(b.cmp(&a)))
             .expect("enough players");
         taken[best] = true;
         chosen[slot] = Some(best);
@@ -60,11 +67,8 @@ pub fn pick_team(squad: &[PlayerSnapshot], tactic: Tactic) -> TeamSheet {
     // Bench: a backup keeper if available, then the best remaining
     // outfielders by their best-position rating.
     let mut rest: Vec<usize> = (0..squad.len()).filter(|&i| !taken[i]).collect();
-    rest.sort_by(|&a, &b| {
-        best_rating(&squad[b])
-            .total_cmp(&best_rating(&squad[a]))
-            .then(a.cmp(&b))
-    });
+    let rating: Vec<f64> = squad.iter().map(best_rating).collect();
+    rest.sort_by(|&a, &b| rating[b].total_cmp(&rating[a]).then(a.cmp(&b)));
     let mut bench = Vec::with_capacity(BENCH_SIZE);
     if let Some(k) = rest
         .iter()
