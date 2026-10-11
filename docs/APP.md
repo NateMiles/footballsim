@@ -70,8 +70,10 @@ kick-off. `SkipMatch` lets the assistant manage it instead.
 
 ## 3. Saves
 
-A save is the world snapshot, the manager and their inbox
-(`fs_api::save`), base64-encoded. The browser keeps saves in IndexedDB
+A save is an `fs-save` container: a JSON header (what a load screen
+shows, versions, and per-section codec, sizes and checksums) followed by
+deflated sections for the world snapshot, the command log and the
+session's own state (viewer and inbox). The UI carries it base64-encoded. The browser keeps saves in IndexedDB
 (`app/src/storage/saves.ts`, behind a `SaveStore` interface). The game
 autosaves after starting a career and after every match. The Saves screen
 can export a save as a file and import it again, which is also how to move

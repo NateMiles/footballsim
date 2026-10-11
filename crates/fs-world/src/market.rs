@@ -372,6 +372,8 @@ struct Index {
     by_group: [Vec<(u16, PlayerId)>; 4],
     /// Players listed for sale, by group, sorted by true ability.
     listed: [Vec<(u16, PlayerId)>; 4],
+    /// Players listed for loan, likewise.
+    loanable: [Vec<(u16, PlayerId)>; 4],
     offered: std::collections::BTreeSet<(ClubId, PlayerId)>,
 }
 
@@ -393,9 +395,15 @@ impl Index {
         let loans = world.market().loans();
         let mut by_group: [Vec<(u16, PlayerId)>; 4] = Default::default();
         let mut listed: [Vec<(u16, PlayerId)>; 4] = Default::default();
+        let mut loanable: [Vec<(u16, PlayerId)>; 4] = Default::default();
         for (&p, &l) in world.market().listed() {
-            if l == Listing::Transfer && ps.club(p).is_some() && !loans.contains_key(&p) {
-                listed[group_slot(group_of(world, p))].push((ps.ability(p), p));
+            if ps.club(p).is_none() || loans.contains_key(&p) {
+                continue;
+            }
+            let slot = group_slot(group_of(world, p));
+            match l {
+                Listing::Transfer => listed[slot].push((ps.ability(p), p)),
+                Listing::Loan => loanable[slot].push((ps.ability(p), p)),
             }
         }
         for p in ps.ids() {
@@ -408,7 +416,11 @@ impl Index {
             }
             by_group[group_slot(group_of(world, p))].push((ps.ability(p), p));
         }
-        for v in by_group.iter_mut().chain(listed.iter_mut()) {
+        for v in by_group
+            .iter_mut()
+            .chain(listed.iter_mut())
+            .chain(loanable.iter_mut())
+        {
             v.sort_unstable();
         }
         let offered = world
@@ -421,16 +433,28 @@ impl Index {
         Self {
             by_group,
             listed,
+            loanable,
             offered,
         }
     }
 
-    /// Up to `n` listed players of a group with true ability in `lo..=hi`.
+    /// Up to `n` of the best players in `pool` with true ability in
+    /// `lo..=hi`.
+    fn best_in(pool: &[(u16, PlayerId)], lo: u16, hi: u16, n: usize) -> Vec<PlayerId> {
+        let a = pool.partition_point(|&(x, _)| x < lo);
+        let b = pool.partition_point(|&(x, _)| x <= hi);
+        pool[a..b].iter().rev().take(n).map(|&(_, p)| p).collect()
+    }
+
+    /// Up to `n` players of a group listed for sale, with true ability in
+    /// `lo..=hi`.
     fn listed(&self, g: Group, lo: u16, hi: u16, n: usize) -> Vec<PlayerId> {
-        let v = &self.listed[group_slot(g)];
-        let a = v.partition_point(|&(x, _)| x < lo);
-        let b = v.partition_point(|&(x, _)| x <= hi);
-        v[a..b].iter().rev().take(n).map(|&(_, p)| p).collect()
+        Self::best_in(&self.listed[group_slot(g)], lo, hi, n)
+    }
+
+    /// Likewise, players listed for loan.
+    fn loanable(&self, g: Group, lo: u16, hi: u16, n: usize) -> Vec<PlayerId> {
+        Self::best_in(&self.loanable[group_slot(g)], lo, hi, n)
     }
 
     /// Up to `n` players of a group with true ability in `lo..=hi`, spread
@@ -576,23 +600,19 @@ fn search(world: &World, index: &Index, club: ClubId) -> Option<Offer> {
 }
 
 /// A club that cannot afford a signing borrows a listed youngster.
-fn loan_search(world: &World, club: ClubId) -> Option<Offer> {
+fn loan_search(world: &World, index: &Index, club: ClubId) -> Option<Offer> {
     let today = world.date();
     let (group, target) = need(world, club)?;
     let rep = world.clubs()[club].reputation;
     let ratings = staff::ratings(world, club);
-    let (player, _) = world
-        .market()
-        .listed()
-        .iter()
-        .filter(|(_, l)| **l == Listing::Loan)
-        .map(|(&p, _)| p)
+    let (lo, hi) = (target.saturating_sub(60), target.saturating_add(250));
+    let (player, _) = index
+        .loanable(group, lo, hi, CANDIDATES)
+        .into_iter()
         .filter(|&p| {
-            world.players().club(p).is_some_and(|s| s != club)
-                && group_of(world, p) == group
-                && world.market().open_offer(club, p).is_none()
-                && u32::from(world.clubs()[world.players().club(p).expect("filtered")].reputation)
-                    <= u32::from(rep) + 4_000
+            world.players().club(p).is_some_and(|s| {
+                s != club && u32::from(world.clubs()[s].reputation) <= u32::from(rep) + 4_000
+            }) && !index.offered.contains(&(club, p))
         })
         .map(|p| (p, scouting::perceived_ability(world, club, p, &ratings)))
         .filter(|&(_, seen)| seen + 30.0 >= f64::from(target))
@@ -638,7 +658,7 @@ fn make_offers(world: &mut World, events: &mut Vec<Event>) {
         let world = &*world;
         par::for_each_heavy(&mut proposals, |k, slot| {
             let club = active[k];
-            *slot = search(world, &index, club).or_else(|| loan_search(world, club));
+            *slot = search(world, &index, club).or_else(|| loan_search(world, &index, club));
         });
     }
     for offer in proposals.into_iter().flatten() {

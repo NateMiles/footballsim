@@ -90,11 +90,6 @@ pub fn commercial_income(world: &World, club: ClubId) -> Money {
 /// Weekly wages a club pays its players, including its share for players
 /// on loan in either direction.
 pub fn player_wage_bill(world: &World, club: ClubId) -> Money {
-    let squad: Money = world.clubs()[club]
-        .squad()
-        .iter()
-        .map(|&p| crate::transfer::wage_paid(world, club, p))
-        .sum();
     let loaned_out: Money = world
         .market()
         .loans()
@@ -102,7 +97,26 @@ pub fn player_wage_bill(world: &World, club: ClubId) -> Money {
         .filter(|(_, l)| l.parent == club)
         .map(|(&p, _)| crate::transfer::wage_paid(world, club, p))
         .sum();
-    squad + loaned_out
+    squad_wage_bill(world, club) + loaned_out
+}
+
+/// Weekly wages a club pays its own squad, loanees included.
+fn squad_wage_bill(world: &World, club: ClubId) -> Money {
+    world.clubs()[club]
+        .squad()
+        .iter()
+        .map(|&p| crate::transfer::wage_paid(world, club, p))
+        .sum()
+}
+
+/// Weekly wages each club still pays for players it has loaned out,
+/// indexed by club.
+fn loaned_out_bills(world: &World) -> Vec<Money> {
+    let mut bills = vec![0; world.clubs().len()];
+    for (&p, l) in world.market().loans() {
+        bills[l.parent.index()] += crate::transfer::wage_paid(world, l.parent, p);
+    }
+    bills
 }
 
 /// Weekly wages of a club's staff.
@@ -123,6 +137,7 @@ fn monthly(weekly: Money) -> Money {
 /// The 1st of the month: sponsorship and television money in, wages and
 /// running costs out.
 pub(crate) fn monthly_accounts(world: &mut World) {
+    let loaned_out = loaned_out_bills(world);
     let flows: Vec<(ClubId, [Money; 5])> = world
         .clubs()
         .ids()
@@ -133,7 +148,7 @@ pub(crate) fn monthly_accounts(world: &mut World) {
                 [
                     commercial_income(world, c) / 12,
                     broadcast_income(world, c) / 12,
-                    monthly(player_wage_bill(world, c)),
+                    monthly(squad_wage_bill(world, c) + loaned_out[c.index()]),
                     monthly(staff_wage_bill(world, c)),
                     (RUNNING_COST_SHARE * revenue_potential(rep) as f64 / 12.0) as Money,
                 ],

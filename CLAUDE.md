@@ -15,6 +15,7 @@ cargo bench -p fs-bench                         # world benchmarks
 cargo run --release -p fs-cli -- squad --seed 3 # look at a generated squad
 cargo run --release -p fs-cli -- run --size medium --days 30  # timing
 cargo run --release -p fs-cli -- career --seasons 10           # season loop + world health
+cargo run --release -p fs-cli -- economy --size small --seasons 10  # money by reputation band
 cargo run --release -p fs-lab --example profile_season         # medium-world day timings
 cargo run --release -p fs-cli -- match --home 0 --away 5       # match report
 cargo run --release -p fs-cli -- predict --home 0 --away 1     # Monte Carlo
@@ -40,7 +41,12 @@ npm run build && npm run e2e                    # Playwright career test
 - `fs-world`: world state, players (column storage), commands, daily tick,
   snapshots, leagues and calendar (`league`, `competition`, `season`),
   matchdays (`matchday`), player factory and development (`people`), AI
-  squad management (`squad`). Rules are described in `docs/WORLD.md`.
+  squad management (`squad`), money (`finance`, `economy`), staff
+  (`staff`), scouting (`scouting`), transfers and loans (`transfer`, AI
+  in `market`), boards and jobs (`board`). Rules are described in
+  `docs/WORLD.md`.
+- `fs-save`: save container (header, deflated sections, checksums,
+  migrations).
 - `fs-lab`: season simulation, calibration report, tier 2 fitting,
   prediction.
 - `fs-gen`: procedural fictional world, fixed scenarios.
@@ -81,9 +87,14 @@ npm run build && npm run e2e                    # Playwright career test
 ## Rules for the world simulation
 
 - After changing season-loop rules (development, youth, contracts,
-  retirement, squad AI), run `fs-cli career --seasons 30` and check the
-  health lines stay within the targets in `docs/WORLD.md`; the
+  retirement, squad AI, money, staff, the market, boards), run
+  `fs-cli career --seasons 30` and `fs-cli career --size small --seasons
+  10`, and check the health lines (ages, ability, economy, market,
+  sackings) stay within the targets in `docs/WORLD.md`; the
   `ten_seasons_keep_the_world_healthy` test enforces the core of them.
+- Effects of staff and facilities are relative to what a club of that
+  standing usually has, so the world's overall level holds. Keep new
+  effects centred the same way.
 - Generator changes alter the calibration league: rerun
   `scripts/calibration-report.sh` and the tier 2 fit.
 

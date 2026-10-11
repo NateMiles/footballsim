@@ -72,15 +72,17 @@ footballsim/
     fs-core/                 # built: IDs, attributes, RNG, maths, time, hashing
     fs-match/                # built: match engines (tiers 1 and 2), selection
     fs-world/                # built: world state, commands, season loop,
-                             # injuries, development, contracts, youth;
-                             # later transfers and finances
+                             # injuries, development, contracts, youth,
+                             # finances, staff, scouting, transfers, boards
     fs-gen/                  # built: procedural world and name generation
     fs-lab/                  # built: calibration, tier 2 fitting, prediction
     fs-cli/                  # built: headless runner
     fs-bench/                # built: benchmarks
-    fs-ai/                   # planned: AI managers, directors, boards, agents
+    fs-ai/                   # planned: richer AI managers and directors
+                             # (today's AI lives in fs-world's squad,
+                             # market and board modules)
     fs-data/                 # planned: data-pack format, loading, validation
-    fs-save/                 # planned: save/load, versioned migrations
+    fs-save/                 # built: save container, versioned migrations
     fs-api/                  # built: request/response protocol, views, session
     fs-wasm/                 # built: wasm-bindgen wrapper around fs-api
   app/                       # built: Svelte + TypeScript UI (see APP.md)
@@ -182,8 +184,11 @@ Measurements are from the 4-core cloud build machine, not an iPad.
 
 ## 8. Persistence
 
-- Save format: a versioned binary snapshot of the world (serde + a compact
-  binary codec), compressed with zstd. Target under 50 MB for a medium world.
+- Save format (`fs-save`): a container with a JSON header and deflated
+  sections: the world snapshot (serde + postcard), the command log, an
+  optional origin world for replays, and host state. Deflate (pure Rust,
+  so it also runs in WebAssembly) brings snapshots to about 60% of their
+  raw size: about 9 MB for the small world.
 - Saves carry a schema version; `fs-save` owns migrations so old saves keep
   loading.
 - Replays store only the seed and the manager's commands with timestamps, so

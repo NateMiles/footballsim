@@ -326,6 +326,31 @@ fn ten_seasons_keep_the_world_healthy() {
             (now / start - 1.0).abs() < 0.05,
             "season {season}: top-division ability {now:.0} vs {start:.0}"
         );
+        // Money: wages a sensible share of income, few clubs in debt,
+        // and nobody hoarding or sinking without limit.
+        let e = fs_world::economy::health(w);
+        assert!(
+            (0.35..0.8).contains(&e.wage_ratio[0]),
+            "season {season}: wages/income {:.2}",
+            e.wage_ratio[0]
+        );
+        assert!(
+            e.in_debt < 0.2,
+            "season {season}: {:.0}% in debt",
+            e.in_debt * 100.0
+        );
+        assert!(
+            (-1.0..4.0).contains(&e.balance_ratio[0]),
+            "season {season}: balance/potential {:.2}",
+            e.balance_ratio[0]
+        );
+        // Every club has a manager, or will within the week.
+        for (id, c) in w.clubs().iter() {
+            assert!(
+                c.manager.is_some() || c.board().vacant_since.is_some(),
+                "season {season}: {id} has no manager and is not looking"
+            );
+        }
     }
 }
 

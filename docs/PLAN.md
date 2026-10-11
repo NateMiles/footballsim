@@ -139,12 +139,24 @@ promises.
 - Tauri 2 shell for macOS and your own iPad, built from your Mac with
   Xcode (APP.md has the steps).
 
-### M4: Management depth
-- Transfers and loans with the agent-based market, contracts, wages, agents.
-- Scouting fog of war, scouting assignments, staff hiring.
-- Finances, board expectations, sackings, job market.
-- Youth intake and development curves.
-- Save and load.
+### M4: Management depth (done)
+- Club finances: gates, television, sponsorship and prize money anchored
+  to the wage scale; wages, staff, running costs and facility
+  investment; budgets set by the board (WORLD.md section 6).
+- Staff (coaches, scouts, physios, assistants) whose quality drives
+  development, injuries and scouting; hiring and firing (section 7).
+- Scouting fog of war: every club sees its own estimates of other
+  clubs' players, narrowed by scouting and by playing against them
+  (section 8).
+- Transfers and loans: offers, counter-offers, personal terms and
+  deadlines that never block on a person; AI clubs list, buy and loan
+  by their own estimates (section 9).
+- Boards, objectives, sackings and a job market for human and AI
+  managers; club reputations follow results (section 10).
+- Save files: a versioned, compressed container with the command log
+  (`fs-save`).
+- UI: transfers, scouting, staff, finances and jobs screens; estimates on
+  player pages; a development chart.
 
 ### M5: Scale
 - Multi-nation world: 20+ nations, 60+ leagues, cups and continental
