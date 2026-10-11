@@ -127,7 +127,17 @@ fn errors<const N: usize>(world: &World, club: ClubId, player: PlayerId) -> [f64
         u64::from(club.raw()),
         u64::from(player.raw()),
     );
-    std::array::from_fn(|_| rng.normal(0.0, 1.0).clamp(-2.5, 2.5))
+    // Drawn in pairs: the first of each pair is what a single draw gives,
+    // so a short prefix agrees with a longer one.
+    let mut out = [0.0; N];
+    for pair in out.chunks_mut(2) {
+        let (a, b) = rng.normal_pair(0.0, 1.0);
+        pair[0] = a.clamp(-2.5, 2.5);
+        if let Some(x) = pair.get_mut(1) {
+            *x = b.clamp(-2.5, 2.5);
+        }
+    }
+    out
 }
 
 fn range(truth: f64, error: f64, spread: f64, lo: f64, hi: f64) -> Range {

@@ -1,5 +1,6 @@
 <!-- Save, load, export and import games. -->
 <script lang="ts">
+  import Benchmark from '../components/Benchmark.svelte';
   import { longDate } from '../format';
   import { useGame } from '../state/game.svelte';
   import { AUTOSAVE, type SaveSlot } from '../storage/saves';
@@ -99,6 +100,7 @@
       <p class="dim">No saves yet.</p>
     {/each}
   </section>
+  <Benchmark />
 </div>
 
 <style>

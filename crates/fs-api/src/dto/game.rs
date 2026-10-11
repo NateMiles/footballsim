@@ -106,6 +106,26 @@ pub struct Continued {
     pub match_day: Option<MatchDay>,
 }
 
+/// A performance test world, after generating it or running it on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct BenchmarkStatus {
+    /// Whether a test world is loaded.
+    pub active: bool,
+    pub players: u32,
+    pub clubs: u32,
+    pub leagues: u32,
+    pub cups: u32,
+    pub date: Date,
+    /// Matches played so far in all competitions.
+    pub matches: u32,
+    /// Memory the core uses, where the platform tells.
+    #[ts(type = "number | null")]
+    pub memory_bytes: Option<u64>,
+    /// Threads the simulation can use (one in a browser).
+    pub threads: u32,
+}
+
 /// A saved game.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

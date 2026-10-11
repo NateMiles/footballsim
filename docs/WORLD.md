@@ -12,11 +12,13 @@ Seasons run from 1 July to 30 June.
 | 1 July | Season rollover (section 4) | `season::rollover` |
 | 1 July - 31 August, January | Transfer windows (section 9) | `market::daily` |
 | Early August to late May | League matchdays, mostly Saturdays | `matchday::play_today` |
+| July to early June | Cup rounds, midweek: continental qualifying in July and August, national cups on Wednesdays, continental cups on Tuesdays and Thursdays, finals in late May and early June (section 11) | `cup::daily` |
 | 20 August, 10 January | Transfer-window squad housekeeping for AI clubs | `squad::maintain_squads` |
 | 1 January | Human managers warned about contracts ending in June | `squad::warn_expiring` |
 | 1 June | AI clubs renew contracts worth keeping; humans warned again | `squad::renew_contracts` |
-| 1st of every month | Player development; AI tactics refreshed; sponsorship, television, wages and running costs; boards review the table and the bank | `tick::development`, `economy::monthly_accounts`, `board::monthly` |
-| Every day | Recovery, injury healing, training injuries, scouting, completed deals, vacant jobs filled | `tick::afternoon` |
+| 1st of every month | Sponsorship, television, wages and running costs; boards review the table and the bank | `economy::monthly_accounts`, `board::monthly` |
+| 1st-28th of every month | Player development, each club's players on the club's own day | `tick::development` |
+| Every day | Recovery, injury healing, training injuries, scouting, completed deals, vacant jobs filled; AI clubs due a tactic review (section 12) | `tick::afternoon` |
 | After every match | Gate receipts; board confidence | `economy::gate_receipts`, `board::after_match` |
 
 Each day runs in two parts: the morning's calendar business
@@ -30,11 +32,16 @@ too large to fit.
 
 ## 2. Leagues
 
-- Each nation's clubs are ranked by reputation and split into divisions of
-  20 (`GenConfig::clubs_per_league`).
-- Three clubs go up and three go down between adjacent divisions.
+- A world's structure is data: a `WorldFormat` (`format.rs`) lists each
+  nation's divisions (name, size, clubs swapped with the division below)
+  and cups, and the continents with their cups. `fs-cli format` writes the
+  default one as JSON and `--format FILE` plays an edited one; a format is
+  validated before a world is built from it.
+- By default each nation's clubs are ranked by reputation and split into
+  divisions of 20 (`GenConfig::clubs_per_league`), with three clubs going
+  up and three down between adjacent divisions.
 - A league whose clubs include a human-managed club plays its matches with
-  the tier 1 event engine; every other league uses tier 2.
+  the tier 1 event engine; every other league uses tier 2 (section 12).
 
 ## 3. Players over time
 
@@ -80,7 +87,8 @@ In order:
 1. Prize money; accounts archived; boards judge the season (sackings),
    club and manager reputations move.
 2. Archive every league season (final table, top scorer); apply promotion
-   and relegation.
+   and relegation. Archive every cup edition and add the season's
+   continental results to the nations' coefficients.
 3. File each player's season stats in their career history.
 4. Loans end; players go back to their clubs.
 5. Release players whose contracts ended; staff contracts end, AI clubs
@@ -92,8 +100,10 @@ In order:
    players to 27, then signing free agents to cover positional needs
    (two goalkeepers, seven defenders, seven midfielders, four attackers, 24
    in all). The richest clubs choose first, within their wage caps.
-10. AI tactics refreshed; new fixtures created; boards set targets;
-    facilities wear and boards invest spare money; budgets set.
+10. AI tactics refreshed; new league fixtures created; cup entrants
+    decided (continental places from the tables and cups just finished)
+    and first rounds drawn; boards set targets; facilities wear and
+    boards invest spare money; budgets set.
 
 ## 5. Human managers
 
@@ -259,7 +269,90 @@ it over seasons.
 The world rule `sack_humans` (on by default) can switch off sackings of
 human managers.
 
-## 11. Health targets
+## 11. Cups and continental competitions
+
+Code: `cup.rs` (editions, draws, ties, groups, qualification,
+coefficients), `fixture.rs` (`FixtureRef`, which names a league or cup
+match everywhere a match is referred to), formats in `format.rs`, default
+formats in `fs-gen/src/formats.rs`.
+
+**Formats.** A cup lists its entries (which clubs, and the stage they
+join) and its stages. A stage is a knockout round (one or two legs, extra
+time or not, neutral ground or not, seeded or open draw, and how many go
+through) or a group stage (groups, size, how many advance, how often each
+pair meets), with a date rule per match day: the first given weekday on or
+after a day of the year. Entries are:
+
+- every club of the cup's nation in a range of divisions;
+- for nations ranked in a range by coefficient, the clubs that finished in
+  a range of places in their top division last season;
+- for nations ranked in a range, last season's winner of their main cup.
+
+**A season of a cup.** At the season start the entrants are decided and
+the first stage drawn; each later stage is drawn the day after the
+previous one finishes. A knockout round sends through half its field, or
+first brings it down to a power of two (the best-seeded clubs, by
+reputation, get the byes); a round can name its number of winners instead
+(continental qualifying). Seeded draws pair the strongest half with the
+weakest, group winners against runners-up, keeping clubs from the same
+group and nation apart where they can. Group draws use pots by seeding
+and keep clubs of one nation apart. A cup match never shares a day with
+another of a club's matches: the draw moves it a day later. The last
+match of a two-legged tie and every single-match tie must produce a
+winner: aggregate score, then extra time if the stage plays it, then
+penalties (`docs/MATCH_ENGINE.md`). Finals are at neutral grounds, where
+the crowd (both clubs' fans, up to 80,000) pays both clubs half.
+
+**Default structure.** Every nation has a national cup (prestige 40):
+with three or more divisions the lower divisions start, and the top two
+join once the field is down to about half their number (eight rounds in a
+100-club nation, five in the tiny world). Single matches with extra time
+on Wednesdays from August to April; the final on the Sunday after the
+league ends. Nations are grouped into continents of at most 30 (the
+strongest spread evenly); each continent of four or more nations plays:
+
+| Cup | Prestige | Entrants | Shape |
+| --- | --- | --- | --- |
+| Champions Cup | 100 | top 4 of the four best nations, top 3 of the next two, top 2 of the next four, champions of the rest | two-legged qualifying rounds in July and August, eight groups of four (Sep-Dec, Tuesdays), two-legged round of 16, quarter- and semi-finals, a one-match final in early June |
+| Continental Shield | 60 | the next league places (two for the best six nations, one for the rest) and every national cup winner not already in the Champions Cup | as above on Thursdays, final in late May |
+
+The strongest nations' clubs go straight into the group stage until three
+quarters of it is filled; the rest play qualifying rounds sized to fill it
+exactly. A club plays in at most one continental cup a season, the more
+prestigious; a place whose club is already in passes to the next club in
+that nation's table. Before any season has finished, "last season's
+table" is the order of reputation.
+
+**Coefficients.** Each continental match earns a club's nation two points
+for a win and one for a draw, plus one for every stage after the first
+that the club plays in; a nation's season score is its total divided by
+its number of entrants. A coefficient is the sum of the last five seasons
+and ranks the nations for places. New worlds start with five seasons
+equal to the nations' reputations, so the first ranking follows
+reputation.
+
+**Money and standing.** Each stage pays every club in it (continental
+group stages pay about 1% of the best clubs' revenue potential; national
+cup money doubles round by round to 1% for the winner), plus a winner's
+prize. Boards are pleased by progress and annoyed by exits, much more so
+when a smaller club knocks them out; winning raises board confidence and
+the club's and manager's reputations by the cup's prestige. Players'
+season statistics count every competition; league top scorers count
+league goals. Development counts cup matches when working out playing
+time.
+
+## 12. Level of detail
+
+`importance.rs` rates each club from where the human managers are: high
+for human clubs and their leagues, medium for the rest of their nations
+and for clubs in the same continental cups, low for everyone else. League
+matches use tier 1 at high importance and tier 2 otherwise; cup matches
+use tier 1 when a human club plays. AI clubs review their tactic every 30,
+60 or 90 days by importance, each on its own days. Work that used to fall
+on the 1st of the month (development, tactics) is spread over the month,
+so no day carries it all; money and boards stay on the 1st.
+
+## 13. Health targets
 
 A world must stay believable for decades. `fs-cli career` prints health
 lines each season; the `ten_seasons_keep_the_world_healthy` test enforces
@@ -269,35 +362,40 @@ the core of it. A 30-season run of the tiny world currently shows:
 | --- | --- | --- |
 | First-team (18+) mean age | 25-27 | 25.8 to 26.7 throughout |
 | First-team age mix (18-20 / 21-23 / 24-27 / 28-31 / 32+) | Stable | About 17 / 19 / 26 / 25 / 13 % |
-| Top-division best-XI ability | Within 5% of the start | Within about 2% |
+| Top-division best-XI ability | Within 5% of the start | 841 to 866 (start 849) |
 | Active players | Stable | 690 to 780 for a 20-club world |
-| Top-scorer goals | 22-36 | About 29 |
-| Player wages / income (mean) | 35-80% | About 60% (club range 44-73%) |
+| Top-scorer goals | 22-36 | About 31 |
+| Player wages / income (mean) | 35-80% | About 52% (cup money included) |
 | Clubs in debt | Under 20% | 0% |
-| Managers sacked per season | Some, not most | 1 to 5 of 20 |
+| Managers sacked per season | Some, not most | 0 to 6 of 20 |
 
-In the small world (120 leagues) wages take 53-58% of income, 2-3% of
-clubs are in debt, and a season sees about 1,500 transfers and 1,400
-loans. The tiny world has a single league and no lower divisions to sell
-to, so it trades far less.
+In the small world (120 leagues, 26 cups) over ten seasons, 2-3% of clubs
+are in debt, about 15-18% of managers are sacked each season, and a
+season sees 1,100-1,700 transfers and 1,400-1,700 loans. Two slow drifts
+predate the cups and are being watched: wages take 52% of income in the
+first season and 64% by the tenth, and the strongest nation's top
+division gets about 3% better (853 to 880) as its richer clubs buy
+abroad. Continental cups are mostly won by the strongest nation's clubs,
+with others breaking through. The tiny world has a single league and no
+lower divisions to sell to, so it trades far less.
 
 New worlds are generated with this steady-state age mix and with full
 academies, so they do not lurch toward it over their first decade.
 
-## 12. Performance
+## 14. Performance
 
-One season on the 4-core cloud build machine:
+One season on the 4-core cloud build machine, with cups:
 
-| World | Players | Season |
-| --- | --- | --- |
-| Tiny (1 league) | ~700 | 0.16 s |
-| Small (120 leagues) | ~87,000 | ~6.4 s |
-| Medium (300 leagues) | ~217,000 | ~16 s |
+| World | Players | Season (4 threads) | Season (1 thread) |
+| --- | --- | --- | --- |
+| Tiny (1 league, 1 cup) | ~700 | 0.16 s | |
+| Small (120 leagues, 26 cups) | ~84,000 | ~6.5 s | ~10.6 s |
+| Medium (300 leagues, 64 cups) | ~210,000 | ~15 s | ~36 s |
 
-Milestone 4 (money, staff, scouting, the market and boards) took the
-medium season from about 9 s to 16 s. Most of the increase is the AI
-transfer market, which indexes candidates by position group once a day
-and searches them in parallel. The 1 July rollover is the slowest day at
-about 1.3 s in the medium world; quiet days take about 15 ms.
-`cargo run --release -p fs-lab --example profile_season` shows the
-breakdown.
+The browser runs the core on one thread. The biggest costs in a medium
+season are the matches (team selection and the engines), the AI transfer
+market, player development and AI tactic reviews. The 1 July rollover is
+the slowest day at about 1 s in the medium world; quiet days take about
+22 ms. `cargo run --release -p fs-lab --example profile_season
+--features fs-world/profile [small|medium]` breaks a season down by stage;
+`docs/ARCHITECTURE.md` section 6 compares everything with the budgets.

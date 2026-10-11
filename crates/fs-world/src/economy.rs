@@ -4,7 +4,7 @@
 //! The model is anchored to the wage scale. A club's *revenue potential*
 //! is what it would need to pay a squad of its standing about 60% of its
 //! income in wages, so clubs that live within their budgets stay solvent,
-//! and clubs that overspend drift into debt. See `docs/WORLD.md` section 7.
+//! and clubs that overspend drift into debt. See `docs/WORLD.md` section 6.
 
 use crate::finance::{Ledger, Money};
 use crate::ids::{ClubId, LeagueId};

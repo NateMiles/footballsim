@@ -135,6 +135,24 @@ pub fn estimated_value(world: &World, player: PlayerId, ability: f64, potential:
 /// Most results a search returns.
 pub const SEARCH_LIMIT: usize = 200;
 
+/// Whether `hay` contains `needle` (already lower case), ignoring ASCII
+/// case, without allocating.
+fn contains_ci(hay: &str, needle: &str) -> bool {
+    let (h, n) = (hay.as_bytes(), needle.as_bytes());
+    n.is_empty()
+        || h.windows(n.len())
+            .any(|w| w.iter().zip(n).all(|(a, b)| a.to_ascii_lowercase() == *b))
+}
+
+/// A player who passed the filters, before the row is built.
+struct Candidate {
+    player: PlayerId,
+    knowledge: u8,
+    ability: scouting::Range,
+    potential: scouting::Range,
+    value: Option<i64>,
+}
+
 pub fn search(world: &World, club: Option<ClubId>, q: &dto::PlayerSearch) -> dto::SearchView {
     let today = world.date();
     let ratings = club.map(|c| staff::ratings(world, c));
@@ -142,11 +160,23 @@ pub fn search(world: &World, club: Option<ClubId>, q: &dto::PlayerSearch) -> dto
     let name = q
         .name
         .as_ref()
-        .map(|n| n.to_lowercase())
+        .map(|n| n.trim().to_lowercase())
         .filter(|n| !n.is_empty());
-    let mut rows: Vec<dto::SearchRow> = Vec::new();
-    let mut total = 0u32;
+    let value_of = |p: PlayerId, ability: &scouting::Range, potential: &scouting::Range| {
+        if ps.club(p).is_some() {
+            estimated_value(
+                world,
+                p,
+                f64::from(ability.value),
+                f64::from(potential.value),
+            )
+        } else {
+            0
+        }
+    };
+    let mut found: Vec<Candidate> = Vec::new();
     for p in ps.ids() {
+        // Cheap filters first.
         if ps.status(p) != Status::Active {
             continue;
         }
@@ -157,26 +187,39 @@ pub fn search(world: &World, club: Option<ClubId>, q: &dto::PlayerSearch) -> dto
         if q.free_agents_only && at.is_some() {
             continue;
         }
-        let listing = world.market().listing(p);
-        if q.listed_only && listing.is_none() {
+        if q.listed_only && world.market().listing(p).is_none() {
             continue;
         }
-        let age = age_years(ps.bio(p).birth_date, today);
-        if q.min_age.is_some_and(|a| age < f64::from(a))
-            || q.max_age.is_some_and(|a| age >= f64::from(a) + 1.0)
-        {
-            continue;
-        }
-        let best = ps.positions(p).best().code();
-        if !q.positions.is_empty() && !q.positions.iter().any(|c| c == best) {
-            continue;
-        }
-        if let Some(n) = &name {
-            let (f, l) = player_names(world, p);
-            if !format!("{f} {l}").to_lowercase().contains(n) {
+        if q.min_age.is_some() || q.max_age.is_some() {
+            let age = age_years(ps.bio(p).birth_date, today);
+            if q.min_age.is_some_and(|a| age < f64::from(a))
+                || q.max_age.is_some_and(|a| age >= f64::from(a) + 1.0)
+            {
                 continue;
             }
         }
+        if !q.positions.is_empty() {
+            let best = ps.positions(p).best().code();
+            if !q.positions.iter().any(|c| c == best) {
+                continue;
+            }
+        }
+        if let Some(n) = &name {
+            let bio = ps.bio(p);
+            let (f, l) = (
+                world.names().get(bio.first_name),
+                world.names().get(bio.last_name),
+            );
+            let matched = if n.contains(' ') {
+                format!("{f} {l}").to_lowercase().contains(n.as_str())
+            } else {
+                contains_ci(f, n) || contains_ci(l, n)
+            };
+            if !matched {
+                continue;
+            }
+        }
+        // Then what the viewer believes.
         let (knowledge, ability, potential) = match (club, &ratings) {
             (Some(c), Some(r)) => scouting::quick_estimate(world, c, p, r),
             _ => {
@@ -197,41 +240,58 @@ pub fn search(world: &World, club: Option<ClubId>, q: &dto::PlayerSearch) -> dto
         {
             continue;
         }
-        let value = if at.is_some() {
-            estimated_value(
-                world,
-                p,
-                f64::from(ability.value),
-                f64::from(potential.value),
-            )
+        let value = if q.max_value.is_some() {
+            let v = value_of(p, &ability, &potential);
+            if q.max_value.is_some_and(|m| v > m) {
+                continue;
+            }
+            Some(v)
         } else {
-            0
+            None
         };
-        if q.max_value.is_some_and(|m| value > m) {
-            continue;
-        }
-        total += 1;
-        rows.push(dto::SearchRow {
-            player: player_ref(world, p),
-            club: at.map(|c| club_ref(world, c)),
-            age: age as u8,
-            nation: world.nations()[ps.bio(p).nation].code.clone(),
-            ability: percent_of_1000(ability.value),
-            ability_low: percent_of_1000(ability.low),
-            ability_high: percent_of_1000(ability.high),
-            potential: percent_of_1000(potential.value),
+        found.push(Candidate {
+            player: p,
             knowledge,
+            ability,
+            potential,
             value,
-            wage_demand: wage_demand(ps.ability(p), ps.potential(p), age as u32),
-            listing: listing.map(Into::into),
         });
     }
-    rows.sort_by(|a, b| {
-        b.ability
-            .cmp(&a.ability)
-            .then(b.potential.cmp(&a.potential))
-            .then(a.player.id.cmp(&b.player.id))
-    });
-    rows.truncate(SEARCH_LIMIT);
+    let total = found.len() as u32;
+    let order = |a: &Candidate, b: &Candidate| {
+        percent_of_1000(b.ability.value)
+            .cmp(&percent_of_1000(a.ability.value))
+            .then(percent_of_1000(b.potential.value).cmp(&percent_of_1000(a.potential.value)))
+            .then(a.player.cmp(&b.player))
+    };
+    if found.len() > SEARCH_LIMIT {
+        found.select_nth_unstable_by(SEARCH_LIMIT - 1, order);
+        found.truncate(SEARCH_LIMIT);
+    }
+    found.sort_by(order);
+    let rows = found
+        .into_iter()
+        .map(|c| {
+            let p = c.player;
+            let age = age_years(ps.bio(p).birth_date, today);
+            let at = ps.club(p);
+            dto::SearchRow {
+                player: player_ref(world, p),
+                club: at.map(|x| club_ref(world, x)),
+                age: age as u8,
+                nation: world.nations()[ps.bio(p).nation].code.clone(),
+                ability: percent_of_1000(c.ability.value),
+                ability_low: percent_of_1000(c.ability.low),
+                ability_high: percent_of_1000(c.ability.high),
+                potential: percent_of_1000(c.potential.value),
+                knowledge: c.knowledge,
+                value: c
+                    .value
+                    .unwrap_or_else(|| value_of(p, &c.ability, &c.potential)),
+                wage_demand: wage_demand(ps.ability(p), ps.potential(p), age as u32),
+                listing: world.market().listing(p).map(Into::into),
+            }
+        })
+        .collect();
     dto::SearchView { rows, total }
 }

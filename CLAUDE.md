@@ -16,7 +16,10 @@ cargo run --release -p fs-cli -- squad --seed 3 # look at a generated squad
 cargo run --release -p fs-cli -- run --size medium --days 30  # timing
 cargo run --release -p fs-cli -- career --seasons 10           # season loop + world health
 cargo run --release -p fs-cli -- economy --size small --seasons 10  # money by reputation band
-cargo run --release -p fs-lab --example profile_season         # medium-world day timings
+cargo run --release -p fs-lab --example profile_season --features fs-world/profile  # stage timings
+cargo run --release -p fs-api --example budgets [small|medium] # ARCHITECTURE.md budgets
+cargo run --release -p fs-cli -- format --size small           # competition structure as JSON
+cargo run --release -p fs-cli -- career --format FILE          # play an edited structure
 cargo run --release -p fs-cli -- match --home 0 --away 5       # match report
 cargo run --release -p fs-cli -- predict --home 0 --away 1     # Monte Carlo
 scripts/calibration-report.sh                   # regenerate docs/CALIBRATION.md
@@ -43,13 +46,16 @@ npm run build && npm run e2e                    # Playwright career test
   matchdays (`matchday`), player factory and development (`people`), AI
   squad management (`squad`), money (`finance`, `economy`), staff
   (`staff`), scouting (`scouting`), transfers and loans (`transfer`, AI
-  in `market`), boards and jobs (`board`). Rules are described in
-  `docs/WORLD.md`.
+  in `market`), boards and jobs (`board`), competition structure as data
+  (`format`), cups and coefficients (`cup`), fixtures in any competition
+  (`fixture`), level of detail (`importance`), stage timing (`profile`).
+  Rules are described in `docs/WORLD.md`.
 - `fs-save`: save container (header, deflated sections, checksums,
   migrations).
 - `fs-lab`: season simulation, calibration report, tier 2 fitting,
   prediction.
-- `fs-gen`: procedural fictional world, fixed scenarios.
+- `fs-gen`: procedural fictional world, default competition formats
+  (`formats`), fixed scenarios.
 - `fs-api`: the only boundary to any UI: JSON protocol, view models
   (`dto`, mirrored to `app/src/api/generated.ts`), queries, inbox, live
   match sessions with commentary, saves.
@@ -87,11 +93,17 @@ npm run build && npm run e2e                    # Playwright career test
 ## Rules for the world simulation
 
 - After changing season-loop rules (development, youth, contracts,
-  retirement, squad AI, money, staff, the market, boards), run
+  retirement, squad AI, money, staff, the market, boards, cups), run
   `fs-cli career --seasons 30` and `fs-cli career --size small --seasons
   10`, and check the health lines (ages, ability, economy, market,
   sackings) stay within the targets in `docs/WORLD.md`; the
   `ten_seasons_keep_the_world_healthy` test enforces the core of them.
+- Competition structures are data (`fs_world::format`): new structure
+  rules belong in the format and `cup.rs`, not in special cases for one
+  nation. Keep `WorldFormat::validate` strict enough that any format it
+  accepts plays a whole season.
+- Refer to matches by `FixtureRef` (league or cup), never by league and
+  index alone.
 - Effects of staff and facilities are relative to what a club of that
   standing usually has, so the world's overall level holds. Keep new
   effects centred the same way.

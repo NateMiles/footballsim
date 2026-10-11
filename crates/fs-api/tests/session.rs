@@ -339,3 +339,35 @@ fn saves_load_to_the_same_game() {
     );
     assert_eq!(err.code, ErrorCode::BadSave);
 }
+
+#[test]
+fn a_performance_test_runs_beside_the_game() {
+    let (mut s, overview) = career(9);
+    let status = expect!(
+        call(
+            &mut s,
+            Request::BenchmarkStart {
+                size: WorldSize::Tiny
+            }
+        ),
+        Benchmark { benchmark }
+    );
+    assert!(status.active);
+    assert_eq!(status.clubs, 20);
+    assert!(status.threads >= 1);
+    let status = expect!(
+        call(&mut s, Request::BenchmarkRun { days: 30 }),
+        Benchmark { benchmark }
+    );
+    assert_eq!(status.date, "2026-07-31");
+    let status = expect!(
+        call(&mut s, Request::BenchmarkRun { days: 30 }),
+        Benchmark { benchmark }
+    );
+    assert!(status.matches > 0, "August has matches");
+    let status = expect!(call(&mut s, Request::BenchmarkEnd), Benchmark { benchmark });
+    assert!(!status.active);
+    // The game itself did not move.
+    let now = expect!(call(&mut s, Request::Overview), Overview { overview });
+    assert_eq!(now.date, overview.date);
+}

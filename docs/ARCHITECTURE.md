@@ -73,7 +73,9 @@ footballsim/
     fs-match/                # built: match engines (tiers 1 and 2), selection
     fs-world/                # built: world state, commands, season loop,
                              # injuries, development, contracts, youth,
-                             # finances, staff, scouting, transfers, boards
+                             # finances, staff, scouting, transfers, boards,
+                             # competition formats (data), cups, level of
+                             # detail
     fs-gen/                  # built: procedural world and name generation
     fs-lab/                  # built: calibration, tier 2 fitting, prediction
     fs-cli/                  # built: headless runner
@@ -81,7 +83,9 @@ footballsim/
     fs-ai/                   # planned: richer AI managers and directors
                              # (today's AI lives in fs-world's squad,
                              # market and board modules)
-    fs-data/                 # planned: data-pack format, loading, validation
+    fs-data/                 # planned: data packs (names, nations, clubs);
+                             # competition structures are already data
+                             # (fs_world::format, `fs-cli format`)
     fs-save/                 # built: save container, versioned migrations
     fs-api/                  # built: request/response protocol, views, session
     fs-wasm/                 # built: wasm-bindgen wrapper around fs-api
@@ -124,47 +128,66 @@ development). To make that fast and cache-friendly:
 ### Memory budgets
 | World size | Players + staff | Budget |
 | --- | --- | --- |
-| Small (PWA default) | ~60k | < 150 MB |
-| Medium | ~150k | < 300 MB |
+| Small (PWA default) | ~84k | < 150 MB (measured: 72 MB native, 45 MB WASM) |
+| Medium | ~210k | < 300 MB (measured: 137 MB native, 94 MB WASM) |
 | Large (native only) | ~500k | < 800 MB |
 
 ## 5. Simulation scheduling and LOD
 
-The world advances in **days**. Each day:
+The world advances in **days**. Each day (`fs_world::tick`):
 
-1. Process scheduled events (fixtures, transfer deadlines, board meetings).
-2. Run matches for the day, in parallel, each at the fidelity tier its
-   importance deserves.
-3. Run per-entity daily updates (training, recovery, injuries, morale) as
-   parallel column scans.
-4. Run AI decisions on a staggered schedule (not every club thinks every day).
-5. Emit events for the UI.
+1. Calendar business: the 1 July rollover, contract renewals, squad
+   housekeeping.
+2. Every league and cup fixture due today, played in parallel, each at the
+   tier its importance deserves; then the day's cup draws.
+3. Per-player passes (recovery, injuries) as parallel column scans with
+   per-player random streams.
+4. AI decisions on a staggered schedule: about one club in eight looks at
+   the transfer market each day; each club's players develop on the club's
+   own day of the month; each AI club reviews its tactic every 30, 60 or
+   90 days by importance, on its own days.
+5. Money and boards on the 1st of the month. Events for the UI.
 
-**Importance-based LOD.** Each club and competition gets an importance score:
-the user's club and its league are highest; leagues the user scouts or follows
-are medium; everything else is low. Importance chooses the match tier and how
-often AI and development are updated in detail. Low-detail simulation is
-calibrated to match the statistical output of high detail, so the world does
-not drift.
+**Importance-based LOD** (`fs_world::importance`). Every club gets an
+importance from where the human managers are, and nothing assumes there is
+only one of them:
+
+| Importance | Who | League matches | AI tactic review |
+| --- | --- | --- | --- |
+| High | human clubs and their leagues | tier 1 (event) | every 30 days |
+| Medium | the rest of their nations; clubs in their continental cups | tier 2 | every 60 days |
+| Low | everyone else | tier 2 | every 90 days |
+
+Cup matches use tier 1 whenever a human club plays. Tier 2 is fitted to
+tier 1 (`docs/CALIBRATION.md`), so leagues played at low detail produce the
+same statistics. With the `profile` feature, `fs_world::profile` times each
+stage of the tick (`cargo run --release -p fs-lab --example profile_season
+--features fs-world/profile`).
 
 ## 6. Performance budgets
 
-Targets on a recent iPad running the native build. The CI benchmark suite
-tracks these on desktop as a proxy, with a scaling factor measured once on
-hardware.
+Targets on a recent iPad running the native build. Measured with
+`cargo run --release -p fs-api --example budgets [small|medium]` on the
+4-core cloud build machine; the browser column is the same build as
+WebAssembly in headless Chromium, on one thread. The app's own performance
+test (title screen or Saves screen) measures any device, including an iPad.
 
-| Operation | Target | Measured so far |
-| --- | --- | --- |
-| Tier 0 full spatial match (watched) | Real time or faster at any playback speed; full 90 min in < 50 ms when skipped | Not built |
-| Tier 1 event-level match | < 1 ms | 0.31 ms |
-| Tier 2 statistical match | < 10 µs | 8.7 µs |
-| Daily world tick, medium world | < 50 ms | 4 ms on quiet days; ~0.35 s on the 1st of the month |
-| Full matchday, all leagues, medium world | < 1 s | Well under 1 s (whole season 8.8 s) |
-| One season in holiday mode, medium world | < 60 s | 8.8 s |
-| Match predictor, 10,000 runs at Tier 1 | < 2 s | 0.73 s (4 threads) |
-| Player search with filters over 150k players | < 20 ms | Not built |
+| Operation | Target | Native, 4 threads | Browser (WASM, 1 thread) |
+| --- | --- | --- | --- |
+| Tier 1 event-level match | < 1 ms | 0.31 ms | |
+| Tier 2 statistical match | < 10 µs | 8.7 µs | |
+| Daily world tick, medium world (quiet day) | < 50 ms | 22 ms over a season; 50 ms in the summer window | |
+| Full matchday, all leagues, medium world | < 1 s | 70 ms mean, 120 ms worst | |
+| One season in holiday mode, medium world | < 60 s | 15 s (36 s on one thread) | about 39 s |
+| One season, small world | | 6.5 s (10.6 s on one thread) | about 15 s |
+| Match predictor, 10,000 runs at tier 1 | < 2 s | 0.73 s | |
+| Player search over 209k players | < 20 ms | 11 ms filtered by position, 50 ms unfiltered | |
+| Memory, small world (budget 150 MB) | | 72 MB resident | 45 MB WASM memory |
+| Memory, medium world (budget 300 MB) | | 137 MB resident | 94 MB WASM memory |
 
-Measurements are from the 4-core cloud build machine, not an iPad.
+The 1 July rollover (about 1 s in the medium world) is the slowest day of
+the year. The browser numbers come from a desktop CPU; an iPad's single
+core is in the same class, but run the app's performance test to know.
 
 ## 7. Determinism
 

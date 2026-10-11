@@ -12,6 +12,7 @@
 //! - [`inbox`], [`commentary`], [`live`], [`save`]: what the session uses.
 
 pub mod commentary;
+pub mod diagnostics;
 pub mod dto;
 pub mod inbox;
 pub mod live;

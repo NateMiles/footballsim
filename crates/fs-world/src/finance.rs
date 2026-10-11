@@ -2,7 +2,7 @@
 //!
 //! Amounts are whole currency units in `i64`. Income and spending are
 //! recorded in the club's season ledger as they happen, and the ledger is
-//! archived at the 1 July rollover. See `docs/WORLD.md` section 7.
+//! archived at the 1 July rollover. See `docs/WORLD.md` section 6.
 
 use serde::{Deserialize, Serialize};
 

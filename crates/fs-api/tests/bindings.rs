@@ -29,7 +29,7 @@ fn generate() -> String {
         ClubRef, Colors, LeagueRef, PlayerRef, Side, Formation, Tactic, SeasonStats,
         // Game.
         WorldSize, ClubChoice, ClubChoices, Overview, ManagerInfo, MatchDay, StopReason,
-        Continued, SaveGame, SaveSummary,
+        Continued, SaveGame, SaveSummary, BenchmarkStatus,
         // Club.
         SquadView, Selection, SquadPlayer, Injury, Contract, PlayerView, AttributeGroup,
         AttributeValue, CareerRow, PositionInfo, FormationInfo, SlotInfo, SliderInfo,

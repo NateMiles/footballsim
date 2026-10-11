@@ -158,11 +158,25 @@ promises.
 - UI: transfers, scouting, staff, finances and jobs screens; estimates on
   player pages; a development chart.
 
-### M5: Scale
-- Multi-nation world: 20+ nations, 60+ leagues, cups and continental
-  competitions defined in data.
-- LOD scheduling across the world, multithreaded daily tick.
-- Hit the performance budgets in ARCHITECTURE.md on an iPad.
+### M5: Scale (done)
+- Multi-nation worlds (24 nations and 120 leagues small, 60 and 300
+  medium) whose structure is data: `fs_world::format` describes every
+  nation's divisions and cups and every continent's competitions, written
+  and read as JSON (`fs-cli format`, `--format`) (WORLD.md section 2).
+- Cups: a national cup in every nation and, per continent, a Champions
+  Cup and Continental Shield with qualifying rounds, groups, two-legged
+  knockouts and neutral finals; places by nation coefficients; extra time
+  and penalty shootouts in both match engines (WORLD.md section 11,
+  MATCH_ENGINE.md).
+- Level of detail by club importance, staggered development and tactic
+  reviews, parallel daily passes and matches; a stage profiler (WORLD.md
+  section 12, ARCHITECTURE.md section 5).
+- Performance budgets measured (ARCHITECTURE.md section 6): a medium
+  season in 15 s native and about 39 s in a browser on one thread; player
+  search within budget when filtered; memory well inside the budgets.
+  The app has a performance test for measuring any device, iPad included.
+- UI: cup and competitions screens, all-competition fixtures, cup status
+  on the home screen, honours, extra time and shootouts in live matches.
 
 ### M6: Native polish and distribution
 - Release-quality Tauri 2 builds for macOS, Windows and iPadOS, with the

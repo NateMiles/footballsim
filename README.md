@@ -5,11 +5,14 @@ A football management game aiming to beat Football Manager on three fronts:
 more honestly), and **openness** (transparent stats, moddable data, scriptable
 scenarios).
 
-Status: **milestone 4 (management depth) complete.** Pick a club in a
-generated world and manage it: squad, tactics and team selection, a
-transfer and loan market where every club judges players by its own
-scouting, backroom staff, club finances, and a board that sacks managers
-who miss its targets, with a job market to find the next club. Every
+Status: **milestone 5 (scale) complete.** Pick a club in a generated
+world of up to 60 nations and manage it: squad, tactics and team
+selection, a transfer and loan market where every club judges players by
+its own scouting, backroom staff, club finances, and a board that sacks
+managers who miss its targets, with a job market to find the next club.
+Every nation has a cup and every continent a Champions Cup and a
+Continental Shield, with groups, two-legged ties, extra time and
+penalties; the whole structure is data you can edit. Every
 match is watchable in a 2D view where you make substitutions, change
 tactics and shout from the touchline. It runs in the browser (the simulation compiled to
 WebAssembly), installs on iPad as a web app, and builds as a native macOS
@@ -44,7 +47,9 @@ cargo run --release -p fs-cli -- squad --seed 3          # a generated squad
 cargo run --release -p fs-cli -- match --home 0 --away 5 # one match, full report
 cargo run --release -p fs-cli -- predict --home 0 --away 1 --runs 10000
 scripts/calibration-report.sh                            # regenerate docs/CALIBRATION.md
-cargo run --release -p fs-cli -- gen --size medium       # 155k-player world
+cargo run --release -p fs-cli -- gen --size medium       # 209k-player world
+cargo run --release -p fs-cli -- format --size small     # the competition structure as JSON
+cargo run --release -p fs-api --example budgets          # performance budgets
 cargo run --release -p fs-cli -- run --size medium --days 30
 scripts/determinism-check.sh                             # native vs WebAssembly
 ```
@@ -56,7 +61,7 @@ scripts/determinism-check.sh                             # native vs WebAssembly
 | [docs/PLAN.md](docs/PLAN.md) | Vision, differentiators vs FM, feature scope, roadmap |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Tech stack, iPad strategy, crate layout, data model, performance budgets |
 | [docs/MATCH_ENGINE.md](docs/MATCH_ENGINE.md) | Match engine design, fidelity tiers, calibration |
-| [docs/WORLD.md](docs/WORLD.md) | Season loop: calendar, development, contracts, youth, health targets |
+| [docs/WORLD.md](docs/WORLD.md) | Season loop: calendar, development, contracts, money, transfers, boards, cups, level of detail, health targets |
 | [docs/APP.md](docs/APP.md) | UI architecture, the API boundary, running on web, iPad and macOS |
 | [docs/CALIBRATION.md](docs/CALIBRATION.md) | Generated: engine statistics against real-football targets |
 

@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  BenchmarkStatus,
   ClubChoices,
   CompetitionsView,
   Continued,
@@ -152,6 +153,18 @@ export class Client {
 
   async competitions(): Promise<CompetitionsView> {
     return (await this.send({ type: 'competitions' }, 'competitions')).competitions;
+  }
+
+  async benchmarkStart(size: WorldSize): Promise<BenchmarkStatus> {
+    return (await this.send({ type: 'benchmarkStart', size }, 'benchmark')).benchmark;
+  }
+
+  async benchmarkRun(days: number): Promise<BenchmarkStatus> {
+    return (await this.send({ type: 'benchmarkRun', days }, 'benchmark')).benchmark;
+  }
+
+  async benchmarkEnd(): Promise<BenchmarkStatus> {
+    return (await this.send({ type: 'benchmarkEnd' }, 'benchmark')).benchmark;
   }
 
   async setWatchMatches(watch: boolean): Promise<Overview> {

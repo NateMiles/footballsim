@@ -150,6 +150,15 @@ pub enum Request {
     ApplyForJob { club: Id },
     /// Leave your club. Answered with [`Response::Overview`].
     Resign,
+
+    /// Performance test: generate a world of this size beside any game.
+    /// Answered with [`Response::Benchmark`]; time the call to measure.
+    BenchmarkStart { size: WorldSize },
+    /// Run the test world on (at most 30 days per call). Answered with
+    /// [`Response::Benchmark`].
+    BenchmarkRun { days: u16 },
+    /// Drop the test world. Answered with [`Response::Benchmark`].
+    BenchmarkEnd,
 }
 
 /// The core's answer.
@@ -230,6 +239,9 @@ pub enum Response {
     },
     Jobs {
         jobs: JobsView,
+    },
+    Benchmark {
+        benchmark: BenchmarkStatus,
     },
     Error {
         error: ApiError,

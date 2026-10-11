@@ -43,9 +43,19 @@ enum Stage {
 #[derive(Debug, Default)]
 pub struct Session {
     stage: Stage,
+    /// A performance test world, kept apart from any game.
+    bench: Option<Box<Game>>,
 }
 
 type Result<T> = std::result::Result<T, ApiError>;
+
+fn world_size(size: dto::WorldSize) -> Size {
+    match size {
+        dto::WorldSize::Tiny => Size::Tiny,
+        dto::WorldSize::Small => Size::Small,
+        dto::WorldSize::Medium => Size::Medium,
+    }
+}
 
 fn not_found(what: &str) -> ApiError {
     ApiError::new(ErrorCode::NotFound, format!("no such {what}"))
@@ -74,6 +84,50 @@ impl Session {
             .unwrap_or_else(|error| Response::Error { error })
     }
 
+    fn benchmark_status(&self) -> Response {
+        let (active, players, clubs, leagues, cups, date, matches) = match &self.bench {
+            Some(g) => {
+                let w = g.world();
+                let played = |f: &fs_world::Fixture| f.result.is_some();
+                let league_matches: usize = w
+                    .leagues()
+                    .iter()
+                    .filter_map(|(_, l)| l.season())
+                    .map(|s| s.fixtures.iter().filter(|f| played(f)).count())
+                    .sum();
+                let cup_matches: usize = w
+                    .cups()
+                    .iter()
+                    .filter_map(|(_, c)| c.edition())
+                    .map(|e| e.fixtures.iter().filter(|f| played(&f.fixture)).count())
+                    .sum();
+                (
+                    true,
+                    w.players().len() as u32,
+                    w.clubs().len() as u32,
+                    w.leagues().len() as u32,
+                    w.cups().len() as u32,
+                    query::refs::date(w.date()),
+                    (league_matches + cup_matches) as u32,
+                )
+            }
+            None => (false, 0, 0, 0, 0, String::new(), 0),
+        };
+        Response::Benchmark {
+            benchmark: dto::BenchmarkStatus {
+                active,
+                players,
+                clubs,
+                leagues,
+                cups,
+                date,
+                matches,
+                memory_bytes: crate::diagnostics::memory_bytes(),
+                threads: crate::diagnostics::threads(),
+            },
+        }
+    }
+
     /// The game, if one is being played.
     pub fn game(&self) -> Option<&Game> {
         match &self.stage {
@@ -96,15 +150,30 @@ impl Session {
                 version: env!("CARGO_PKG_VERSION").into(),
                 in_game: matches!(self.stage, Stage::Playing(_)),
             }),
-            Request::NewWorld { seed, size } => {
-                let mut cfg = GenConfig::preset(
-                    match size {
-                        dto::WorldSize::Tiny => Size::Tiny,
-                        dto::WorldSize::Small => Size::Small,
-                        dto::WorldSize::Medium => Size::Medium,
+            Request::BenchmarkStart { size } => {
+                let world = generate(&GenConfig::preset(world_size(size), 1));
+                self.bench = Some(Box::new(Game::new(world)));
+                Ok(self.benchmark_status())
+            }
+            Request::BenchmarkRun { days } => {
+                let game = self
+                    .bench
+                    .as_mut()
+                    .ok_or_else(|| ApiError::new(ErrorCode::NoGame, "start a test first"))?;
+                game.submit(
+                    Actor::System,
+                    Command::Advance {
+                        days: days.clamp(1, 30),
                     },
-                    u64::from(seed),
-                );
+                )?;
+                Ok(self.benchmark_status())
+            }
+            Request::BenchmarkEnd => {
+                self.bench = None;
+                Ok(self.benchmark_status())
+            }
+            Request::NewWorld { seed, size } => {
+                let mut cfg = GenConfig::preset(world_size(size), u64::from(seed));
                 cfg.human_clubs.clear();
                 let world = generate(&cfg);
                 let choices = query::game::club_choices(&world);

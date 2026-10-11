@@ -1,6 +1,7 @@
 <!-- No game loaded: start a new one or load a save. -->
 <script lang="ts">
   import type { ClubChoice, WorldSize } from '../api';
+  import Benchmark from '../components/Benchmark.svelte';
   import Crest from '../components/Crest.svelte';
   import { useGame } from '../state/game.svelte';
   import type { SaveSlot } from '../storage/saves';
@@ -16,6 +17,7 @@
   let lastName = $state('');
   let slots = $state<SaveSlot[]>([]);
   let leagueFilter = $state<number | 'all'>('all');
+  let testing = $state(false);
 
   $effect(() => {
     game.saves.list().then((s) => (slots = s)).catch(game.fail);
@@ -72,7 +74,9 @@
           </button>
         {/each}
       {/if}
+      <button class="link" onclick={() => (testing = !testing)}>Test this device's performance</button>
     </div>
+    {#if testing}<Benchmark />{/if}
   {:else if step === 'world'}
     <div class="card grid">
       <h2>New world</h2>

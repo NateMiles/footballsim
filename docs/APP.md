@@ -63,6 +63,12 @@ Rules that keep it modular:
    the instructions given. The world replays the match with them, gets
    the same result, and plays the rest of the day's fixtures.
 
+Cup ties work the same way. A knockout match that is level at full time
+plays extra time (the clock runs to 120, and an `interval` commentary
+line marks each break) and, if still level, a penalty shootout: its kicks
+arrive as `shootout` commentary lines a second apart after the final
+whistle, and the scoreboard shows the penalties.
+
 While a match is being watched, the session refuses changes to the team
 (tactics, lineup, contracts), so the world's replay cannot differ.
 Leaving the match screen and coming back restarts the match from
@@ -78,6 +84,13 @@ session's own state (viewer and inbox). The UI carries it base64-encoded. The br
 autosaves after starting a career and after every match. The Saves screen
 can export a save as a file and import it again, which is also how to move
 a game between devices.
+
+Screens for competitions: Fixtures shows the manager's matches in every
+competition (or a whole league), Cups shows any cup stage by stage
+(knockout ties with aggregates, group tables, byes, past winners), and
+Competitions lists every nation's leagues and cups and each continent's
+coefficient table. Home shows how the club is doing in each cup; the
+club page lists honours.
 
 ## 4. Running it
 
@@ -111,6 +124,15 @@ cd app && npm run build && npx vite preview --host
 
 Open `http://<your-mac's-ip>:4173` on the iPad. Service workers need
 HTTPS, so this version will not work offline.
+
+**Measuring performance on the iPad.** The title screen ("Test this
+device's performance") and the Saves screen run a performance test: they
+generate a small or medium test world beside any game, play 90 days of
+its season, and show the time per day, a projected season, the core's
+memory and the threads it can use (one in a browser). The protocol behind
+it is `BenchmarkStart`, `BenchmarkRun` and `BenchmarkEnd`; the timing is
+measured in the app. Compare the numbers with the budgets in
+`docs/ARCHITECTURE.md` section 6.
 
 ## 6. Native on macOS and iPad (Tauri)
 
@@ -183,7 +205,8 @@ If a step behaves differently, Tauri's own guides are the reference:
 
 | What | Where | Run |
 | --- | --- | --- |
-| Protocol end to end (new game, screens, live match, saves) | `crates/fs-api/tests/session.rs` | `cargo test -p fs-api` |
+| Protocol end to end (new game, screens, live match, saves, performance test) | `crates/fs-api/tests/session.rs` | `cargo test -p fs-api` |
+| Cups through the protocol (views, schedule, a watched cup tie) | `crates/fs-api/tests/cups.rs` | `cargo test -p fs-api` |
 | TypeScript bindings current | `crates/fs-api/tests/bindings.rs` | `cargo test -p fs-api` |
 | Watched match days in the world | `crates/fs-gen/tests/live.rs` | `cargo test -p fs-gen` |
 | Client, frame timeline | `app/src/**/*.test.ts` | `npm test` |
