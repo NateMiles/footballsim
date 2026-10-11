@@ -1,4 +1,5 @@
-<!-- The season's fixtures: the manager's club, or a whole league. -->
+<!-- The season's fixtures: the manager's club in every competition, or a
+     whole league. -->
 <script lang="ts">
   import type { Fixture } from '../api';
   import FixtureLine from '../components/FixtureLine.svelte';
@@ -10,9 +11,16 @@
   const game = useGame();
   let whole = $state(false);
   const mine = $derived(game.overview?.club?.id ?? null);
-  const view = load(() =>
-    whole || league !== undefined ? game.client.fixtures(league ?? game.overview?.league?.id ?? null, null) : game.client.fixtures(),
+  const showLeague = $derived(whole || league !== undefined);
+  const view = load(async () =>
+    showLeague
+      ? await game.client.fixtures(league ?? game.overview?.league?.id ?? null, null)
+      : await game.client.schedule(),
   );
+  const title = $derived(
+    view.data && 'league' in view.data ? view.data.league.name : 'All competitions',
+  );
+  const key = (f: Fixture) => `${f.competition.kind}-${f.competition.id}-${f.index}`;
 
   const months = $derived.by(() => {
     const groups: { month: string; fixtures: Fixture[] }[] = [];
@@ -28,7 +36,7 @@
 <div class="screen">
   <div class="row head">
     <h1>Fixtures</h1>
-    <span class="dim">{view.data?.league.name ?? ''}</span>
+    <span class="dim">{title}</span>
     <span class="spacer"></span>
     {#if league === undefined}
       <div class="seg" role="group" aria-label="Show">
@@ -40,8 +48,8 @@
   {#each months as g (g.month)}
     <section class="card month">
       <h3>{g.month}</h3>
-      {#each g.fixtures as f (f.index)}
-        <FixtureLine fixture={f} {mine} />
+      {#each g.fixtures as f (key(f))}
+        <FixtureLine fixture={f} {mine} competition={!showLeague} />
       {/each}
     </section>
   {:else}

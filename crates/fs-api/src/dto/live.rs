@@ -182,6 +182,11 @@ pub enum CommentaryKind {
     SetPiece,
     Play,
     Whistle,
+    /// The whistle that ends a half and starts a break (half time, the
+    /// end of normal time before extra time, half time in extra time).
+    Interval,
+    /// A penalty in a shootout.
+    Shootout,
 }
 
 /// A line of commentary.

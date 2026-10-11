@@ -55,6 +55,16 @@ export type ClubChoices = { clubs: Array<ClubChoice>, };
 
 export type ClubRef = { id: number, name: string, shortName: string, colors: Colors, };
 
+export type CoefficientRow = { rank: number, nation: string, code: string, 
+/**
+ * The sum of the recent seasons.
+ */
+points: number, 
+/**
+ * Points per season, oldest first.
+ */
+seasons: Array<number>, };
+
 export type Colors = { primary: string, secondary: string, };
 
 export type Commentary = { 
@@ -63,7 +73,23 @@ export type Commentary = {
  */
 t: number, clock: string, kind: CommentaryKind, side: Side | null, text: string, };
 
-export type CommentaryKind = "goal" | "chance" | "save" | "card" | "substitution" | "injury" | "foul" | "setPiece" | "play" | "whistle";
+export type CommentaryKind = "goal" | "chance" | "save" | "card" | "substitution" | "injury" | "foul" | "setPiece" | "play" | "whistle" | "interval" | "shootout";
+
+export type CompetitionKind = "league" | "cup";
+
+export type CompetitionRef = { kind: CompetitionKind, 
+/**
+ * A league or cup ID, by `kind`.
+ */
+id: number, name: string, shortName: string, };
+
+export type CompetitionsView = { nations: Array<NationCompetitions>, continents: Array<ContinentView>, };
+
+export type ContinentView = { name: string, cups: Array<CupRef>, 
+/**
+ * Best first.
+ */
+ranking: Array<CoefficientRow>, };
 
 export type Continued = { date: string, stopped: StopReason, newMessages: number, matchDay: MatchDay | null, };
 
@@ -72,6 +98,61 @@ export type Contract = {
  * Per week.
  */
 wage: number, expires: string, };
+
+export type CupRef = { id: number, name: string, shortName: string, 
+/**
+ * The nation, or the continent for continental cups.
+ */
+region: string, continental: boolean, };
+
+export type CupStage = { name: string, 
+/**
+ * Knockout ties (empty for a group stage).
+ */
+ties: Array<Tie>, 
+/**
+ * Groups (empty for a knockout round).
+ */
+groups: Array<GroupView>, 
+/**
+ * Clubs through without playing.
+ */
+byes: Array<ClubRef>, };
+
+export type CupStatus = { cup: CupRef, 
+/**
+ * Such as `"Quarter-finals"`, `"Out in the Second round"` or
+ * `"Winners"`.
+ */
+status: string, 
+/**
+ * Still in it (or won it).
+ */
+alive: boolean, };
+
+export type CupView = { cup: CupRef, 
+/**
+ * Such as `"2026/27"`.
+ */
+season: string, 
+/**
+ * Stages drawn so far, first first.
+ */
+stages: Array<CupStage>, 
+/**
+ * Stages still to be drawn.
+ */
+upcoming: Array<string>, winner: ClubRef | null, 
+/**
+ * Past winners, most recent first.
+ */
+history: Array<CupWinner>, 
+/**
+ * The other cups the viewer can switch to.
+ */
+cups: Array<CupRef>, };
+
+export type CupWinner = { season: string, winner: ClubRef | null, runnerUp: ClubRef | null, };
 
 export type ErrorCode = "badRequest" | "noGame" | "notFound" | "rejected" | "noMatch" | "badSave";
 
@@ -144,6 +225,14 @@ t: number,
  */
 ball: [number, number, number], players: Array<PlayerFrame>, };
 
+export type GroupView = { 
+/**
+ * Such as `"Group A"`.
+ */
+name: string, rows: Array<TableRow>, fixtures: Array<Fixture>, };
+
+export type Honour = { competition: string, seasons: Array<string>, };
+
 export type InboxView = { messages: Array<Message>, unread: number, };
 
 export type Injury = { 
@@ -169,6 +258,8 @@ export type JobsView = {
  * The viewer's reputation, 0-100.
  */
 reputation: number, employed: boolean, jobs: Array<Job>, };
+
+export type Kick = { side: Side, taker: number, scored: boolean, };
 
 export type LeagueRef = { id: number, name: string, nation: string, 
 /**
@@ -246,6 +337,8 @@ export type MatchReport = { fixture: Fixture, stats: [TeamStats, TeamStats], eve
 ratings: [Array<PlayerRating>, Array<PlayerRating>], shootout: Shootout | null, };
 
 export type Message = { id: number, date: string, category: Category, title: string, body: string, read: boolean, link: Link | null, };
+
+export type NationCompetitions = { nation: string, code: string, leagues: Array<LeagueRef>, cups: Array<CupRef>, };
 
 export type Offer = { id: number, date: string, player: PlayerRef, buyer: ClubRef, seller: ClubRef, kind: OfferKind, 
 /**
@@ -404,6 +497,8 @@ summary: SaveSummary, };
 
 export type SaveSummary = { date: string, manager: string, club: string, };
 
+export type ScheduleView = { club: ClubRef, fixtures: Array<Fixture>, };
+
 export type Scorer = { side: Side, player: PlayerRef, };
 
 export type SearchRow = { player: PlayerRef, club: ClubRef | null, age: number, nation: string, 
@@ -446,6 +541,12 @@ export type SelectablePlayer = { id: number, name: string, shortName: string, nu
 suitability: Array<number>, };
 
 export type Selection = "starter" | "bench" | "reserve";
+
+export type Shootout = { kicks: Array<Kick>, 
+/**
+ * Home then away.
+ */
+score: [number, number], };
 
 export type Shout = "encourage" | "demandMore" | "calmDown" | "tightenUp" | "pushForward";
 
@@ -583,6 +684,17 @@ export type TeamStats = {
  * 0-1.
  */
 possession: number, shots: number, shotsOnTarget: number, xg: number, passes: number, passesCompleted: number, crosses: number, tackles: number, fouls: number, yellows: number, reds: number, corners: number, offsides: number, saves: number, };
+
+export type Tie = { 
+/**
+ * Home side of the first leg first.
+ */
+clubs: [ClubRef, ClubRef], legs: Array<Fixture>, 
+/**
+ * Goals over both legs, in `clubs` order, once a two-legged tie has
+ * started.
+ */
+aggregate: [number, number] | null, winner: number | null, };
 
 export type TransferRecord = { date: string, player: PlayerRef, from: ClubRef, to: ClubRef, fee: number, loan: boolean, };
 

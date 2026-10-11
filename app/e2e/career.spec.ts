@@ -64,6 +64,18 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await page.getByRole('link', { name: /Table/ }).click();
   await expect(page.locator('tbody tr')).toHaveCount(20);
 
+  // Cups: the national cup's first round is drawn with the season.
+  await page.goto('./#/cup');
+  await expect(page.getByText(/Still to come/)).toBeVisible();
+  await expect(page.locator('details.stage').first()).toBeVisible();
+  await page.screenshot({ path: shots('cup', project) });
+  await page.goto('./#/competitions');
+  await expect(page.getByRole('heading', { name: 'Competitions' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nations' })).toBeVisible();
+  await page.screenshot({ path: shots('competitions', project) });
+  await page.goto('./#/fixtures');
+  await expect(page.getByText('All competitions')).toBeVisible();
+
   // Continue to the first match day.
   for (let i = 0; i < 20 && !page.url().includes('#/match'); i++) {
     await page.getByRole('button', { name: /Continue|Match day/ }).click();

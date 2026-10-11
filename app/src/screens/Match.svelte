@@ -79,6 +79,15 @@
   }
 
   const name = (id: number) => players.get(id)?.player.shortName ?? '';
+
+  /** A name from the report's ratings. */
+  function reportName(r: MatchReport, id: number): string {
+    for (const side of r.ratings) {
+      const p = side.find((x) => x.player.id === id);
+      if (p) return p.player.shortName;
+    }
+    return '';
+  }
 </script>
 
 {#if report}
@@ -86,9 +95,34 @@
   <div class="report screen grid">
     <section class="card board">
       <div class="team"><Crest club={f.home} size={48} /><strong>{f.home.name}</strong></div>
-      <div class="big">{f.result?.goals[0]} – {f.result?.goals[1]}</div>
+      <div class="big">
+        {f.result?.goals[0]} – {f.result?.goals[1]}
+        {#if f.result?.penalties}
+          <div class="after">{f.result.penalties[0]}–{f.result.penalties[1]} on penalties</div>
+        {:else if f.result?.extraTime}
+          <div class="after">after extra time</div>
+        {/if}
+      </div>
       <div class="team"><Crest club={f.away} size={48} /><strong>{f.away.name}</strong></div>
     </section>
+    <p class="dim comp">{f.competition.name}{f.round ? ` · ${f.round}` : ''}</p>
+    {#if report.shootout}
+      <section class="card">
+        <h3>Penalty shootout</h3>
+        <div class="kicks">
+          {#each ['home', 'away'] as side (side)}
+            <ol class:away={side === 'away'}>
+              {#each report.shootout.kicks.filter((k) => k.side === side) as k, i (i)}
+                <li>
+                  <span class:scored={k.scored} class:missed={!k.scored}>{k.scored ? '●' : '○'}</span>
+                  {reportName(report, k.taker)}
+                </li>
+              {/each}
+            </ol>
+          {/each}
+        </div>
+      </section>
+    {/if}
     <div class="cols">
       <section class="card">
         <h3>Goals and cards</h3>
@@ -129,7 +163,10 @@
     <header class="scoreboard">
       <button class="link" onclick={() => game.router.go({ name: 'home' })} title="Leave (the match restarts when you return)">‹</button>
       <span class="team"><Crest club={start.fixture.home} size={26} /> {start.fixture.home.shortName}</span>
-      <span class="score" data-testid="score">{p.score[0]} – {p.score[1]}</span>
+      <span class="score" data-testid="score">
+        {p.score[0]} – {p.score[1]}
+        {#if p.penalties}<small>({p.penalties[0]}–{p.penalties[1]} pens)</small>{/if}
+      </span>
       <span class="team">{start.fixture.away.shortName} <Crest club={start.fixture.away} size={26} /></span>
       <span class="clock" data-testid="clock">{p.over ? 'FT' : `${p.clock}'`}</span>
       <span class="spacer"></span>
@@ -185,7 +222,11 @@
     <h1>Match day</h1>
     {#if o?.matchDay}
       <section class="card grid">
-        <FixtureLine fixture={o.matchDay.fixture} mine={o.club?.id ?? null} />
+        <FixtureLine fixture={o.matchDay.fixture} mine={o.club?.id ?? null} competition />
+        <p class="dim">
+          {o.matchDay.fixture.competition.name}{o.matchDay.fixture.round ? ` · ${o.matchDay.fixture.round}` : ''}
+          {#if o.matchDay.fixture.neutral}· neutral ground{/if}
+        </p>
         <p class="dim">Check your team before kick-off. Once the match starts, the team can only change through substitutions and touchline instructions.</p>
         <div class="row">
           <button class="primary" disabled={game.busy !== null} onclick={kickOff}>Kick off ▸</button>
@@ -334,6 +375,8 @@
     color: var(--warn);
   }
 
+  .commentary .k-interval,
+  .commentary .k-shootout,
   .commentary .k-whistle {
     color: var(--text);
     font-weight: 600;
@@ -367,6 +410,46 @@
   .big {
     font-size: 2.6rem;
     font-weight: 800;
+    text-align: center;
+  }
+
+  .after {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-dim);
+  }
+
+  .comp {
+    text-align: center;
+  }
+
+  .score small {
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .kicks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .kicks ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .kicks ol.away {
+    text-align: right;
+  }
+
+  .scored {
+    color: var(--good);
+  }
+
+  .missed {
+    color: var(--bad);
   }
 
   .cols {

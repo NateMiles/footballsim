@@ -54,11 +54,7 @@ pub fn kick(
     line(
         t,
         "Pens".into(),
-        if kick.scored {
-            CommentaryKind::Goal
-        } else {
-            CommentaryKind::Chance
-        },
+        CommentaryKind::Shootout,
         Some(kick.side),
         text,
     )
@@ -246,9 +242,14 @@ pub fn event(e: &MatchEvent, t: f32, clock: String, names: &impl Names) -> dto::
     }
 }
 
-/// A whistle: kick-off, half time, full time.
+/// A whistle: kick-off, full time.
 pub fn whistle(t: f32, clock: String, text: &str) -> dto::Commentary {
     line(t, clock, CommentaryKind::Whistle, None, text.to_owned())
+}
+
+/// The whistle for a break between halves.
+pub fn interval(t: f32, clock: String, text: &str) -> dto::Commentary {
+    line(t, clock, CommentaryKind::Interval, None, text.to_owned())
 }
 
 #[cfg(test)]

@@ -267,9 +267,18 @@ pub fn statuses(world: &World, club: ClubId) -> Vec<dto::CupStatus> {
             let status = if e.winner == Some(club) {
                 "Winners".to_owned()
             } else if alive {
-                // The stage being played, or the next one to be drawn.
-                match last_with_club {
-                    Some(k) if k + 1 == e.stages.len() => stage_name(k),
+                // The stage being played, the one the club enters later,
+                // or the next one to be drawn.
+                let enters = e
+                    .entrants
+                    .iter()
+                    .enumerate()
+                    .skip(e.stages.len())
+                    .find(|(_, s)| s.contains(&club))
+                    .map(|(k, _)| k);
+                match (last_with_club, enters) {
+                    (Some(k), _) if k + 1 == e.stages.len() => stage_name(k),
+                    (_, Some(k)) => format!("Enters in the {}", stage_name(k)),
                     _ => stage_name(e.stages.len()),
                 }
             } else {

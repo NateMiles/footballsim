@@ -28,8 +28,10 @@
     switch (link.type) {
       case 'player':
         return { name: 'player', id: link.player };
-      case 'fixture':
-        return { name: 'fixtures', league: link.league };
+      case 'schedule':
+        return { name: 'fixtures' };
+      case 'cup':
+        return { name: 'cup', cup: link.cup };
       case 'table':
         return { name: 'table', league: link.league };
       case 'squad':
@@ -49,7 +51,8 @@
 
   const label: Record<Link['type'], string> = {
     player: 'View player',
-    fixture: 'View fixtures',
+    schedule: 'View fixtures',
+    cup: 'View the cup',
     table: 'View table',
     squad: 'View squad',
     tactics: 'View tactics',

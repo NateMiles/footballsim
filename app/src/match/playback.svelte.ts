@@ -1,19 +1,11 @@
 import type { Client, Commentary, Instruction, LiveChunk, LiveStart } from '../api';
+import { clockString } from './clock';
 import { Timeline, type Sample } from './timeline';
 
 /** Match seconds of frames kept ready ahead of the clock. */
 const LOOKAHEAD = 12;
 /** Match seconds asked for per request. */
 const CHUNK = 12;
-
-/** A match clock string, as the core formats it: "12", "45+2". */
-export function clockString(t: number, firstHalfLength: number | null): string {
-  const first = firstHalfLength === null || t < firstHalfLength;
-  const secs = first ? t : t - firstHalfLength! + 45 * 60;
-  const cap = first ? 45 : 90;
-  const minute = Math.floor(Math.max(0, secs) / 60) + 1;
-  return minute > cap ? `${cap}+${minute - cap}` : `${minute}`;
-}
 
 /**
  * Plays a live match on a clock: fetches chunks from the core ahead of
@@ -35,6 +27,8 @@ export class Playback {
   latest = $state<LiveChunk | null>(null);
   commentary = $state<Commentary[]>([]);
   score = $state<[number, number]>([0, 0]);
+  /** Penalties scored in a shootout, once one starts. */
+  penalties = $state<[number, number] | null>(null);
   clock = $state('1');
   /** The core has played the final whistle. */
   engineDone = $state(false);
@@ -44,7 +38,7 @@ export class Playback {
 
   private queued: Commentary[] = [];
   private finalT = Infinity;
-  private firstHalf: number | null = null;
+  private halfStarts: number[] = [];
   private fetching: Promise<void> | null = null;
 
   constructor(
@@ -58,7 +52,9 @@ export class Playback {
   step(dt: number): Sample | null {
     const end = this.timeline.end;
     if (this.playing && end >= 0) {
-      const target = Math.min(this.t + dt * this.speed, end, this.finalT);
+      // After the final whistle the clock runs on through any shootout.
+      const limit = this.engineDone ? this.finalT : end;
+      const target = Math.min(this.t + dt * (this.penalties ? 1 : this.speed), limit);
       this.stalled = target >= end && !this.engineDone;
       this.t = Math.max(this.t, target);
     }
@@ -74,7 +70,7 @@ export class Playback {
     let i = 0;
     while (i < this.queued.length && this.queued[i].t <= this.t) i++;
     if (i === 0) {
-      this.clock = clockString(this.t, this.firstHalf);
+      this.clock = clockString(this.t, this.halfStarts);
       return;
     }
     const shown = this.queued.splice(0, i);
@@ -83,10 +79,16 @@ export class Playback {
         const s = line.side === 'home' ? 0 : 1;
         this.score = s === 0 ? [this.score[0] + 1, this.score[1]] : [this.score[0], this.score[1] + 1];
       }
-      if (line.kind === 'whistle' && line.text.startsWith('Half')) this.firstHalf = line.t;
+      if (line.kind === 'interval') this.halfStarts = [...this.halfStarts, line.t];
+      if (line.kind === 'shootout' && line.side) {
+        const p = this.penalties ?? [0, 0];
+        const scored = !line.text.includes('misses');
+        const s = line.side === 'home' ? 0 : 1;
+        this.penalties = scored ? (s === 0 ? [p[0] + 1, p[1]] : [p[0], p[1] + 1]) : p;
+      }
     }
     this.commentary = [...shown.reverse(), ...this.commentary];
-    this.clock = clockString(this.t, this.firstHalf);
+    this.clock = this.penalties ? 'Pens' : clockString(this.t, this.halfStarts);
   }
 
   private absorb(chunk: LiveChunk): void {
@@ -96,7 +98,9 @@ export class Playback {
     this.latest = chunk;
     if (chunk.finished) {
       this.engineDone = true;
-      this.finalT = chunk.elapsed;
+      // A shootout's kicks come a second apart after the whistle.
+      const kicks = chunk.shootout?.kicks.length ?? 0;
+      this.finalT = chunk.elapsed + (kicks > 0 ? kicks + 2 : 0);
     }
   }
 

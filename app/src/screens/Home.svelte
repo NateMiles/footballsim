@@ -6,6 +6,7 @@
   import { money, ordinal } from '../format';
   import { useGame } from '../state/game.svelte';
   import { load } from '../state/load.svelte';
+  import { href } from '../state/router.svelte';
 
   const game = useGame();
   const o = $derived(game.overview);
@@ -65,7 +66,8 @@
     {#if o.matchDay}
       <section class="card matchday">
         <h3>Match day</h3>
-        <FixtureLine fixture={o.matchDay.fixture} mine={club.id} />
+        <FixtureLine fixture={o.matchDay.fixture} mine={club.id} competition />
+        <p class="dim">{o.matchDay.fixture.competition.name}{o.matchDay.fixture.round ? ` · ${o.matchDay.fixture.round}` : ''}</p>
         <div class="row">
           <button class="primary" onclick={() => game.router.go({ name: 'match' })}>Go to the match</button>
         </div>
@@ -76,13 +78,13 @@
       <section class="card">
         <h3>Next match</h3>
         {#if o.nextFixture}
-          <FixtureLine fixture={o.nextFixture} mine={club.id} />
+          <FixtureLine fixture={o.nextFixture} mine={club.id} competition />
         {:else}
           <p class="dim">No fixtures scheduled.</p>
         {/if}
         <h3 class="gap">Last match</h3>
         {#if o.lastFixture}
-          <FixtureLine fixture={o.lastFixture} mine={club.id} />
+          <FixtureLine fixture={o.lastFixture} mine={club.id} competition />
         {:else}
           <p class="dim">The season has not started.</p>
         {/if}
@@ -101,6 +103,18 @@
         {/if}
       </section>
     </div>
+
+    {#if o.cups.length > 0}
+      <section class="card">
+        <h3>Cups</h3>
+        {#each o.cups as c (c.cup.id)}
+          <a class="cup" href={href({ name: 'cup', cup: c.cup.id })}>
+            <span>{c.cup.name}</span>
+            <span class:out={!c.alive} class="status">{c.status}</span>
+          </a>
+        {/each}
+      </section>
+    {/if}
 
     <div class="cols">
       {#if o.board}
@@ -183,6 +197,25 @@
 
   .gap {
     margin-top: 16px;
+  }
+
+  .cup {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    color: inherit;
+  }
+
+  .status {
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .status.out {
+    color: var(--text-dim);
+    font-weight: 400;
   }
 
   .msg {

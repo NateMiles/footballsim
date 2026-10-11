@@ -21,12 +21,15 @@
     { route: { name: 'finances' }, label: 'Finances', icon: '£' },
     { route: { name: 'fixtures' }, label: 'Fixtures', icon: '▦' },
     { route: { name: 'table' }, label: 'Table', icon: '≡' },
+    { route: { name: 'cup' }, label: 'Cups', icon: '♕' },
+    { route: { name: 'competitions' }, label: 'Competitions', icon: '◈' },
     { route: { name: 'saves' }, label: 'Saves', icon: '⇩' },
   ];
   const unemployed: Item[] = [
     { route: { name: 'home' }, label: 'Home', icon: '⌂' },
     { route: { name: 'inbox' }, label: 'Inbox', icon: '✉' },
     { route: { name: 'jobs' }, label: 'Jobs', icon: '✎' },
+    { route: { name: 'competitions' }, label: 'Competitions', icon: '◈' },
     { route: { name: 'saves' }, label: 'Saves', icon: '⇩' },
   ];
   const nav = $derived(o?.club ? employed : unemployed);

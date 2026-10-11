@@ -36,12 +36,15 @@ fn generate() -> String {
         TacticsView, SelectablePlayer, Lineup,
         // Competition.
         Fixture, FixtureResult, Scorer, FixturesView, TableZone, TableView, TableRow,
+        CompetitionKind, CompetitionRef, ScheduleView, CupRef, CupView, CupStage, Tie, GroupView,
+        CupWinner, CupStatus, CompetitionsView, NationCompetitions, ContinentView,
+        CoefficientRow, Honour,
         // Inbox.
         Category, Link, Message, InboxView,
         // Live.
         LiveStart, Pitch, LivePlayerInfo, LiveLineup, OnPitch, Shout, Instruction, LiveChunk,
         Frame, PlayerFrame, Pose, CommentaryKind, Commentary, MatchEvent, TeamStats,
-        MatchReport, PlayerRating,
+        MatchReport, PlayerRating, Shootout, Kick,
         // Management.
         Ledger, SeasonAccounts, Facilities, FinancesView, BoardView, StaffRole, StaffAttributes,
         StaffMember, StaffRatings, StaffView, Job, JobsView,

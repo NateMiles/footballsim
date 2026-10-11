@@ -126,9 +126,21 @@
       </tbody>
     </table>
   </div>
+  {#if squad.data && squad.data.honours.length > 0}
+    <section class="card honours">
+      <h3>Honours</h3>
+      {#each squad.data.honours as h (h.competition)}
+        <p><strong>{h.competition}</strong> <span class="dim">×{h.seasons.length}</span> · {h.seasons.join(', ')}</p>
+      {/each}
+    </section>
+  {/if}
 </div>
 
 <style>
+  .honours {
+    margin-top: var(--gap);
+  }
+
   .head {
     margin-bottom: 12px;
   }

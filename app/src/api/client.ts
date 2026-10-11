@@ -1,7 +1,9 @@
 import type {
   ApiErrorBody,
   ClubChoices,
+  CompetitionsView,
   Continued,
+  CupView,
   ErrorCode,
   FinancesView,
   FixturesView,
@@ -24,6 +26,7 @@ import type {
   Request,
   Response,
   SaveGame,
+  ScheduleView,
   SquadView,
   Tactic,
   TableView,
@@ -137,6 +140,18 @@ export class Client {
 
   async table(league: number | null = null): Promise<TableView> {
     return (await this.send({ type: 'table', league }, 'table')).table;
+  }
+
+  async schedule(club: number | null = null): Promise<ScheduleView> {
+    return (await this.send({ type: 'schedule', club }, 'schedule')).schedule;
+  }
+
+  async cup(cup: number | null = null): Promise<CupView> {
+    return (await this.send({ type: 'cup', cup }, 'cup')).cup;
+  }
+
+  async competitions(): Promise<CompetitionsView> {
+    return (await this.send({ type: 'competitions' }, 'competitions')).competitions;
   }
 
   async setWatchMatches(watch: boolean): Promise<Overview> {

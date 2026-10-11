@@ -2,6 +2,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Shell from './components/Shell.svelte';
+  import Competitions from './screens/Competitions.svelte';
+  import Cup from './screens/Cup.svelte';
   import Finances from './screens/Finances.svelte';
   import Fixtures from './screens/Fixtures.svelte';
   import Home from './screens/Home.svelte';
@@ -52,6 +54,10 @@
       {#key route.league}<Fixtures league={route.league} />{/key}
     {:else if route.name === 'table'}
       {#key route.league}<Table league={route.league} />{/key}
+    {:else if route.name === 'cup'}
+      {#key route.cup}<Cup cup={route.cup} />{/key}
+    {:else if route.name === 'competitions'}
+      <Competitions />
     {:else if route.name === 'saves'}
       <Saves />
     {:else if route.name === 'transfers'}

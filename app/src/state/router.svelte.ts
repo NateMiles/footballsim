@@ -10,6 +10,8 @@ export type Route =
   | { name: 'tactics' }
   | { name: 'fixtures'; league?: number }
   | { name: 'table'; league?: number }
+  | { name: 'cup'; cup?: number }
+  | { name: 'competitions' }
   | { name: 'match' }
   | { name: 'saves' }
   | { name: 'transfers'; tab?: TransferTab }
@@ -32,7 +34,10 @@ export function parse(hash: string): Route {
     case 'staff':
     case 'finances':
     case 'jobs':
+    case 'competitions':
       return { name };
+    case 'cup':
+      return { name, cup: id };
     case 'transfers':
       return { name, tab: TABS.find((t) => t === arg) };
     case 'squad':
@@ -58,6 +63,8 @@ export function href(route: Route): string {
       return route.league === undefined ? `#/${route.name}` : `#/${route.name}/${route.league}`;
     case 'transfers':
       return route.tab === undefined ? '#/transfers' : `#/transfers/${route.tab}`;
+    case 'cup':
+      return route.cup === undefined ? '#/cup' : `#/cup/${route.cup}`;
     default:
       return `#/${route.name}`;
   }

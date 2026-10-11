@@ -147,7 +147,7 @@ impl LiveSession {
                 _ => "Half time in extra time.",
             };
             self.breaks += 1;
-            lines.push(commentary::whistle(t as f32, self.clock_at(t - 1.0), text));
+            lines.push(commentary::interval(t as f32, self.clock_at(t - 1.0), text));
         }
         let mut events = Vec::with_capacity(chunk.events.len());
         for ev in &chunk.events {
