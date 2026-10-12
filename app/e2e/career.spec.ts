@@ -2,17 +2,20 @@ import { expect, test, type Page } from '@playwright/test';
 
 const shots = (name: string, project: string) => `e2e/screenshots/${project}-${name}.png`;
 
-async function newCareer(page: Page) {
+async function newCareer(page: Page, project: string) {
   await page.goto('./');
+  await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
+  await page.screenshot({ path: shots('title', project) });
   await page.getByRole('button', { name: 'New game' }).click();
   await page.getByRole('spinbutton').fill('7');
   await page.getByRole('button', { name: 'Generate' }).click();
   await expect(page.getByRole('heading', { name: 'Choose your club' })).toBeVisible();
   await page.locator('.club').nth(3).click();
+  await page.screenshot({ path: shots('choose-club', project) });
   await page.getByLabel('First name').fill('Robin');
   await page.getByLabel('Last name').fill('Hale');
   await page.getByRole('button', { name: /Take charge of/ }).click();
-  await expect(page.getByText('Robin Hale')).toBeVisible();
+  await expect(page.getByText('Robin Hale', { exact: true })).toBeVisible();
 }
 
 test('a season can be started, managed and saved', async ({ page }, info) => {
@@ -20,7 +23,7 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
 
-  await newCareer(page);
+  await newCareer(page, project);
   await expect(page.getByTestId('objectives').locator('li')).not.toHaveCount(0);
   await page.screenshot({ path: shots('home', project), fullPage: true });
 
@@ -172,7 +175,7 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await page.goto('./');
   await page.getByRole('button', { name: /· e2e$/ }).click();
   await expect(page.getByRole('heading', { name: 'Last match' })).toBeVisible();
-  await expect(page.getByText(/Robin Hale/)).toBeVisible();
+  await expect(page.getByText('Robin Hale', { exact: true })).toBeVisible();
 
   expect(errors).toEqual([]);
 });

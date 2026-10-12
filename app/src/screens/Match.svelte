@@ -280,12 +280,16 @@
   }
 
   .score {
+    font-family: var(--display);
     font-size: 1.6rem;
     font-weight: 800;
+    font-stretch: 112%;
     font-variant-numeric: tabular-nums;
-    padding: 0 10px;
-    border-radius: 8px;
+    padding: 2px 14px;
+    border-radius: 10px;
     background: var(--bg-sunken);
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 0 24px -12px var(--accent-glow);
   }
 
   .clock {

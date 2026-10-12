@@ -48,6 +48,34 @@ Rules that keep it modular:
   requests into `fs_world::Command`s submitted through `Game::submit`, so
   the command log stays complete.
 
+### Look and feel
+
+The design system is called Floodlight: a night match under lights. Its
+tokens and shared element styles live in `app/src/styles/app.css`;
+components keep their own styles and use the tokens.
+
+- **Surfaces** run from `--bg` (near black, faintly lit from above)
+  through `--bg-raised` (cards) to `--bg-elevated`. Lines are translucent
+  (`--line`, `--line-strong`) so they sit on any surface.
+- **One accent.** Volt (`--accent`) marks what you can act on and what is
+  yours: primary buttons, the active page, your row in a table. Status
+  colours (`--good`, `--bad`, `--warn`) mean good, bad and caution and
+  nothing else. Club colours appear where the club is the subject: the
+  Home hero, crests, the club picker.
+- **Type.** Inter for text; Archivo, a variable font with a width axis,
+  for headings, scores and headline numbers (`.figure`) and condensed for
+  small uppercase labels (`h3`, `.eyebrow`, table headers).
+- **Shared pieces.** `Icon` (line icons on a 24px grid), `Crest` (a
+  shield with a pattern picked from the club's id), `MatchTicket` (a
+  fixture with both crests and a countdown), `Gauge` (a 0-100 dial).
+- **Layout.** A navigation rail on wide screens; below 900px a bottom tab
+  bar with the first four sections and a More sheet. Home uses a
+  container query, so it lays out by the space it has rather than the
+  window. Screens fade in, except with reduced motion (the e2e tests run
+  with it, so screenshots never catch a screen halfway).
+- Keep touch targets at least `--tap` (44px) and text contrast at WCAG AA
+  or better on the card surface.
+
 ## 2. A watched match
 
 1. `Continue` advances day by day. On a match day for a manager who

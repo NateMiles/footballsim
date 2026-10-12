@@ -14,6 +14,8 @@ export default defineConfig({
     baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
     launchOptions: { executablePath },
+    // Screens fade in; screenshots should not catch them halfway.
+    contextOptions: { reducedMotion: 'reduce' },
   },
   projects: [
     { name: 'ipad-landscape', use: { ...devices['iPad Pro 11 landscape'], browserName: 'chromium' } },

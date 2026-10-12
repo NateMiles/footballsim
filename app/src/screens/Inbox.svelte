@@ -137,7 +137,8 @@
     gap: 4px 8px;
     text-align: left;
     border: 0;
-    padding: 10px;
+    border-radius: var(--radius);
+    padding: 10px 12px;
     background: none;
     color: var(--text-dim);
   }

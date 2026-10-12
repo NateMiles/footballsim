@@ -148,18 +148,29 @@
 
   .focus {
     display: grid;
+    align-content: start;
     gap: 4px;
     text-align: left;
-    padding: 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    background: var(--bg-sunken);
+    border-color: var(--line);
   }
 
   .focus span {
     font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--text-dim);
   }
 
-  button.active {
+  .focus.active strong,
+  .focus.active {
+    color: var(--text);
+  }
+
+  .focus.active {
     border-color: var(--accent);
-    background: var(--bg-sunken);
+    background: var(--accent-soft);
   }
 
   .fam {

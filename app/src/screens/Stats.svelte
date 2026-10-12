@@ -30,12 +30,12 @@
       <p class="dim">No matches yet this season.</p>
     {:else}
       <section class="card tiles" data-testid="season-summary">
-        <div><span class="dim">Played</span><strong>{c.played}</strong></div>
-        <div><span class="dim">W–D–L</span><strong>{c.won}–{c.drawn}–{c.lost}</strong></div>
-        <div><span class="dim">Goals</span><strong>{c.goalsFor}–{c.goalsAgainst}</strong></div>
-        <div><span class="dim">xG</span><strong>{c.xgFor.toFixed(1)}–{c.xgAgainst.toFixed(1)}</strong></div>
-        <div><span class="dim">Shots</span><strong>{c.shotsFor}–{c.shotsAgainst}</strong></div>
-        <div><span class="dim">Possession</span><strong>{pct(c.possession)}</strong></div>
+        <div><span class="eyebrow">Played</span><strong class="figure">{c.played}</strong></div>
+        <div><span class="eyebrow">W–D–L</span><strong class="figure">{c.won}–{c.drawn}–{c.lost}</strong></div>
+        <div><span class="eyebrow">Goals</span><strong class="figure">{c.goalsFor}–{c.goalsAgainst}</strong></div>
+        <div><span class="eyebrow">xG</span><strong class="figure">{c.xgFor.toFixed(1)}–{c.xgAgainst.toFixed(1)}</strong></div>
+        <div><span class="eyebrow">Shots</span><strong class="figure">{c.shotsFor}–{c.shotsAgainst}</strong></div>
+        <div><span class="eyebrow">Possession</span><strong class="figure">{pct(c.possession)}</strong></div>
       </section>
 
       <section class="card scroll-x">
@@ -68,7 +68,7 @@
         <h3>Matches</h3>
         {#each c.matches as f (f.competition.kind + f.competition.id + '-' + f.index)}
           <a class="match" href={analysisHref(f)} data-testid="analysis-link">
-            <FixtureLine fixture={f} {mine} competition={c.competition === null} />
+            <FixtureLine fixture={f} {mine} competition={c.competition === null} links={false} />
             <span class="go">Analysis ▸</span>
           </a>
         {/each}
@@ -97,11 +97,11 @@
 
   .tiles div {
     display: grid;
-    gap: 2px;
+    gap: 4px;
   }
 
   .tiles strong {
-    font-size: 1.3rem;
+    font-size: 1.5rem;
   }
 
   .pos {

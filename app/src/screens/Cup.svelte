@@ -123,7 +123,7 @@
                   <span title={f.round ?? ''}>{f.home.id === t.clubs[0].id ? score(f) : score(f).split('–').reverse().join('–')}</span>
                 {/each}
               {:else}
-                <span>v</span>
+                <span class="vs">vs</span>
               {/if}
             </span>
             <span class="side b" class:won={t.winner === t.clubs[1].id} class:lost={t.winner !== null && t.winner !== t.clubs[1].id}>
@@ -222,7 +222,9 @@
   }
 
   .tie.mine {
-    background: var(--bg-sunken);
+    background: var(--accent-soft);
+    border-radius: 10px;
+    border-bottom-color: transparent;
   }
 
   .side.a {
@@ -240,14 +242,26 @@
   .scores {
     display: inline-flex;
     gap: 6px;
+    font-family: var(--display);
     font-variant-numeric: tabular-nums;
-    font-weight: 700;
+    font-weight: 800;
   }
 
   .scores span {
+    min-width: 3.4em;
+    text-align: center;
     background: var(--bg-sunken);
-    border-radius: 6px;
-    padding: 2px 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 3px 8px;
+  }
+
+  .scores .vs {
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-stretch: 115%;
+    text-transform: uppercase;
+    color: var(--text-faint);
   }
 
   .note {

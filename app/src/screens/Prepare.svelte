@@ -3,7 +3,7 @@
 <script lang="ts">
   import type { Formation, Marking, Prediction, Tactic } from '../api';
   import ClubName from '../components/ClubName.svelte';
-  import FixtureLine from '../components/FixtureLine.svelte';
+  import MatchTicket from '../components/MatchTicket.svelte';
   import Form from '../components/Form.svelte';
   import { ordinal } from '../format';
   import { useGame } from '../state/game.svelte';
@@ -129,7 +129,7 @@
   {#if report.data}
     {@const r = report.data}
     {#if r.fixture}
-      <FixtureLine fixture={r.fixture} {mine} competition />
+      <div class="ticket-wrap"><MatchTicket fixture={r.fixture} {mine} today={game.overview?.date ?? null} /></div>
     {/if}
     <div class="cols">
       <section class="card grid">
@@ -285,6 +285,10 @@
 </div>
 
 <style>
+  .ticket-wrap {
+    max-width: 560px;
+  }
+
   .cols {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

@@ -1,8 +1,11 @@
-<!-- The manager's desk: league position, next match, latest news. -->
+<!-- The manager's desk: the club in its colours, the next match, news,
+     the board and the money. -->
 <script lang="ts">
-  import FixtureLine from '../components/FixtureLine.svelte';
+  import Crest from '../components/Crest.svelte';
   import Form from '../components/Form.svelte';
-  import Meter from '../components/Meter.svelte';
+  import Gauge from '../components/Gauge.svelte';
+  import Icon from '../components/Icon.svelte';
+  import MatchTicket from '../components/MatchTicket.svelte';
   import { money, ordinal } from '../format';
   import { useGame } from '../state/game.svelte';
   import { load } from '../state/load.svelte';
@@ -31,13 +34,22 @@
     const next = await game.run('Saving', () => game.client.setDelegation(!o.delegateSquad));
     if (next) game.changed(next);
   }
+
+  const STATUS: Record<string, string> = { met: 'Met', failed: 'Missed', onTrack: 'On track', behind: 'Behind' };
+  const TONE: Record<string, string> = { met: 'good', failed: 'bad', onTrack: 'good', behind: 'warn' };
 </script>
 
 {#if o && !o.club}
-  <div class="screen grid home">
+  <div class="screen home">
+    <section class="hero free">
+      <div class="hero-text">
+        <span class="eyebrow">{o.season}</span>
+        <h1>Out of work</h1>
+        <p class="sub">{o.manager.name}</p>
+      </div>
+    </section>
     <section class="card">
-      <h1>Out of work</h1>
-      <p class="dim">{o.manager.name} · {o.season}</p>
+      <h3>Next job</h3>
       <p>Clubs that sack their managers advertise the job. Apply for one, or press Continue to wait for more to come up.</p>
       <div class="row">
         <button class="primary" onclick={() => game.router.go({ name: 'jobs' })}>Look for a job</button>
@@ -46,198 +58,375 @@
   </div>
 {:else if o && o.club}
   {@const club = o.club}
-  <div class="screen grid home">
-    <section class="card hero">
-      <div>
+  <div class="screen home">
+    <section
+      class="hero"
+      style:--club={club.colors.primary}
+      style:--club-2={club.colors.secondary}
+    >
+      <Crest {club} size={76} />
+      <div class="hero-text">
+        <span class="eyebrow">{o.league?.name ?? 'No league'} · {o.season}</span>
         <h1>{club.name}</h1>
-        <p class="dim">
-          {o.manager.name} · {o.season}
-          {#if o.league}· {o.league.name}{/if}
-        </p>
+        <p class="sub">Managed by {o.manager.name}</p>
       </div>
       {#if o.position}
-        <div class="pos">
-          <span class="big">{ordinal(o.position)}</span>
-          <Form form={o.form} />
+        <div class="standing">
+          <span class="label">League position</span>
+          <span class="pos">{o.position}<small>{ordinal(o.position).replace(/\d+/, '')}</small></span>
+          {#if o.form.length > 0}<Form form={o.form} />{/if}
         </div>
       {/if}
     </section>
 
-    {#if o.matchDay}
-      <section class="card matchday">
-        <h3>Match day</h3>
-        <FixtureLine fixture={o.matchDay.fixture} mine={club.id} competition />
-        <p class="dim">{o.matchDay.fixture.competition.name}{o.matchDay.fixture.round ? ` · ${o.matchDay.fixture.round}` : ''}</p>
-        <div class="row">
-          <button class="primary" onclick={() => game.router.go({ name: 'match' })}>Go to the match</button>
-        </div>
-      </section>
-    {/if}
+    <div class="board-grid">
+      {#if o.matchDay}
+        <section class="card wide">
+          <h3>Match day</h3>
+          <MatchTicket fixture={o.matchDay.fixture} mine={club.id} today={o.date} live>
+            <button class="primary" onclick={() => game.router.go({ name: 'match' })}>Go to the match</button>
+          </MatchTicket>
+        </section>
+      {/if}
 
-    <div class="cols">
-      <section class="card">
+      <section class="card next">
         <h3>Next match</h3>
         {#if o.nextFixture}
-          <FixtureLine fixture={o.nextFixture} mine={club.id} competition />
-          <div class="row"><button onclick={() => game.router.go({ name: 'prepare' })}>Prepare ▸</button></div>
+          <MatchTicket fixture={o.nextFixture} mine={club.id} today={o.date}>
+            <button onclick={() => game.router.go({ name: 'prepare' })}>Prepare</button>
+          </MatchTicket>
         {:else}
           <p class="dim">No fixtures scheduled.</p>
         {/if}
         <h3 class="gap">Last match</h3>
         {#if o.lastFixture}
-          <FixtureLine fixture={o.lastFixture} mine={club.id} competition />
+          <MatchTicket fixture={o.lastFixture} mine={club.id} />
         {:else}
           <p class="dim">The season has not started.</p>
         {/if}
       </section>
 
-      <section class="card">
-        <h3>Inbox</h3>
-        {#if inbox.data}
-          {#each inbox.data.messages.slice(0, 5) as m (m.id)}
-            <a class="msg" class:unread={!m.read} href="#/inbox">
-              <span>{m.title}</span>
-            </a>
-          {:else}
-            <p class="dim">No messages.</p>
-          {/each}
-        {/if}
-      </section>
-    </div>
-
-    {#if o.cups.length > 0}
-      <section class="card">
-        <h3>Cups</h3>
-        {#each o.cups as c (c.cup.id)}
-          <a class="cup" href={href({ name: 'cup', cup: c.cup.id })}>
-            <span>{c.cup.name}</span>
-            <span class:out={!c.alive} class="status">{c.status}</span>
-          </a>
-        {/each}
-      </section>
-    {/if}
-
-    <div class="cols">
-      {#if o.board}
+      <div class="side">
         <section class="card">
+          <div class="head">
+            <h3>Inbox</h3>
+            <a class="more" href="#/inbox">All <Icon name="arrow" size={14} /></a>
+          </div>
+          {#if inbox.data}
+            <ul class="msgs">
+              {#each inbox.data.messages.slice(0, 5) as m (m.id)}
+                <li>
+                  <a class="msg" class:unread={!m.read} href="#/inbox">
+                    <span class="dot"></span>
+                    <span class="title">{m.title}</span>
+                  </a>
+                </li>
+              {:else}
+                <li class="dim">No messages.</li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
+
+        {#if o.cups.length > 0}
+          <section class="card">
+            <h3>Cups</h3>
+            <ul class="cups">
+              {#each o.cups as c (c.cup.id)}
+                <li>
+                  <a href={href({ name: 'cup', cup: c.cup.id })}>
+                    <span class="trophy" class:out={!c.alive}><Icon name="cups" size={18} /></span>
+                    <span class="title">{c.cup.name}</span>
+                    <span class="pill" class:good={c.alive}>{c.status}</span>
+                  </a>
+                </li>
+              {/each}
+            </ul>
+          </section>
+        {/if}
+      </div>
+
+      {#if o.board}
+        <section class="card board">
           <h3>The board</h3>
-          <p><strong>{o.board.objective}</strong></p>
-          <div class="row">
-            <span class="dim">Confidence</span>
-            <Meter value={o.board.confidence} label="Board confidence" good={55} ok={35} />
-            <span>{o.board.confidence}%</span>
+          <div class="confidence">
+            <Gauge value={o.board.confidence} label="Board confidence" good={55} ok={35} />
+            <div>
+              <span class="label">Main objective</span>
+              <p class="objective">{o.board.objective}</p>
+              <p class="dim small">The club {o.board.ethos.toLowerCase()}.</p>
+            </div>
           </div>
           {#if o.board.objectives.length > 0}
             <ul class="objectives" data-testid="objectives">
               {#each o.board.objectives as ob, i (i)}
-                <li>
-                  <span class="pill {ob.status === 'met' || ob.status === 'onTrack' ? 'good' : ob.status === 'failed' ? 'bad' : 'warn'}">
-                    {ob.status === 'met' ? 'Met' : ob.status === 'failed' ? 'Missed' : ob.status === 'onTrack' ? 'On track' : 'Behind'}
+                <li class={TONE[ob.status]}>
+                  <span class="text">
+                    {ob.text}
+                    {#if ob.important}<span class="pill warn">Important</span>{/if}
                   </span>
-                  <span>{ob.text}{ob.important ? ' (important)' : ''}</span>
-                  <span class="dim">{ob.detail}</span>
+                  <span class="pill {TONE[ob.status]}">{STATUS[ob.status]}</span>
+                  <span class="detail">{ob.detail}</span>
                 </li>
               {/each}
             </ul>
           {/if}
-          <p class="dim small">The club {o.board.ethos.toLowerCase()}.</p>
         </section>
       {/if}
-      <section class="card">
+
+      <section class="card money">
         <h3>Money</h3>
-        <p>
-          <span class="dim">Balance</span> <strong>{money(o.balance ?? 0)}</strong> ·
-          <span class="dim">Transfer budget</span> <strong>{money(o.transferBudget ?? 0)}</strong>
+        <div class="figures">
+          <div>
+            <span class="label">Balance</span>
+            <span class="figure" class:neg={(o.balance ?? 0) < 0}>{money(o.balance ?? 0)}</span>
+          </div>
+          <div>
+            <span class="label">Transfer budget</span>
+            <span class="figure">{money(o.transferBudget ?? 0)}</span>
+          </div>
+        </div>
+        <p class="window">
+          <span class="pill" class:good={o.windowOpen}>Transfer window {o.windowOpen ? 'open' : 'closed'}</span>
         </p>
-        <p class="dim">The transfer window is {o.windowOpen ? 'open' : 'closed'}.</p>
         <div class="row">
           <button onclick={() => game.router.go({ name: 'transfers' })}>Transfers</button>
           <button onclick={() => game.router.go({ name: 'finances' })}>Finances</button>
         </div>
       </section>
-    </div>
 
-    <section class="card grid">
-      <h3>Settings</h3>
-      <label class="toggle">
-        <input type="checkbox" checked={o.watchMatches} onchange={toggleWatch} disabled={o.matchDay !== null} />
-        <span>Stop on match days to watch and manage matches live</span>
-      </label>
-      <label class="toggle">
-        <input type="checkbox" checked={o.delegateSquad} onchange={toggleDelegate} />
-        <span>Let the assistant handle contracts and signings</span>
-      </label>
-      <div class="row">
-        {#if resigning}
-          <span>Leave {club.name}? You will have to find a new job.</span>
-          <button class="danger" onclick={resign}>Resign</button>
-          <button onclick={() => (resigning = false)}>Stay</button>
-        {:else}
-          <button class="danger" onclick={() => (resigning = true)}>Resign…</button>
-        {/if}
-      </div>
-    </section>
+      <section class="card wide settings">
+        <h3>Settings</h3>
+        <label class="toggle">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={o.watchMatches}
+            onchange={toggleWatch}
+            disabled={o.matchDay !== null}
+          />
+          <span>Stop on match days to watch and manage matches live</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" role="switch" checked={o.delegateSquad} onchange={toggleDelegate} />
+          <span>Let the assistant handle contracts and signings</span>
+        </label>
+        <div class="row">
+          {#if resigning}
+            <span>Leave {club.name}? You will have to find a new job.</span>
+            <button class="danger" onclick={resign}>Resign</button>
+            <button onclick={() => (resigning = false)}>Stay</button>
+          {:else}
+            <button class="danger" onclick={() => (resigning = true)}>Resign…</button>
+          {/if}
+        </div>
+      </section>
+    </div>
   </div>
 {/if}
 
 <style>
-  .hero {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
+  .home {
+    display: grid;
+    gap: var(--gap);
+    container-type: inline-size;
   }
 
-  .pos {
+  /* The club in its colours: a wash of the primary from the left, a
+     sash of the secondary, and the crest as a watermark. */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+    padding: 30px 30px 28px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    background:
+      linear-gradient(180deg, transparent 40%, rgba(5, 8, 13, 0.45)),
+      linear-gradient(
+        112deg,
+        color-mix(in srgb, var(--club) 42%, #070b11) 0%,
+        color-mix(in srgb, var(--club) 16%, #0b111a) 46%,
+        var(--bg-raised) 78%
+      );
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: -40% auto -40% 58%;
+    width: 46px;
+    transform: rotate(18deg);
+    background: var(--club-2);
+    opacity: 0.12;
+    box-shadow: 70px 0 0 color-mix(in srgb, var(--club) 60%, transparent);
+  }
+
+  .hero.free {
+    background:
+      radial-gradient(80% 140% at 0% 0%, rgba(120, 170, 255, 0.14), transparent 60%),
+      var(--bg-raised);
+  }
+
+  .hero > :global(.crest) {
+    position: relative;
+    box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.7);
+    border-width: 2px;
+  }
+
+  .hero-text {
+    position: relative;
+    flex: 1;
+    min-width: 220px;
+  }
+
+  .eyebrow,
+  .label {
+    display: block;
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+  }
+
+  .hero .eyebrow {
+    color: rgba(238, 242, 247, 0.72);
+  }
+
+  .hero h1 {
+    margin: 4px 0 4px;
+    font-size: clamp(1.8rem, 4.2cqi, 2.9rem);
+    font-stretch: 118%;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.35);
+  }
+
+  .sub {
+    margin: 0;
+    color: rgba(238, 242, 247, 0.75);
+  }
+
+  .standing {
+    position: relative;
     display: grid;
     justify-items: end;
     gap: 6px;
   }
 
-  .big {
-    font-size: 2rem;
-    font-weight: 800;
+  .pos {
+    font-family: var(--display);
+    font-weight: 900;
+    font-stretch: 120%;
+    font-size: 4.2rem;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
   }
 
-  .matchday {
-    border-color: var(--accent);
+  .pos small {
+    font-size: 1.4rem;
+    letter-spacing: 0;
+    margin-left: 2px;
+    color: var(--text-dim);
+    vertical-align: top;
   }
 
-  .cols {
+  /* Twelve columns once there is room; one column below. */
+  .board-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: var(--gap);
+    grid-template-columns: 1fr;
+  }
+
+  @container (min-width: 760px) {
+    .board-grid {
+      grid-template-columns: repeat(12, 1fr);
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .next,
+    .board {
+      grid-column: span 7;
+    }
+
+    .side,
+    .money {
+      grid-column: span 5;
+    }
+  }
+
+  .side {
+    display: grid;
+    gap: var(--gap);
+    align-content: start;
   }
 
   .gap {
-    margin-top: 16px;
+    margin-top: 20px;
   }
 
-  .cup {
+  .head {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--line);
-    color: inherit;
+    align-items: baseline;
   }
 
-  .status {
-    font-weight: 600;
-    color: var(--accent);
+  .more {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
   }
 
-  .status.out {
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .msg,
+  .cups a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 8px;
+    margin: 0 -8px;
+    border-radius: 10px;
     color: var(--text-dim);
-    font-weight: 400;
+    transition: background 0.15s;
   }
 
-  .msg {
-    display: block;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--line);
-    color: var(--text-dim);
+  .msg:hover,
+  .cups a:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+
+  .title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--line-strong);
   }
 
   .msg.unread {
@@ -245,36 +434,190 @@
     font-weight: 600;
   }
 
-  .toggle {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    min-height: var(--tap);
+  .msg.unread .dot {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
   }
 
-  .toggle input {
-    width: 22px;
-    height: 22px;
-    accent-color: var(--accent);
+  .cups a {
+    color: var(--text);
+  }
+
+  .trophy {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--warn-soft);
+    color: var(--warn);
+  }
+
+  .trophy.out {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-faint);
+  }
+
+  .confidence {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 8px;
+  }
+
+  .objective {
+    margin: 2px 0 4px;
+    font-family: var(--display);
+    font-size: 1.25rem;
+    font-weight: 750;
+    font-stretch: 105%;
   }
 
   .objectives {
-    list-style: none;
-    margin: 8px 0 0;
-    padding: 0;
     display: grid;
-    gap: 6px;
+    gap: 8px;
+    margin-top: 12px;
   }
 
   .objectives li {
     display: grid;
-    grid-template-columns: 6.5em 1fr;
-    gap: 2px 8px;
-    align-items: baseline;
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line-strong);
   }
 
-  .objectives li .dim {
-    grid-column: 2;
+  .objectives li.good {
+    border-left-color: var(--good);
+  }
+
+  .objectives li.warn {
+    border-left-color: var(--warn);
+  }
+
+  .objectives li.bad {
+    border-left-color: var(--bad);
+  }
+
+  .objectives .text {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .detail {
+    grid-column: 1 / -1;
     font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+
+  .figures {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .figures > div {
+    display: grid;
+    gap: 4px;
+    padding: 14px;
+    border-radius: var(--radius);
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+  }
+
+  .figure {
+    font-family: var(--display);
+    font-weight: 800;
+    font-stretch: 110%;
+    font-size: 1.7rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  .figure.neg {
+    color: var(--bad);
+  }
+
+  .window {
+    margin-bottom: 14px;
+  }
+
+  .settings {
+    display: grid;
+    gap: 6px;
+  }
+
+  .toggle {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    min-height: var(--tap);
+    cursor: pointer;
+  }
+
+  /* A switch drawn over the checkbox. */
+  .toggle input {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 44px;
+    height: 26px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-strong);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .toggle input::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition:
+      transform 0.2s var(--ease),
+      background 0.2s;
+  }
+
+  .toggle input:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .toggle input:checked::after {
+    transform: translateX(18px);
+    background: var(--accent-ink);
+  }
+
+  .toggle input:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  @media (max-width: 700px) {
+    .hero {
+      padding: 22px 18px;
+      gap: 16px;
+    }
+
+    .standing {
+      justify-items: start;
+    }
+
+    .pos {
+      font-size: 3rem;
+    }
   }
 </style>

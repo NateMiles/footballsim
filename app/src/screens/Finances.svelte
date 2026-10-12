@@ -32,21 +32,21 @@
     <h1>Finances</h1>
     <section class="tiles">
       <div class="card tile">
-        <span class="dim">Balance</span>
-        <strong class:bad={f.balance < 0}>{money(f.balance)}</strong>
+        <span class="eyebrow">Balance</span>
+        <strong class="figure" class:bad={f.balance < 0}>{money(f.balance)}</strong>
       </div>
       <div class="card tile">
-        <span class="dim">Transfer budget</span>
-        <strong>{money(f.transferBudget)}</strong>
+        <span class="eyebrow">Transfer budget</span>
+        <strong class="figure">{money(f.transferBudget)}</strong>
       </div>
       <div class="card tile">
-        <span class="dim">Wages per week</span>
-        <strong class:bad={f.wageBill > f.wageBudget}>{money(f.wageBill)}</strong>
+        <span class="eyebrow">Wages per week</span>
+        <strong class="figure" class:bad={f.wageBill > f.wageBudget}>{money(f.wageBill)}</strong>
         <span class="dim small">of {money(f.wageBudget)} budget</span>
       </div>
       <div class="card tile">
-        <span class="dim">Staff per week</span>
-        <strong>{money(f.staffBill)}</strong>
+        <span class="eyebrow">Staff per week</span>
+        <strong class="figure">{money(f.staffBill)}</strong>
       </div>
     </section>
 
@@ -110,11 +110,8 @@
 
   .tile {
     display: grid;
-    gap: 4px;
-  }
-
-  .tile strong {
-    font-size: 1.4rem;
+    align-content: start;
+    gap: 6px;
   }
 
   .small {

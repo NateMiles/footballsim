@@ -125,7 +125,7 @@
           {#each POSITIONS as p (p)}<option value={p}>{p}</option>{/each}
         </select>
         <input type="number" min="16" max="40" placeholder="Max age" bind:value={maxAge} aria-label="Max age" />
-        <input type="number" min="0" placeholder="Max value (£m)" bind:value={maxValue} aria-label="Max value in millions" />
+        <input type="number" min="0" placeholder="Max £m" bind:value={maxValue} aria-label="Max value in millions" />
         <input type="number" min="0" max="100" placeholder="Min ability" bind:value={minAbility} aria-label="Min ability" />
         <input type="text" placeholder="Name" bind:value={name} aria-label="Name" />
         <label class="check"><input type="checkbox" bind:checked={listedOnly} /> Listed</label>

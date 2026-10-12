@@ -259,7 +259,8 @@
     align-items: center;
     gap: 8px;
     text-align: left;
-    padding: 0 10px;
+    padding: 0 12px;
+    border-radius: var(--radius);
   }
 
   .prow:disabled {
