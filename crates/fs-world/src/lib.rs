@@ -30,6 +30,7 @@ pub mod market;
 pub mod matchday;
 pub mod names;
 pub mod nation;
+pub mod objectives;
 pub mod people;
 pub mod personality;
 pub mod player;

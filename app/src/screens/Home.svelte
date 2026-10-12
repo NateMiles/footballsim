@@ -127,6 +127,20 @@
             <Meter value={o.board.confidence} label="Board confidence" good={55} ok={35} />
             <span>{o.board.confidence}%</span>
           </div>
+          {#if o.board.objectives.length > 0}
+            <ul class="objectives" data-testid="objectives">
+              {#each o.board.objectives as ob, i (i)}
+                <li>
+                  <span class="pill {ob.status === 'met' || ob.status === 'onTrack' ? 'good' : ob.status === 'failed' ? 'bad' : 'warn'}">
+                    {ob.status === 'met' ? 'Met' : ob.status === 'failed' ? 'Missed' : ob.status === 'onTrack' ? 'On track' : 'Behind'}
+                  </span>
+                  <span>{ob.text}{ob.important ? ' (important)' : ''}</span>
+                  <span class="dim">{ob.detail}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+          <p class="dim small">The club {o.board.ethos.toLowerCase()}.</p>
         </section>
       {/if}
       <section class="card">
@@ -242,5 +256,25 @@
     width: 22px;
     height: 22px;
     accent-color: var(--accent);
+  }
+
+  .objectives {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  .objectives li {
+    display: grid;
+    grid-template-columns: 6.5em 1fr;
+    gap: 2px 8px;
+    align-items: baseline;
+  }
+
+  .objectives li .dim {
+    grid-column: 2;
+    font-size: 0.85rem;
   }
 </style>

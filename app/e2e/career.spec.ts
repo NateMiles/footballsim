@@ -21,7 +21,8 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   page.on('pageerror', (e) => errors.push(e.message));
 
   await newCareer(page);
-  await page.screenshot({ path: shots('home', project) });
+  await expect(page.getByTestId('objectives').locator('li')).not.toHaveCount(0);
+  await page.screenshot({ path: shots('home', project), fullPage: true });
 
   await page.getByRole('link', { name: /Squad/ }).click();
   await expect(page.getByRole('heading', { name: 'Squad' })).toBeVisible();

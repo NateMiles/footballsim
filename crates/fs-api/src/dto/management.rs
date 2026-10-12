@@ -96,6 +96,22 @@ pub struct BoardView {
     pub objective: String,
     /// 0-100.
     pub confidence: u8,
+    /// Objectives beyond the league table.
+    pub objectives: Vec<ObjectiveView>,
+    /// What the club stands for, such as `"Brings through young players"`.
+    pub ethos: String,
+}
+
+/// One of the board's objectives and how it stands.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectiveView {
+    pub text: String,
+    /// Progress so far, such as `"12% so far"`.
+    pub detail: String,
+    /// `"met"`, `"failed"`, `"onTrack"` or `"behind"`.
+    pub status: String,
+    pub important: bool,
 }
 
 /// A staff role.

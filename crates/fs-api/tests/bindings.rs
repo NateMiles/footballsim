@@ -68,6 +68,8 @@ fn generate() -> String {
         // Analysis.
         ShotView, XgPoint, NetworkNode, NetworkLink, SideAnalysisView, PlayerLine,
         MatchAnalysisView, CompetitionSeason, SeasonStatsView, FixtureKey,
+        // Board objectives.
+        ObjectiveView,
     ];
     decls.sort();
     let mut out = String::from(

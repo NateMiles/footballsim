@@ -49,7 +49,15 @@ objective: string,
 /**
  * 0-100.
  */
-confidence: number, };
+confidence: number, 
+/**
+ * Objectives beyond the league table.
+ */
+objectives: Array<ObjectiveView>, 
+/**
+ * What the club stands for, such as `"Brings through young players"`.
+ */
+ethos: string, };
 
 export type CareerRow = { 
 /**
@@ -551,6 +559,16 @@ band: number,
  * 0-2 from their left.
  */
 lane: number, involvements: number, };
+
+export type ObjectiveView = { text: string, 
+/**
+ * Progress so far, such as `"12% so far"`.
+ */
+detail: string, 
+/**
+ * `"met"`, `"failed"`, `"onTrack"` or `"behind"`.
+ */
+status: string, important: boolean, };
 
 export type Offer = { id: number, date: string, player: PlayerRef, buyer: ClubRef, seller: ClubRef, kind: OfferKind, 
 /**

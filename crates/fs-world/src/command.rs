@@ -356,6 +356,8 @@ pub enum Event {
         club: ClubId,
         outcome: Outcome,
     },
+    /// The board judged a human-managed club's season objectives.
+    ObjectivesJudged { club: ClubId, met: u8, total: u8 },
 }
 
 /// Why a command was rejected.

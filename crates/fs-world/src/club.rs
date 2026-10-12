@@ -51,6 +51,8 @@ pub struct Club {
     /// with the formation the roles were set for. Opposition instructions
     /// last one match.
     pub(crate) instructions: Option<(Formation, Instructions)>,
+    /// The board's objectives beyond the league table this season.
+    pub(crate) objectives: Vec<crate::objectives::Objective>,
 }
 
 impl Club {
@@ -76,6 +78,7 @@ impl Club {
             individual: BTreeMap::new(),
             captain: None,
             instructions: None,
+            objectives: Vec::new(),
         }
     }
 
@@ -115,6 +118,11 @@ impl Club {
     /// The manager's instructions and the formation their roles are for.
     pub fn instructions(&self) -> Option<&(Formation, Instructions)> {
         self.instructions.as_ref()
+    }
+
+    /// The board's objectives beyond the league table.
+    pub fn objectives(&self) -> &[crate::objectives::Objective] {
+        &self.objectives
     }
 
     /// The captain.

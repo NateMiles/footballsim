@@ -73,6 +73,8 @@ pub fn current_season(world: &World) -> Option<i32> {
 /// 1 July: close the old season and open the new one.
 pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
     let year = season_year(world.date());
+    // Objectives first, while cups and the season's accounts are open.
+    crate::objectives::judge(world, events);
     economy::close_accounts(world, year - 1);
     crate::board::season_end(world, events);
     close_season(world, events);

@@ -393,6 +393,22 @@ it over seasons.
 The world rule `sack_humans` (on by default) can switch off sackings of
 human managers.
 
+**Objectives beyond the table** (`objectives.rs`). With the league target
+the board sets a target for every cup the club is in: counting back from
+the final, each round halves the field, so a club ranked r among the
+entrants is asked to reach the round where about one and a half times r
+clubs are left (never before the round it enters). Each club also has an
+ethos for good, read from the world seed: a quarter bring through young
+players (under-22s should get 15% of the minutes), a quarter play
+attacking football (score a tenth more league goals a game than the
+league's average last season), a quarter live within their means (end
+the season without a loss), and a quarter want results only. Progress is
+shown all season; a cup objective is met on reaching the round and
+failed on going out before it. At the end of the season each objective
+met adds 4 to the board's confidence (6 for a cup of prestige 60 or
+more) and each one missed takes 5 (8), before the league verdict. Every
+club is judged, AI or human.
+
 ## 11. Cups and continental competitions
 
 Code: `cup.rs` (editions, draws, ties, groups, qualification,

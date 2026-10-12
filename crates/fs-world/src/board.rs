@@ -52,6 +52,11 @@ impl Default for Board {
     }
 }
 
+/// Moves a board's confidence (without sacking; that comes after).
+pub(crate) fn adjust_confidence(world: &mut World, club: ClubId, delta: f64) {
+    adjust(&mut world.clubs[club].board, delta);
+}
+
 fn adjust(board: &mut Board, delta: f64) {
     board.confidence = (f64::from(board.confidence) + delta)
         .round()
@@ -80,6 +85,7 @@ pub fn set_targets(world: &mut World) {
     for (c, t) in targets {
         world.clubs[c].board.target = t;
     }
+    crate::objectives::set(world);
 }
 
 /// After a league match: confidence moves with the points won against

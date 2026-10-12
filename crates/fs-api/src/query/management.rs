@@ -3,6 +3,7 @@
 use super::refs::*;
 use crate::dto;
 use fs_world::economy::{player_wage_bill, staff_wage_bill};
+use fs_world::objectives::{self, Aim, Ethos, Importance, Objective, Progress};
 use fs_world::people::age_years;
 use fs_world::staff::{self, StaffRole};
 use fs_world::{ClubId, ManagerId, StaffId, World};
@@ -36,6 +37,71 @@ pub fn board(world: &World, club: ClubId) -> dto::BoardView {
         target: b.target,
         objective: objective(world, club, b.target),
         confidence: b.confidence,
+        objectives: world.clubs()[club]
+            .objectives()
+            .iter()
+            .map(|o| objective_view(world, club, o))
+            .collect(),
+        ethos: match objectives::ethos(world, club) {
+            Ethos::Youth => "Brings through young players",
+            Ethos::Attacking => "Plays attacking football",
+            Ethos::Prudent => "Lives within its means",
+            Ethos::Ambitious => "Wants results above all",
+        }
+        .into(),
+    }
+}
+
+fn objective_view(world: &World, club: ClubId, o: &Objective) -> dto::ObjectiveView {
+    let s = objectives::standing(world, club, o);
+    let (text, detail) = match o.aim {
+        Aim::Cup { cup, stage } => {
+            let c = &world.cups()[cup];
+            let stages = &c.format.stages;
+            let name = &c.format.name;
+            let text = if usize::from(stage) + 1 >= stages.len() {
+                format!("Reach the final of the {name}")
+            } else {
+                let st = stages
+                    .get(usize::from(stage))
+                    .map_or("later rounds".to_owned(), |x| x.name.to_lowercase());
+                format!("Reach the {st} of the {name}")
+            };
+            let detail = match s.progress {
+                Progress::Met => "Done".to_owned(),
+                Progress::Failed => "Knocked out".to_owned(),
+                _ => "Still in it".to_owned(),
+            };
+            (text, detail)
+        }
+        Aim::Youth { share } => (
+            format!("Give players under 22 at least {share}% of the minutes"),
+            format!("{:.0}% so far", s.value),
+        ),
+        Aim::Goals { tenths } => (
+            format!("Score {:.1} league goals a game", f64::from(tenths) / 10.0),
+            format!("{:.2} so far", s.value),
+        ),
+        Aim::Profit => (
+            "End the season without a loss".to_owned(),
+            if s.value >= 0.0 {
+                format!("{} up so far", crate::inbox::money(s.value as i64))
+            } else {
+                format!("{} down so far", crate::inbox::money(-(s.value as i64)))
+            },
+        ),
+    };
+    dto::ObjectiveView {
+        text,
+        detail,
+        status: match s.progress {
+            Progress::Met => "met",
+            Progress::Failed => "failed",
+            Progress::OnTrack => "onTrack",
+            Progress::Behind => "behind",
+        }
+        .into(),
+        important: o.importance == Importance::High,
     }
 }
 

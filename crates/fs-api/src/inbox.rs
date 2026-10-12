@@ -511,6 +511,20 @@ impl Inbox {
                     ),
                     Some(Link::Staff),
                 ),
+                Event::ObjectivesJudged {
+                    club: c,
+                    met,
+                    total,
+                } if *c == club => self.push(
+                    world,
+                    Category::Board,
+                    "The board's verdict on the season's objectives".to_owned(),
+                    format!(
+                        "You met {met} of the board's {total} objectives beyond the league table. \
+                         The new season's are on the home screen."
+                    ),
+                    None,
+                ),
                 Event::BoardWarning { club: c, .. } if *c == club => self.push(
                     world,
                     Category::Board,

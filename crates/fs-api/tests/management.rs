@@ -51,6 +51,15 @@ fn the_overview_shows_the_board_and_money() {
     let board = o.board.unwrap();
     assert!(board.target >= 1 && board.confidence > 0);
     assert!(!board.objective.is_empty());
+    // A cup target at least, and a description of the club's ethos.
+    assert!(!board.objectives.is_empty() && !board.ethos.is_empty());
+    assert!(
+        board
+            .objectives
+            .iter()
+            .any(|o| o.text.contains("Cup") || o.text.contains("cup"))
+    );
+    assert!(board.objectives.iter().all(|o| !o.detail.is_empty()));
     assert!(o.balance.unwrap() > 0);
     assert!(o.window_open, "new games start in the summer window");
 }

@@ -178,7 +178,7 @@ promises.
 - UI: cup and competitions screens, all-competition fixtures, cup status
   on the home screen, honours, extra time and shootouts in live matches.
 
-### M6: Gameplay depth
+### M6: Gameplay depth (done)
 More decisions between and during matches, each with consequences the
 manager can see.
 1. Match preparation: an opposition report (likely eleven, shape, form,
