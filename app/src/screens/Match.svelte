@@ -1,5 +1,6 @@
 <!-- Match day: kick off, watch and manage live, then the report. -->
 <script lang="ts">
+  import { analysisHref } from '../state/router.svelte';
   import type { Formation, Instruction, LivePlayerInfo, LiveStart, MatchReport } from '../api';
   import Crest from '../components/Crest.svelte';
   import FixtureLine from '../components/FixtureLine.svelte';
@@ -154,7 +155,10 @@
         </section>
       {/each}
     </div>
-    <div class="row"><button class="primary" onclick={() => game.router.go({ name: 'home' })}>Continue</button></div>
+    <div class="row">
+      <button class="primary" onclick={() => game.router.go({ name: 'home' })}>Continue</button>
+      <button onclick={() => (location.hash = analysisHref(f))}>Full analysis</button>
+    </div>
   </div>
 {:else if playback && scene}
   {@const p = playback}

@@ -612,6 +612,25 @@ impl Session {
                 c.submit_quiet(command)?;
                 self.transfers_view()
             }
+            Request::MatchAnalysis { fixture } => {
+                let c = self.career()?;
+                let analysis = query::analysis::match_analysis(
+                    c.world(),
+                    query::analysis::fixture_ref(fixture),
+                )
+                .ok_or_else(|| ApiError::new(ErrorCode::NotFound, "no analysis for that match"))?;
+                Ok(Response::MatchAnalysis { analysis })
+            }
+            Request::SeasonStats { club } => {
+                let c = self.career()?;
+                let club = match club {
+                    Some(id) => c.existing_club(id)?,
+                    None => c.club()?,
+                };
+                Ok(Response::SeasonStats {
+                    stats: query::analysis::season_stats(c.world(), club),
+                })
+            }
             Request::ContractTalks { player } => {
                 let c = self.career()?;
                 let player = c.existing_player(player)?;

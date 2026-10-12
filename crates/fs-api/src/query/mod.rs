@@ -4,6 +4,7 @@
 //! that per-club knowledge (scouting, fog of war) can be added without
 //! changing callers.
 
+pub mod analysis;
 pub mod club;
 pub mod competition;
 pub mod contracts;

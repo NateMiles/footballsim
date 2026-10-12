@@ -279,6 +279,13 @@ impl Engine {
         self.finish()
     }
 
+    /// Plays to the end and returns the result with the action log.
+    pub(super) fn run_recorded(mut self) -> (MatchResult, Vec<ActionRecord>) {
+        while self.advance() {}
+        let log = self.log.take().unwrap_or_default();
+        (self.finish(), log)
+    }
+
     /// Notes an action for the log (no-op unless recording).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn note_from(

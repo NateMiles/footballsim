@@ -12,6 +12,7 @@ use crate::staff;
 use crate::world::World;
 use fs_core::attributes::Position;
 use fs_core::{GameDate, Stream};
+use fs_match::analysis::MatchAnalysis;
 use fs_match::{
     Formation, MatchEvent, MatchInput, MatchResult, PlayerSnapshot, Tactic, TeamSheet, Tier,
     TimedInstruction, pick_team,
@@ -270,7 +271,17 @@ pub(crate) fn play_today(
             FixtureRef::Cup { .. } => fixture_tier(world, r),
         })
         .collect();
-    let mut results: Vec<Option<MatchResult>> = vec![None; todo.len()];
+    // Human-managed clubs' matches at tier 1 keep their action log for
+    // analysis; recording does not change the match.
+    let record: Vec<bool> = todo
+        .iter()
+        .zip(&tiers)
+        .map(|(r, &t)| {
+            let f = r.get(world).expect("fixture exists");
+            t == Tier::Event && (world.is_human_club(f.home) || world.is_human_club(f.away))
+        })
+        .collect();
+    let mut results: Vec<Option<(MatchResult, Option<MatchAnalysis>)>> = vec![None; todo.len()];
     crate::profile::time("matches: play", || {
         let world = &*world;
         fs_core::par::for_each_heavy(&mut results, |k, slot| {
@@ -288,12 +299,31 @@ pub(crate) fn play_today(
                 }
             }
             input.instructions.sort_by_key(|x| x.step);
-            *slot = Some(fs_match::play(&input, tiers[k]));
+            *slot = Some(if record[k] {
+                let (result, log) = fs_match::tier1::play_recorded(&input);
+                (result, Some(fs_match::analysis::analyse(&log)))
+            } else {
+                (fs_match::play(&input, tiers[k]), None)
+            });
         });
     });
     crate::profile::time("matches: apply", || {
-        for ((r, tier), result) in todo.into_iter().zip(tiers).zip(results) {
-            let result = result.expect("played");
+        for ((r, tier), played) in todo.into_iter().zip(tiers).zip(results) {
+            let (result, analysis) = played.expect("played");
+            if let Some(analysis) = analysis {
+                let f = r.get(world).expect("fixture exists");
+                let record = crate::records::MatchRecord {
+                    fixture: r,
+                    date: world.date(),
+                    home: f.home,
+                    away: f.away,
+                    goals: result.goals,
+                    stats: result.stats,
+                    players: result.players.clone(),
+                    analysis,
+                };
+                world.records.insert(r, record);
+            }
             apply_result(world, r, tier, &result, events);
         }
     });

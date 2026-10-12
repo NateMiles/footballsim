@@ -39,6 +39,13 @@ pub fn play(input: &MatchInput) -> MatchResult {
     play_with(input, &Params::default())
 }
 
+/// Plays a match and keeps the action log, for analysis. The result is
+/// the one [`play`] gives.
+pub fn play_recorded(input: &MatchInput) -> (MatchResult, Vec<crate::log::ActionRecord>) {
+    debug_assert_eq!(input.validate(), Ok(()));
+    Engine::new(input, &Params::default(), true).run_recorded()
+}
+
 /// Plays a match with custom parameters.
 pub fn play_with(input: &MatchInput, params: &Params) -> MatchResult {
     debug_assert_eq!(input.validate(), Ok(()));

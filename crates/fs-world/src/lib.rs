@@ -34,6 +34,7 @@ pub mod people;
 pub mod personality;
 pub mod player;
 pub mod profile;
+pub mod records;
 pub mod scouting;
 pub mod season;
 pub mod snapshot;

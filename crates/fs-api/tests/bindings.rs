@@ -65,6 +65,9 @@ fn generate() -> String {
         InstructionsView, RoleChoice, MarkingChoice,
         // Contracts.
         ContractTerms, NegotiationView, TalksOutcome, TalksResult, SellOnView,
+        // Analysis.
+        ShotView, XgPoint, NetworkNode, NetworkLink, SideAnalysisView, PlayerLine,
+        MatchAnalysisView, CompetitionSeason, SeasonStatsView, FixtureKey,
     ];
     decls.sort();
     let mut out = String::from(

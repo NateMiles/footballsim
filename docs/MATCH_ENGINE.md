@@ -293,6 +293,15 @@ position, facing and pose for each player and the ball's position with
 height. Velocities, action timing and quantisation arrive with tier 0
 and replays.
 
+### Post-match analysis
+`analysis.rs` turns an action log into a `MatchAnalysis`: every shot
+(minute, taker, kind, zone, xG, outcome), each side's actions by zone,
+average positions and completed passes between players, and possession
+in 15-minute spells. `tier1::play_recorded` plays a match exactly as
+`play` does and keeps the log. The world records human-managed clubs'
+tier 1 matches this way (`fs_world::records`), and the app draws the
+shot map, xG timeline, pass networks and zone maps from them.
+
 ### Frame stream contents
 - **Header:** pitch dimensions, team colours and kit IDs, player IDs, shirt
   numbers, heights.

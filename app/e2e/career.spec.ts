@@ -153,6 +153,16 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByRole('heading', { name: 'Last match' })).toBeVisible();
 
+  // The season so far, and the match just played analysed.
+  await page.goto('./#/stats');
+  await expect(page.getByTestId('season-summary')).toBeVisible();
+  await page.screenshot({ path: shots('stats', project), fullPage: true });
+  await page.getByTestId('analysis-link').first().click();
+  await expect(page.getByRole('heading', { name: 'Expected goals' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Shots' })).toBeVisible();
+  await page.screenshot({ path: shots('analysis', project), fullPage: true });
+  await page.locator('.cols').nth(1).screenshot({ path: shots('analysis-networks', project) });
+
   // Save, reload, and load it back.
   await page.getByRole('link', { name: /Saves/ }).click();
   await page.getByLabel('Save name').fill('e2e');

@@ -5,6 +5,7 @@
 //! for a screen. TypeScript declarations for all of them are generated
 //! into `app/src/api/generated.ts` (see `tests/bindings.rs`).
 
+pub mod analysis;
 pub mod club;
 pub mod common;
 pub mod competition;
@@ -19,6 +20,7 @@ pub mod people;
 pub mod preparation;
 pub mod training;
 
+pub use analysis::*;
 pub use club::*;
 pub use common::*;
 pub use competition::*;

@@ -571,3 +571,11 @@ fn marking_a_player_quietens_them() {
     let (free, marked) = (shots(false), shots(true));
     assert!(marked < free, "marked {marked}, free {free}");
 }
+
+#[test]
+fn recording_does_not_change_the_match() {
+    for k in 0..20 {
+        let i = input(620, 580, k);
+        assert_eq!(super::play_recorded(&i).0, play(&i));
+    }
+}

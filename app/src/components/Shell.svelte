@@ -23,6 +23,7 @@
     { route: { name: 'finances' }, label: 'Finances', icon: '£' },
     { route: { name: 'fixtures' }, label: 'Fixtures', icon: '▦' },
     { route: { name: 'table' }, label: 'Table', icon: '≡' },
+    { route: { name: 'stats' }, label: 'Stats', icon: '∑' },
     { route: { name: 'cup' }, label: 'Cups', icon: '♕' },
     { route: { name: 'competitions' }, label: 'Competitions', icon: '◈' },
     { route: { name: 'saves' }, label: 'Saves', icon: '⇩' },

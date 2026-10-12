@@ -15,6 +15,8 @@ export type Route =
   | { name: 'prepare' }
   | { name: 'training' }
   | { name: 'dynamics' }
+  | { name: 'stats' }
+  | { name: 'analysis'; kind: 'league' | 'cup'; id: number; index: number }
   | { name: 'match' }
   | { name: 'saves' }
   | { name: 'transfers'; tab?: TransferTab }
@@ -26,7 +28,7 @@ export type TransferTab = 'search' | 'offers' | 'scouting' | 'squad' | 'news';
 const TABS: TransferTab[] = ['search', 'offers', 'scouting', 'squad', 'news'];
 
 export function parse(hash: string): Route {
-  const [name, arg] = hash.replace(/^#\/?/, '').split('/');
+  const [name, arg, ...rest] = hash.replace(/^#\/?/, '').split('/');
   const n = arg === undefined || arg === '' ? undefined : Number(arg);
   const id = n !== undefined && Number.isInteger(n) && n >= 0 ? n : undefined;
   switch (name) {
@@ -41,7 +43,15 @@ export function parse(hash: string): Route {
     case 'prepare':
     case 'training':
     case 'dynamics':
+    case 'stats':
       return { name };
+    case 'analysis': {
+      const [id, index] = rest.map(Number);
+      if ((arg === 'league' || arg === 'cup') && Number.isInteger(id) && Number.isInteger(index)) {
+        return { name, kind: arg, id, index };
+      }
+      return { name: 'home' };
+    }
     case 'cup':
       return { name, cup: id };
     case 'transfers':
@@ -71,6 +81,8 @@ export function href(route: Route): string {
       return route.tab === undefined ? '#/transfers' : `#/transfers/${route.tab}`;
     case 'cup':
       return route.cup === undefined ? '#/cup' : `#/cup/${route.cup}`;
+    case 'analysis':
+      return `#/analysis/${route.kind}/${route.id}/${route.index}`;
     default:
       return `#/${route.name}`;
   }
@@ -90,4 +102,9 @@ export class Router {
     if (location.hash === target) this.route = parse(target);
     else location.hash = target;
   }
+}
+
+/** The analysis screen for a fixture. */
+export function analysisHref(f: { competition: { kind: 'league' | 'cup'; id: number }; index: number }): string {
+  return href({ name: 'analysis', kind: f.competition.kind, id: f.competition.id, index: f.index });
 }

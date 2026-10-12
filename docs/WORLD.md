@@ -187,6 +187,11 @@ clubs list them at once; a human manager lists them or refuses, which the
 player remembers for six months and does not ask again meanwhile. Taking
 an agreed sale off the list counts as a refusal.
 
+**Match records** (`records.rs`). Matches human-managed clubs play at
+tier 1 are recorded in full (result, team and player statistics and the
+post-match analysis) and kept for about a year, for the analysis screens
+and season statistics by competition.
+
 ## 4. The 1 July rollover
 
 In order:

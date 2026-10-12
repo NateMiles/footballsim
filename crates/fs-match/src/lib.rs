@@ -13,6 +13,7 @@
 //!
 //! See `docs/MATCH_ENGINE.md` for the design.
 
+pub mod analysis;
 pub mod fitted;
 pub mod formation;
 pub mod input;

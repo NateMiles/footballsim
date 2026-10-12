@@ -1,7 +1,7 @@
 // Generated from crates/fs-api by tests/bindings.rs. Do not edit.
 // Regenerate: UPDATE_BINDINGS=1 cargo test -p fs-api --test bindings
 
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 export type ApiErrorBody = { code: ErrorCode, 
 /**
@@ -114,6 +114,24 @@ export type CompetitionRef = { kind: CompetitionKind,
  * A league or cup ID, by `kind`.
  */
 id: number, name: string, shortName: string, };
+
+export type CompetitionSeason = { 
+/**
+ * `None` for all competitions together.
+ */
+competition: CompetitionRef | null, played: number, won: number, drawn: number, lost: number, goalsFor: number, goalsAgainst: number, xgFor: number, xgAgainst: number, shotsFor: number, shotsAgainst: number, 
+/**
+ * Mean share, 0-1.
+ */
+possession: number, 
+/**
+ * Players who appeared, most minutes first.
+ */
+players: Array<PlayerLine>, 
+/**
+ * The matches, newest first.
+ */
+matches: Array<Fixture>, };
 
 export type CompetitionsView = { nations: Array<NationCompetitions>, continents: Array<ContinentView>, };
 
@@ -254,6 +272,8 @@ round: string | null,
  * Played at a neutral ground.
  */
 neutral: boolean, };
+
+export type FixtureKey = { kind: CompetitionKind, id: number, index: number, };
 
 export type FixtureResult = { 
 /**
@@ -433,6 +453,12 @@ export type MarkingInfo = { marking: Marking, name: string, description: string,
 
 export type MarkingView = { player: PlayerRef, club: ClubRef | null, marking: Marking, };
 
+export type MatchAnalysisView = { fixture: Fixture, goals: [number, number], stats: [TeamStats, TeamStats], shots: Array<ShotView>, xg: Array<XgPoint>, 
+/**
+ * The home side's share of possession in each 15-minute spell.
+ */
+possession: Array<number>, sides: [SideAnalysisView, SideAnalysisView], players: [Array<PlayerLine>, Array<PlayerLine>], };
+
 export type MatchDay = { fixture: Fixture, side: Side, };
 
 export type MatchEvent = { "type": "goal", minute: number, side: Side, scorer: number, assist: number | null, 
@@ -513,6 +539,18 @@ wantsOut: boolean,
  * Weekly wages the club pays now and may pay in all.
  */
 wageBill: number, wageBudget: number, statuses: Array<StatusInfo>, };
+
+export type NetworkLink = { from: number, to: number, count: number, };
+
+export type NetworkNode = { player: PlayerRef, 
+/**
+ * 0-5 from their own goal line.
+ */
+band: number, 
+/**
+ * 0-2 from their left.
+ */
+lane: number, involvements: number, };
 
 export type Offer = { id: number, date: string, player: PlayerRef, buyer: ClubRef, seller: ClubRef, kind: OfferKind, 
 /**
@@ -613,6 +651,12 @@ export type PlayerFrame = { id: number, side: Side, x: number, y: number,
  * Radians; 0 faces the away goal.
  */
 facing: number, pose: Pose, };
+
+export type PlayerLine = { player: PlayerRef, started: boolean, minutes: number, goals: number, assists: number, shots: number, xg: number, passes: number, passesCompleted: number, keyPasses: number, dribblesWon: number, tackles: number, interceptions: number, 
+/**
+ * Average for season lines.
+ */
+rating: number, };
 
 export type PlayerPeople = { status: SquadStatus, 
 /**
@@ -813,7 +857,7 @@ terms?: ContractTerms,
 /**
  * Percent of the player's next fee the seller keeps.
  */
-sellOn?: number, } | { "type": "respondToOffer", offer: number, response: OfferResponse, } | { "type": "acceptCounter", offer: number, } | { "type": "withdrawOffer", offer: number, } | { "type": "setListing", player: number, listing: Listing | null, } | { "type": "scoutPlayer", player: number, } | { "type": "cancelScouting", player: number, } | { "type": "jobs" } | { "type": "applyForJob", club: number, } | { "type": "resign" } | { "type": "training" } | { "type": "setTraining", focus: TrainingFocus, intensity: TrainingIntensity, } | { "type": "setIndividualTraining", player: number, training: IndividualTraining | null, } | { "type": "dynamics" } | { "type": "talkToPlayer", player: number, talk: Talk, } | { "type": "answerTransferRequest", player: number, accept: boolean, } | { "type": "setCaptain", player: number, } | { "type": "setSquadStatus", player: number, status: SquadStatus, } | { "type": "contractTalks", player: number, } | { "type": "negotiateContract", player: number, terms: ContractTerms, } | { "type": "setInstructions", roles: Array<RoleChoice>, penaltyTaker: number | null, freeKickTaker: number | null, cornerTaker: number | null, marking: Array<MarkingChoice>, } | { "type": "benchmarkStart", size: WorldSize, } | { "type": "benchmarkRun", days: number, } | { "type": "benchmarkEnd" };
+sellOn?: number, } | { "type": "respondToOffer", offer: number, response: OfferResponse, } | { "type": "acceptCounter", offer: number, } | { "type": "withdrawOffer", offer: number, } | { "type": "setListing", player: number, listing: Listing | null, } | { "type": "scoutPlayer", player: number, } | { "type": "cancelScouting", player: number, } | { "type": "jobs" } | { "type": "applyForJob", club: number, } | { "type": "resign" } | { "type": "training" } | { "type": "setTraining", focus: TrainingFocus, intensity: TrainingIntensity, } | { "type": "setIndividualTraining", player: number, training: IndividualTraining | null, } | { "type": "dynamics" } | { "type": "talkToPlayer", player: number, talk: Talk, } | { "type": "answerTransferRequest", player: number, accept: boolean, } | { "type": "setCaptain", player: number, } | { "type": "setSquadStatus", player: number, status: SquadStatus, } | { "type": "matchAnalysis", fixture: FixtureKey, } | { "type": "seasonStats", club: number | null, } | { "type": "contractTalks", player: number, } | { "type": "negotiateContract", player: number, terms: ContractTerms, } | { "type": "setInstructions", roles: Array<RoleChoice>, penaltyTaker: number | null, freeKickTaker: number | null, cornerTaker: number | null, marking: Array<MarkingChoice>, } | { "type": "benchmarkStart", size: WorldSize, } | { "type": "benchmarkRun", days: number, } | { "type": "benchmarkEnd" };
 
 export type RequestView = { date: string, 
 /**
@@ -825,7 +869,7 @@ export type Response = { "type": "hello", protocol: number, version: string,
 /**
  * Whether a game is loaded.
  */
-inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "schedule", schedule: ScheduleView, } | { "type": "cup", cup: CupView, } | { "type": "competitions", competitions: CompetitionsView, } | { "type": "oppositionReport", report: OppositionReport, } | { "type": "prediction", prediction: Prediction, } | { "type": "projections", projections: ProjectionsView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "benchmark", benchmark: BenchmarkStatus, } | { "type": "training", training: TrainingView, } | { "type": "dynamics", dynamics: DynamicsView, } | { "type": "negotiation", negotiation: NegotiationView, } | { "type": "talks", result: TalksResult, } | { "type": "talk", result: TalkResult, } | { "type": "error", error: ApiErrorBody, };
+inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "schedule", schedule: ScheduleView, } | { "type": "cup", cup: CupView, } | { "type": "competitions", competitions: CompetitionsView, } | { "type": "oppositionReport", report: OppositionReport, } | { "type": "prediction", prediction: Prediction, } | { "type": "projections", projections: ProjectionsView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "benchmark", benchmark: BenchmarkStatus, } | { "type": "training", training: TrainingView, } | { "type": "dynamics", dynamics: DynamicsView, } | { "type": "negotiation", negotiation: NegotiationView, } | { "type": "matchAnalysis", analysis: MatchAnalysisView, } | { "type": "seasonStats", stats: SeasonStatsView, } | { "type": "talks", result: TalksResult, } | { "type": "talk", result: TalkResult, } | { "type": "error", error: ApiErrorBody, };
 
 export type RoleChoice = { role: PlayerRole, duty: Duty, };
 
@@ -881,6 +925,12 @@ export type SeasonStats = { appearances: number, starts: number, minutes: number
  */
 rating: number | null, };
 
+export type SeasonStatsView = { club: ClubRef, 
+/**
+ * All competitions first.
+ */
+competitions: Array<CompetitionSeason>, };
+
 export type SelectablePlayer = { id: number, name: string, shortName: string, number: number | null, position: string, available: boolean, fitness: number, 
 /**
  * How well they would play each position today, 0-100, in
@@ -898,9 +948,29 @@ export type Shootout = { kicks: Array<Kick>,
  */
 score: [number, number], };
 
+export type ShotView = { minute: number, side: Side, player: PlayerRef, 
+/**
+ * `"shot"`, `"header"`, `"penalty"` or `"free kick"`.
+ */
+kind: string, band: number, lane: number, xg: number, 
+/**
+ * `"goal"`, `"saved"`, `"missed"` or `"blocked"`.
+ */
+outcome: string, };
+
 export type Shout = "encourage" | "demandMore" | "calmDown" | "tightenUp" | "pushForward";
 
 export type Side = "home" | "away";
+
+export type SideAnalysisView = { club: ClubRef, 
+/**
+ * Actions by zone: six bands of three lanes, in the side's frame.
+ */
+touches: Array<Array<number>>, nodes: Array<NetworkNode>, 
+/**
+ * The most frequent connections.
+ */
+links: Array<NetworkLink>, };
 
 export type SliderInfo = { 
 /**
@@ -1140,3 +1210,5 @@ scouts: number,
 recent: Array<TransferRecord>, };
 
 export type WorldSize = "tiny" | "small" | "medium";
+
+export type XgPoint = { minute: number, home: number, away: number, };

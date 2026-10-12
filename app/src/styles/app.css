@@ -9,6 +9,9 @@
   --text: #e8efe9;
   --text-dim: #93a39a;
   --accent: #3ddc84;
+  /* Chart series: home and away (validated for the dark surfaces). */
+  --series-home: #3987e5;
+  --series-away: #d95926;
   --accent-ink: #062611;
   --warn: #f5b942;
   --bad: #ef5b5b;

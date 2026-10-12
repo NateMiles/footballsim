@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Protocol version. Bump when a request or response changes shape.
-pub const PROTOCOL_VERSION: u32 = 8;
+pub const PROTOCOL_VERSION: u32 = 9;
 
 /// Something the UI asks for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -194,6 +194,12 @@ pub enum Request {
     SetCaptain { player: Id },
     /// Answered with [`Response::Dynamics`].
     SetSquadStatus { player: Id, status: SquadStatus },
+    /// A human-managed club's match analysed. Answered with
+    /// [`Response::MatchAnalysis`]; not found when no record is kept.
+    MatchAnalysis { fixture: FixtureKey },
+    /// A club's season statistics by competition (the viewer's club by
+    /// default). Answered with [`Response::SeasonStats`].
+    SeasonStats { club: Option<Id> },
     /// What a player (one of yours, or a free agent) wants in a contract.
     /// Answered with [`Response::Negotiation`].
     ContractTalks { player: Id },
@@ -320,6 +326,12 @@ pub enum Response {
     },
     Negotiation {
         negotiation: NegotiationView,
+    },
+    MatchAnalysis {
+        analysis: MatchAnalysisView,
+    },
+    SeasonStats {
+        stats: SeasonStatsView,
     },
     Talks {
         result: TalksResult,

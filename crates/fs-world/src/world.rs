@@ -55,6 +55,9 @@ pub struct World {
     pub(crate) scouting: Scouting,
     pub(crate) market: Market,
     pub(crate) relations: Relations,
+    /// Full records of human-managed clubs' recent matches.
+    pub(crate) records:
+        std::collections::BTreeMap<crate::fixture::FixtureRef, crate::records::MatchRecord>,
     pub(crate) rules: Rules,
     /// Today's matches, waiting for human managers to watch them.
     pub(crate) pending: Option<PendingMatchDay>,
@@ -78,6 +81,7 @@ impl World {
             scouting: Scouting::default(),
             market: Market::default(),
             relations: Relations::default(),
+            records: Default::default(),
             rules: Rules::default(),
             pending: None,
         }
@@ -131,6 +135,14 @@ impl World {
     /// The transfer market: offers, loans, listings and history.
     pub fn market(&self) -> &Market {
         &self.market
+    }
+
+    /// The full record of a human-managed club's match, if kept.
+    pub fn record(
+        &self,
+        fixture: crate::fixture::FixtureRef,
+    ) -> Option<&crate::records::MatchRecord> {
+        self.records.get(&fixture)
     }
 
     /// Players' memories, promises and transfer requests.

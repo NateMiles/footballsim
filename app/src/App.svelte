@@ -20,6 +20,8 @@
   import Title from './screens/Title.svelte';
   import Training from './screens/Training.svelte';
   import Dynamics from './screens/Dynamics.svelte';
+  import Analysis from './screens/Analysis.svelte';
+  import Stats from './screens/Stats.svelte';
   import Transfers from './screens/Transfers.svelte';
   import { useGame } from './state/game.svelte';
 
@@ -67,6 +69,10 @@
       <Training />
     {:else if route.name === 'dynamics'}
       <Dynamics />
+    {:else if route.name === 'stats'}
+      <Stats />
+    {:else if route.name === 'analysis'}
+      {#key `${route.kind}/${route.id}/${route.index}`}<Analysis kind={route.kind} id={route.id} index={route.index} />{/key}
     {:else if route.name === 'saves'}
       <Saves />
     {:else if route.name === 'transfers'}

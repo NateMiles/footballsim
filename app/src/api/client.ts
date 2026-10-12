@@ -3,6 +3,9 @@ import type {
   BenchmarkStatus,
   ClubChoices,
   CompetitionsView,
+  FixtureKey,
+  MatchAnalysisView,
+  SeasonStatsView,
   ContractTerms,
   NegotiationView,
   TalksResult,
@@ -320,6 +323,14 @@ export class Client {
     sellOn?: number,
   ): Promise<TransfersView> {
     return (await this.send({ type: 'makeOffer', player, kind, wage, years, terms, sellOn }, 'transfers')).transfers;
+  }
+
+  async matchAnalysis(fixture: FixtureKey): Promise<MatchAnalysisView> {
+    return (await this.send({ type: 'matchAnalysis', fixture }, 'matchAnalysis')).analysis;
+  }
+
+  async seasonStats(club: number | null = null): Promise<SeasonStatsView> {
+    return (await this.send({ type: 'seasonStats', club }, 'seasonStats')).stats;
   }
 
   async contractTalks(player: number): Promise<NegotiationView> {
