@@ -3,6 +3,9 @@ import type {
   BenchmarkStatus,
   ClubChoices,
   CompetitionsView,
+  ContractTerms,
+  NegotiationView,
+  TalksResult,
   DynamicsView,
   MarkingChoice,
   RoleChoice,
@@ -308,8 +311,23 @@ export class Client {
     return (await this.send({ type: 'searchPlayers', search }, 'search')).search;
   }
 
-  async makeOffer(player: number, kind: OfferKind, wage: number, years: number): Promise<TransfersView> {
-    return (await this.send({ type: 'makeOffer', player, kind, wage, years }, 'transfers')).transfers;
+  async makeOffer(
+    player: number,
+    kind: OfferKind,
+    wage: number,
+    years: number,
+    terms?: ContractTerms,
+    sellOn?: number,
+  ): Promise<TransfersView> {
+    return (await this.send({ type: 'makeOffer', player, kind, wage, years, terms, sellOn }, 'transfers')).transfers;
+  }
+
+  async contractTalks(player: number): Promise<NegotiationView> {
+    return (await this.send({ type: 'contractTalks', player }, 'negotiation')).negotiation;
+  }
+
+  async negotiateContract(player: number, terms: ContractTerms): Promise<TalksResult> {
+    return (await this.send({ type: 'negotiateContract', player, terms }, 'talks')).result;
   }
 
   async respondToOffer(offer: number, response: OfferResponse): Promise<TransfersView> {

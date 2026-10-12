@@ -1,8 +1,10 @@
 <!-- A bid for a player: a transfer fee and contract, or a loan. -->
 <script lang="ts">
   import { untrack } from 'svelte';
-  import type { OfferKind, PlayerView } from '../api';
+  import type { ContractTerms, NegotiationView, OfferKind, PlayerView } from '../api';
   import { money, wage } from '../format';
+  import { useGame } from '../state/game.svelte';
+  import TermsEditor from './TermsEditor.svelte';
 
   let {
     player,
@@ -11,8 +13,26 @@
   }: {
     player: PlayerView;
     budget: number;
-    onsubmit: (kind: OfferKind, wage: number, years: number) => void;
+    onsubmit: (kind: OfferKind, wage: number, years: number, terms?: ContractTerms, sellOn?: number) => void;
   } = $props();
+  const game = useGame();
+
+  // What the player's agent asks, for the personal terms.
+  let talks = $state<NegotiationView | null>(null);
+  let terms = $state<ContractTerms | null>(null);
+  let sellOn = $state(0);
+  $effect(() => {
+    const id = player.id;
+    untrack(() => {
+      game.client
+        .contractTalks(id)
+        .then((v) => {
+          talks = v;
+          terms = { ...v.ask };
+        })
+        .catch(() => {});
+    });
+  });
 
   // The form starts from the player as first shown; edits are the user's.
   const start = untrack(() => ({
@@ -29,8 +49,13 @@
   const free = $derived(player.club === null);
 
   function submit() {
-    const k: OfferKind = kind === 'loan' ? { type: 'loan', wageShare: share } : { type: 'transfer', fee: Math.round(fee * 1e6) };
-    onsubmit(k, kind === 'loan' ? 0 : weekly, kind === 'loan' ? 0 : years);
+    if (kind === 'loan') {
+      onsubmit({ type: 'loan', wageShare: share }, 0, 0);
+    } else if (terms) {
+      onsubmit({ type: 'transfer', fee: Math.round(fee * 1e6) }, terms.wage, terms.years, { ...terms }, sellOn);
+    } else {
+      onsubmit({ type: 'transfer', fee: Math.round(fee * 1e6) }, weekly, years);
+    }
   }
 </script>
 
@@ -44,14 +69,21 @@
   {#if kind === 'transfer'}
     {#if !free}
       <label>Fee (£m) <input type="number" min="0" step="0.1" bind:value={fee} /></label>
+      <label>Sell-on <input type="number" min="0" max="50" step="5" bind:value={sellOn} />%</label>
     {/if}
-    <label>Wage <input type="number" min="0" step="100" bind:value={weekly} /></label>
-    <label>Years
-      <select bind:value={years}>{#each [1, 2, 3, 4, 5] as y (y)}<option value={y}>{y}</option>{/each}</select>
-    </label>
+    {#if terms && talks}
+      <p class="dim">Personal terms (their agent asks {wage(talks.ask.wage)}):</p>
+      <div class="full"><TermsEditor bind:terms statuses={talks.statuses} /></div>
+    {:else}
+      <label>Wage <input type="number" min="0" step="100" bind:value={weekly} /></label>
+      <label>Years
+        <select bind:value={years}>{#each [1, 2, 3, 4, 5] as y (y)}<option value={y}>{y}</option>{/each}</select>
+      </label>
+    {/if}
     <p class="dim">
+      {#if player.contract?.releaseClause}Release clause: {money(player.contract.releaseClause)}; meeting it cannot be refused. {/if}
       {#if player.askingPrice}They would sell for about {money(player.askingPrice)}.{/if}
-      The player wants about {wage(player.wageDemand)}. Your budget: {money(budget)}.
+      A sell-on share lowers the fee they need. Your budget: {money(budget)}.
     </p>
   {:else}
     <label>You pay <input type="number" min="0" max="100" step="5" bind:value={share} />% of wages</label>
@@ -82,7 +114,8 @@
     color: var(--accent);
   }
 
-  p {
+  p,
+  .full {
     flex-basis: 100%;
     margin: 0;
   }

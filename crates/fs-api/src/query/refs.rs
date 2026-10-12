@@ -130,6 +130,9 @@ pub fn contract(world: &World, id: PlayerId) -> Option<dto::Contract> {
     world.players().contract(id).map(|c| dto::Contract {
         wage: c.wage,
         expires: date(c.expires),
+        appearance_bonus: c.appearance_bonus,
+        goal_bonus: c.goal_bonus,
+        release_clause: c.release_clause,
     })
 }
 

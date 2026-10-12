@@ -8,6 +8,7 @@
 pub mod club;
 pub mod common;
 pub mod competition;
+pub mod contracts;
 pub mod game;
 pub mod inbox;
 pub mod instructions;
@@ -21,6 +22,7 @@ pub mod training;
 pub use club::*;
 pub use common::*;
 pub use competition::*;
+pub use contracts::*;
 pub use game::*;
 pub use inbox::*;
 pub use instructions::*;

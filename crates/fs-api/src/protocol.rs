@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Protocol version. Bump when a request or response changes shape.
-pub const PROTOCOL_VERSION: u32 = 7;
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// Something the UI asks for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -135,6 +135,15 @@ pub enum Request {
         kind: OfferKind,
         wage: u32,
         years: u8,
+        /// A full contract package for a transfer, replacing `wage` and
+        /// `years`.
+        #[serde(default)]
+        #[ts(optional)]
+        terms: Option<ContractTerms>,
+        /// Percent of the player's next fee the seller keeps.
+        #[serde(default)]
+        #[ts(optional)]
+        sell_on: Option<u8>,
     },
     /// Answer an offer for one of your players. Answered with
     /// [`Response::Transfers`].
@@ -185,6 +194,11 @@ pub enum Request {
     SetCaptain { player: Id },
     /// Answered with [`Response::Dynamics`].
     SetSquadStatus { player: Id, status: SquadStatus },
+    /// What a player (one of yours, or a free agent) wants in a contract.
+    /// Answered with [`Response::Negotiation`].
+    ContractTalks { player: Id },
+    /// Offer a contract package. Answered with [`Response::Talks`].
+    NegotiateContract { player: Id, terms: ContractTerms },
     /// Roles and duties by formation slot (empty for the standard ones),
     /// set-piece takers (`None` for the best on the pitch) and opposition
     /// instructions for the next match. Answered with
@@ -303,6 +317,12 @@ pub enum Response {
     },
     Dynamics {
         dynamics: DynamicsView,
+    },
+    Negotiation {
+        negotiation: NegotiationView,
+    },
+    Talks {
+        result: TalksResult,
     },
     Talk {
         result: TalkResult,

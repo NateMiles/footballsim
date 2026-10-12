@@ -30,7 +30,12 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
 
   await page.locator('tbody tr').first().click();
   await expect(page.getByRole('heading', { name: 'Technical' })).toBeVisible();
-  await page.screenshot({ path: shots('player', project) });
+  // A renewal on exactly what the agent asks is signed.
+  await page.getByRole('button', { name: 'Negotiate a contract' }).click();
+  await expect(page.getByTestId('negotiation')).toBeVisible();
+  await page.getByRole('button', { name: 'Make offer' }).click();
+  await expect(page.getByTestId('talks-result')).toContainText('signed');
+  await page.screenshot({ path: shots('player', project), fullPage: true });
 
   await page.getByRole('link', { name: /Tactics/ }).click();
   await expect(page.getByRole('heading', { name: 'Formation' })).toBeVisible();
@@ -84,7 +89,9 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await expect(page.getByRole('heading', { name: 'Market' })).toBeVisible();
   await page.getByRole('button', { name: 'Scout this player' }).click();
   await expect(page.getByText('Being scouted')).toBeVisible();
-  await page.screenshot({ path: shots('scouted-player', project) });
+  // Personal terms come from the player's agent.
+  await expect(page.getByText(/Personal terms/)).toBeVisible();
+  await page.screenshot({ path: shots('scouted-player', project), fullPage: true });
   await page.getByRole('button', { name: 'Make offer' }).click();
   await expect(page.getByText(/Your offer|budget is|transfer budget/i).first()).toBeVisible();
   await page.goto('./#/transfers/offers');

@@ -23,6 +23,12 @@ pub struct Ledger {
     pub running_costs: Money,
     /// Spending on the stadium and facilities.
     pub investment: Money,
+    /// Appearance and goal bonuses.
+    pub bonuses: Money,
+    /// Paid to players on signing.
+    pub signing_fees: Money,
+    /// Paid to players' agents on signing.
+    pub agent_fees: Money,
 }
 
 impl Ledger {
@@ -36,6 +42,9 @@ impl Ledger {
             + self.player_purchases
             + self.running_costs
             + self.investment
+            + self.bonuses
+            + self.signing_fees
+            + self.agent_fees
     }
 
     /// Income minus spending.

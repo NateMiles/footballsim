@@ -83,7 +83,7 @@ pub fn status_name(s: SquadStatus) -> &'static str {
     }
 }
 
-fn statuses() -> Vec<dto::StatusInfo> {
+pub fn statuses() -> Vec<dto::StatusInfo> {
     SquadStatus::ALL
         .into_iter()
         .map(|s| dto::StatusInfo {
@@ -168,6 +168,7 @@ fn reason_text(f: Factor) -> &'static str {
             Feeling::LostCaptaincy => "Lost the captaincy",
             Feeling::Demoted => "Unhappy about a smaller role",
             Feeling::Promoted => "Pleased with a bigger role",
+            Feeling::TalksFailed => "Contract talks broke down",
         },
     }
 }

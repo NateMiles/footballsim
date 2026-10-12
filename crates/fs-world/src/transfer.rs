@@ -106,11 +106,55 @@ pub struct Offer {
     /// The contract offered to the player (transfers only).
     pub wage: u32,
     pub years: u8,
+    /// The full package, when the buyer negotiated one; otherwise a plain
+    /// contract on `wage` and `years`.
+    pub terms: Option<crate::contract::Terms>,
+    /// Percent of the player's next transfer fee the seller keeps.
+    pub sell_on: u8,
     pub status: OfferStatus,
     /// The selling club must answer by this day.
     pub respond_by: GameDate,
     /// When the status last changed.
     pub updated: GameDate,
+}
+
+/// A former club's share of a player's next transfer fee.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SellOn {
+    pub club: ClubId,
+    pub percent: u8,
+}
+
+/// The most a sell-on clause can claim.
+pub const MAX_SELL_ON: u8 = 50;
+
+/// Whether a transfer offer meets the player's release clause.
+pub fn clause_met(world: &World, offer: &Offer) -> bool {
+    match offer.kind {
+        OfferKind::Transfer { fee } => world
+            .players()
+            .contract(offer.player)
+            .and_then(|c| c.release_clause)
+            .is_some_and(|c| fee >= c),
+        OfferKind::Loan { .. } => false,
+    }
+}
+
+/// What a sell-on clause is worth to a selling club now: half its share
+/// of a fee like this one, as the player may never be sold again.
+pub fn sell_on_value(offer: &Offer) -> Money {
+    match offer.kind {
+        OfferKind::Transfer { fee } => fee * Money::from(offer.sell_on) / 200,
+        OfferKind::Loan { .. } => 0,
+    }
+}
+
+/// Whether the player agrees to the buyer's terms.
+pub fn player_agrees(world: &World, offer: &Offer) -> bool {
+    match &offer.terms {
+        Some(t) => crate::contract::accepts(world, offer.player, offer.buyer, t),
+        None => accepts_terms(world, offer.player, offer.buyer, offer.wage),
+    }
 }
 
 /// A player out on loan.
@@ -159,6 +203,8 @@ pub struct Market {
     pub(crate) listed: BTreeMap<PlayerId, Listing>,
     /// Completed moves, oldest first.
     pub(crate) history: Vec<TransferRecord>,
+    /// Sell-on clauses: a former club's share of the player's next fee.
+    pub(crate) sell_ons: BTreeMap<PlayerId, SellOn>,
 }
 
 impl Market {
@@ -176,6 +222,11 @@ impl Market {
 
     pub fn loans(&self) -> &BTreeMap<PlayerId, Loan> {
         &self.loans
+    }
+
+    /// A sell-on clause on the player, if any.
+    pub fn sell_on(&self, player: PlayerId) -> Option<SellOn> {
+        self.sell_ons.get(&player).copied()
     }
 
     pub fn loan(&self, player: PlayerId) -> Option<&Loan> {
@@ -314,19 +365,39 @@ pub(crate) fn complete(world: &mut World, id: u32) -> Result<TransferRecord, Ref
                 .finances
                 .spend(|l| &mut l.player_purchases, fee);
             world.clubs[offer.buyer].finances.transfer_budget -= fee;
+            // A former club's sell-on share comes out of the fee.
+            let share = match world.market.sell_ons.remove(&player) {
+                Some(s) if s.club != offer.seller && s.club != offer.buyer => {
+                    let share = fee * Money::from(s.percent) / 100;
+                    world.clubs[s.club]
+                        .finances
+                        .earn(|l| &mut l.player_sales, share);
+                    share
+                }
+                _ => 0,
+            };
             world.clubs[offer.seller]
                 .finances
-                .earn(|l| &mut l.player_sales, fee);
+                .earn(|l| &mut l.player_sales, fee - share);
             // Boards let managers reinvest half of what they sell for.
-            world.clubs[offer.seller].finances.transfer_budget += fee / 2;
-            world.sign_player(
-                player,
-                offer.buyer,
-                Contract {
-                    wage: offer.wage,
-                    expires: contract_expiry(today, offer.years),
-                },
-            );
+            world.clubs[offer.seller].finances.transfer_budget += (fee - share) / 2;
+            if offer.sell_on > 0 {
+                world.market.sell_ons.insert(
+                    player,
+                    SellOn {
+                        club: offer.seller,
+                        percent: offer.sell_on.min(MAX_SELL_ON),
+                    },
+                );
+            }
+            match &offer.terms {
+                Some(t) => crate::contract::sign(world, offer.buyer, player, t),
+                None => world.sign_player(
+                    player,
+                    offer.buyer,
+                    Contract::new(offer.wage, contract_expiry(today, offer.years)),
+                ),
+            }
             fee
         }
         OfferKind::Loan { wage_share } => {

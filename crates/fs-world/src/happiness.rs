@@ -95,6 +95,8 @@ pub enum Feeling {
     LostCaptaincy,
     Demoted,
     Promoted,
+    /// Contract talks broke down.
+    TalksFailed,
 }
 
 /// A remembered feeling and its weight on happiness until it fades.
@@ -126,6 +128,9 @@ pub struct Relations {
     pub(crate) talks: BTreeMap<PlayerId, GameDate>,
     /// Transfer requests handed in since the world began.
     pub(crate) requests_made: u32,
+    /// Contract talks under way (or recently broken down), free agents
+    /// included.
+    pub(crate) negotiations: BTreeMap<PlayerId, crate::contract::Talks>,
 }
 
 impl Relations {
@@ -148,6 +153,11 @@ impl Relations {
 
     pub fn last_talk(&self, player: PlayerId) -> Option<GameDate> {
         self.talks.get(&player).copied()
+    }
+
+    /// Contract talks with a player, if any.
+    pub fn negotiation(&self, player: PlayerId) -> Option<crate::contract::Talks> {
+        self.negotiations.get(&player).copied()
     }
 
     pub fn requests_made(&self) -> u32 {
@@ -481,7 +491,7 @@ pub fn initialise(world: &mut World) {
 /// The status a newcomer expects: the highest role whose current holders
 /// they are at least as good as (keepers measured against keepers). Much
 /// cheaper than picking the team again for every signing.
-fn newcomer_status(world: &World, club: ClubId, player: PlayerId) -> SquadStatus {
+pub(crate) fn newcomer_status(world: &World, club: ClubId, player: PlayerId) -> SquadStatus {
     let ps = world.players();
     let today = world.date();
     let age = age_years(ps.bio(player).birth_date, today);
@@ -611,6 +621,7 @@ fn monthly(world: &mut World, events: &mut Vec<Event>) {
         list.retain(|m| m.until > today);
     }
     world.relations.memories.retain(|_, l| !l.is_empty());
+    crate::contract::tidy(world);
 
     // An agreed sale that the club went back on.
     let reneged: Vec<PlayerId> = world

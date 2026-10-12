@@ -18,6 +18,10 @@ pub struct Ledger {
     pub player_purchases: i64,
     pub running_costs: i64,
     pub investment: i64,
+    /// Appearance and goal bonuses.
+    pub bonuses: i64,
+    /// Signing fees and agents' fees.
+    pub signing_fees: i64,
     pub income: i64,
     pub expenses: i64,
 }
@@ -35,6 +39,8 @@ impl From<&fs_world::Ledger> for Ledger {
             player_purchases: l.player_purchases,
             running_costs: l.running_costs,
             investment: l.investment,
+            bonuses: l.bonuses,
+            signing_fees: l.signing_fees + l.agent_fees,
             income: l.income(),
             expenses: l.expenses(),
         }

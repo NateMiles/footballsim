@@ -432,6 +432,7 @@ fn apply_result(
             if let Some(k) = squad.iter().position(|&q| q == p) {
                 played[k] = true;
             }
+            crate::contract::pay_bonuses(world, club, p, ps.goals);
             let st = &mut world.players.season[i];
             st.appearances += 1;
             st.starts += u16::from(ps.started);

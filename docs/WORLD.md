@@ -105,7 +105,29 @@ youngsters whose potential falls well short of the first team.
 (always 30 June). Wage demands rise steeply with ability (and with
 potential for under-23s). Each club has a wage cap set by its reputation.
 Contracts that are not renewed end on 30 June and the player becomes a
-free agent.
+free agent. A contract can also carry appearance and goal bonuses (paid
+after each match, from the bonuses line of the accounts) and a release
+clause. AI clubs agree plain contracts at demand.
+
+**Negotiation** (`contract.rs`). Human managers sign and renew players by
+negotiating a package: wage, years, the role promised (it becomes the
+player's squad status), appearance and goal bonuses, a signing fee and
+perhaps a release clause. The player turns the package into a weekly
+value: bonuses at the appearances the role promises (42 a season for a
+key player down to 3 for a prospect) and the goals their position brings,
+discounted by 15%, and the signing fee spread over the contract. That is
+weighed against their demand (the wage demand, more for a step down in
+reputation, more when unhappy at the club): each step below the role they
+expect costs 15%, each year from the length they want (3 years under 24,
+4 to 29, 2 to 32, then 1) costs 3%, and ambitious players at clubs below
+their level want a release clause (8% without one). At 90% of the demand
+they sign; below 60%, or after two to four offers (fewer for greedy
+agents), talks break down for two weeks, which a player at the club
+remembers. Otherwise the agent counters with the wage that would do,
+adding a release clause or a better role when those are the problem.
+Every player has an agent for life, whose greed raises the ask and sets
+their fee: 3-8% of the contract's wages, paid with the signing fee. A
+player who has asked to leave will not renew.
 
 **Retirement.** It starts at 31 and is near-certain by 37. It comes sooner
 for free agents, and anyone unattached for two summers retires.
@@ -249,7 +271,8 @@ is made of:
 - player sales.
 
 Spending is player and staff wages (monthly), transfer fees, running
-costs (15% of potential) and investment in facilities.
+costs (15% of potential), investment in facilities, and for negotiated
+contracts bonuses, signing fees and agents' fees (section 3).
 
 **Budgets.** Each summer the board sets the wage budget at 66% of
 potential, stretched a little by savings, and the transfer budget at half
@@ -317,9 +340,19 @@ Windows run from 1 July to 31 August and through January (`transfer.rs`,
    three days (no answer is a rejection). It accepts, refuses, or names
    its price, which the buyer can accept.
 3. The player weighs personal terms: players want more money to step down
-   to a smaller club and will not drop far unless they are surplus.
+   to a smaller club and will not drop far unless they are surplus. A
+   human buyer can offer a full package, judged as in negotiation (no
+   counter-offers).
 4. Agreed deals complete in the next daily update, even if the window has
    just closed.
+
+**Release clauses and sell-on clauses.** An offer that meets a player's
+release clause cannot be refused by the selling club, AI or human; only
+the player decides. AI buyers bid the clause when it is within a fifth of
+their own valuation. A buyer can offer the seller a share of the player's
+next fee (up to 50%), which an AI seller values at half that share of
+the fee and so accepts a lower fee. When the player is sold on, the
+former club receives its share out of the fee.
 
 **Valuation.** A player's value is a multiple of a year's wage demand: 4x
 under 21, 3.5x to 24, 3x to 28, then falling to 0.5x past 32; a third of

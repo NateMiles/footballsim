@@ -590,16 +590,59 @@ impl Session {
                 kind,
                 wage,
                 years,
+                terms,
+                sell_on,
             } => {
                 let c = self.career()?;
                 let player = c.existing_player(player)?;
-                c.submit_quiet(Command::MakeOffer {
-                    player,
-                    kind: kind.into(),
-                    wage,
-                    years,
-                })?;
+                let command = match (kind, terms) {
+                    (dto::OfferKind::Transfer { fee }, Some(t)) => Command::MakeTransferOffer {
+                        player,
+                        fee,
+                        sell_on: sell_on.unwrap_or(0),
+                        terms: t.into(),
+                    },
+                    (kind, _) => Command::MakeOffer {
+                        player,
+                        kind: kind.into(),
+                        wage,
+                        years,
+                    },
+                };
+                c.submit_quiet(command)?;
                 self.transfers_view()
+            }
+            Request::ContractTalks { player } => {
+                let c = self.career()?;
+                let player = c.existing_player(player)?;
+                Ok(Response::Negotiation {
+                    negotiation: query::contracts::negotiation(c.world(), c.club()?, player),
+                })
+            }
+            Request::NegotiateContract { player, terms } => {
+                let c = self.career()?;
+                let player = c.existing_player(player)?;
+                let events = c.submit_outside_match(Command::NegotiateContract {
+                    player,
+                    terms: terms.into(),
+                })?;
+                let outcome = events
+                    .iter()
+                    .find_map(|e| match e {
+                        fs_world::Event::ContractTalks { outcome, .. } => Some(*outcome),
+                        _ => None,
+                    })
+                    .ok_or_else(|| {
+                        ApiError::new(ErrorCode::Rejected, "no answer from the agent")
+                    })?;
+                let (outcome, message) = query::contracts::outcome(outcome);
+                Ok(Response::Talks {
+                    result: dto::TalksResult {
+                        outcome,
+                        message: message.into(),
+                        negotiation: query::contracts::negotiation(c.world(), c.club()?, player),
+                    },
+                })
             }
             Request::RespondToOffer { offer, response } => {
                 self.career()?.submit_quiet(Command::RespondToOffer {

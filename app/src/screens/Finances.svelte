@@ -21,6 +21,8 @@
     ['playerPurchases', 'Transfer fees'],
     ['runningCosts', 'Running costs'],
     ['investment', 'Facilities'],
+    ['bonuses', 'Bonuses'],
+    ['signingFees', 'Signing and agent fees'],
   ];
 </script>
 

@@ -3,6 +3,7 @@
 //! A command is validated completely before anything changes, so a
 //! rejected command has no effect and is not recorded.
 
+use crate::contract::{Outcome, Terms};
 use crate::finance::Money;
 use crate::fixture::FixtureRef;
 use crate::happiness::{Feeling, SquadStatus};
@@ -152,6 +153,17 @@ pub enum Command {
     /// Set roles and duties for the current formation, set-piece takers
     /// and opposition instructions for the next match, or clear them all.
     SetInstructions { instructions: Option<Instructions> },
+    /// Offer a contract package to one of your players (a renewal) or a
+    /// free agent. The agent accepts, counters or breaks off talks.
+    NegotiateContract { player: PlayerId, terms: Terms },
+    /// Bid for a player with a full contract package for them and,
+    /// optionally, a share of their next fee for the selling club.
+    MakeTransferOffer {
+        player: PlayerId,
+        fee: Money,
+        sell_on: u8,
+        terms: Terms,
+    },
 }
 
 /// A selling club's answer to an offer.
@@ -338,6 +350,12 @@ pub enum Event {
     TransferRequested { player: PlayerId, club: ClubId },
     /// A human-managed club's player became very unhappy.
     PlayerUnhappy { player: PlayerId, club: ClubId },
+    /// A round of contract talks.
+    ContractTalks {
+        player: PlayerId,
+        club: ClubId,
+        outcome: Outcome,
+    },
 }
 
 /// Why a command was rejected.
@@ -435,6 +453,31 @@ pub enum CommandError {
     NoTransferRequest(PlayerId),
     #[error("invalid instructions: {0}")]
     InvalidInstructions(String),
+    #[error("talks with {0} broke down; they reopen on {1}")]
+    TalksClosed(PlayerId, GameDate),
+    #[error("{0} wants to leave and will not sign a new contract")]
+    WantsToLeave(PlayerId),
+    #[error("invalid terms: {0}")]
+    InvalidTerms(&'static str),
+}
+
+/// Checks a contract package is well formed.
+fn check_terms(t: &Terms) -> Result<(), CommandError> {
+    if !(1..=5).contains(&t.years) {
+        return Err(CommandError::InvalidYears(t.years));
+    }
+    if t.wage == 0 {
+        return Err(CommandError::InvalidTerms("no wage"));
+    }
+    if t.signing_fee < 0 {
+        return Err(CommandError::InvalidTerms("negative signing fee"));
+    }
+    if t.release_clause.is_some_and(|c| c <= 0) {
+        return Err(CommandError::InvalidTerms(
+            "release clause must be positive",
+        ));
+    }
+    Ok(())
 }
 
 /// Largest squad a club may register.
@@ -559,10 +602,7 @@ impl World {
                 if u64::from(wage) * 10 < u64::from(demand) * 9 {
                     return Err(CommandError::ContractRejected { demand });
                 }
-                let contract = Contract {
-                    wage,
-                    expires: contract_expiry(self.date, years),
-                };
+                let contract = Contract::new(wage, contract_expiry(self.date, years));
                 if current.is_some() {
                     self.players.contract[player.index()] = Some(contract);
                     Ok(Vec::new())
@@ -652,7 +692,66 @@ impl World {
                 kind,
                 wage,
                 years,
-            } => self.make_offer(actor, player, kind, wage, years),
+            } => self.make_offer(actor, player, kind, wage, years, None),
+            Command::MakeTransferOffer {
+                player,
+                fee,
+                sell_on,
+                terms,
+            } => {
+                check_terms(&terms)?;
+                if sell_on > crate::transfer::MAX_SELL_ON {
+                    return Err(CommandError::InvalidTerms("sell-on share too large"));
+                }
+                self.make_offer(
+                    actor,
+                    player,
+                    OfferKind::Transfer { fee },
+                    terms.wage,
+                    terms.years,
+                    Some((terms, sell_on)),
+                )
+            }
+            Command::NegotiateContract { player, ref terms } => {
+                let club = self.managed_club(actor)?;
+                self.require_unlocked(club)?;
+                check_terms(terms)?;
+                if !self.players.contains(player) {
+                    return Err(CommandError::UnknownPlayer(player));
+                }
+                if self.players.status(player) == Status::Retired {
+                    return Err(CommandError::Retired(player));
+                }
+                let current = self.players.club(player);
+                if current.is_some_and(|c| c != club) {
+                    return Err(CommandError::AtAnotherClub(player));
+                }
+                if self.market.loans.contains_key(&player) {
+                    return Err(CommandError::OnLoan(player));
+                }
+                if current.is_none() && self.clubs[club].squad.len() >= MAX_SQUAD {
+                    return Err(CommandError::SquadFull(self.clubs[club].squad.len()));
+                }
+                match crate::contract::open(self, player, club) {
+                    Err(crate::contract::Closed::Until(d)) => {
+                        return Err(CommandError::TalksClosed(player, d));
+                    }
+                    Err(crate::contract::Closed::WantsOut) => {
+                        return Err(CommandError::WantsToLeave(player));
+                    }
+                    Ok(()) => {}
+                }
+                let outcome = crate::contract::negotiate(self, club, player, terms);
+                let mut events = vec![Event::ContractTalks {
+                    player,
+                    club,
+                    outcome,
+                }];
+                if outcome == Outcome::Agreed && current.is_none() {
+                    events.push(Event::PlayerSigned { player, club });
+                }
+                Ok(events)
+            }
             Command::RespondToOffer { offer, response } => {
                 self.respond_to_offer(actor, offer, response)
             }
@@ -925,10 +1024,7 @@ impl World {
         if u64::from(wage) * 10 < u64::from(demand) * 9 {
             return Err(CommandError::StaffWageTooLow { demand });
         }
-        let contract = Contract {
-            wage,
-            expires: contract_expiry(self.date, years),
-        };
+        let contract = Contract::new(wage, contract_expiry(self.date, years));
         if renewal {
             self.staff[staff].contract = Some(contract);
         } else {
@@ -965,7 +1061,12 @@ impl World {
         kind: OfferKind,
         wage: u32,
         years: u8,
+        package: Option<(Terms, u8)>,
     ) -> Result<Vec<Event>, CommandError> {
+        let (terms, sell_on) = match package {
+            Some((t, s)) => (Some(t), s),
+            None => (None, 0),
+        };
         let club = self.managed_club(actor)?;
         if !crate::transfer::window_open(self.date) {
             return Err(CommandError::WindowClosed);
@@ -1018,12 +1119,23 @@ impl World {
             kind,
             wage,
             years,
+            terms,
+            sell_on,
             status: OfferStatus::Pending,
             respond_by: crate::market::respond_by(self, seller),
             updated: today,
         };
         let id = self.market.add(offer);
         let mut events = Vec::new();
+        // A release clause met: a human seller cannot refuse.
+        if self.is_human_club(seller) && crate::transfer::clause_met(self, &offer) {
+            let status = if crate::transfer::player_agrees(self, &offer) {
+                OfferStatus::Agreed
+            } else {
+                OfferStatus::Refused(Refusal::PlayerRefused)
+            };
+            return Ok(self.settle(id, status));
+        }
         if self.is_human_club(seller) && !self.ai_runs_squad(seller) {
             events.push(Event::OfferReceived {
                 offer: id,
@@ -1094,9 +1206,7 @@ impl World {
     /// The player's verdict on an offer the clubs have agreed.
     fn player_decides(&self, o: &Offer) -> OfferStatus {
         let yes = match o.kind {
-            OfferKind::Transfer { .. } => {
-                crate::transfer::accepts_terms(self, o.player, o.buyer, o.wage)
-            }
+            OfferKind::Transfer { .. } => crate::transfer::player_agrees(self, o),
             OfferKind::Loan { .. } => crate::transfer::accepts_loan(self, o.player, o.buyer),
         };
         if yes {

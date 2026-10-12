@@ -215,6 +215,7 @@ pub fn player(world: &World, id: PlayerId, viewer: Option<ClubId>) -> dto::Playe
         } else {
             None
         },
+        sell_on: super::contracts::sell_on(world, id),
     }
 }
 

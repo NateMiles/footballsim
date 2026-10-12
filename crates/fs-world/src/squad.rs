@@ -192,10 +192,10 @@ pub(crate) fn renew_contracts(world: &mut World, events: &mut Vec<Event>) {
                 && (prospect || (keep.contains(&p) && (age < 33.0 || (age < 35.0 && core))))
             {
                 room -= rise;
-                world.players.contract[p.index()] = Some(Contract {
+                world.players.contract[p.index()] = Some(Contract::new(
                     wage,
-                    expires: contract_expiry(today, years_for_age(age)),
-                });
+                    contract_expiry(today, years_for_age(age)),
+                ));
             }
         }
     }
@@ -314,10 +314,7 @@ pub(crate) fn maintain_squads(world: &mut World, events: &mut Vec<Event>) {
             let Some(k) = pick else { break };
             let (p, _, wage) = free.remove(k);
             let age = age_years(world.players.bio(p).birth_date, today);
-            let contract = Contract {
-                wage,
-                expires: contract_expiry(today, years_for_age(age)),
-            };
+            let contract = Contract::new(wage, contract_expiry(today, years_for_age(age)));
             world.sign_player(p, club, contract);
             if world.is_human_club(club) {
                 events.push(Event::PlayerSigned { player: p, club });
@@ -369,14 +366,7 @@ pub(crate) fn emergency_signings(world: &mut World, events: &mut Vec<Event>) {
                 .position(|f| need.is_none_or(|g| g == f.2))
                 .unwrap_or(0);
             let (wage, p, _) = free.remove(k);
-            world.sign_player(
-                p,
-                club,
-                Contract {
-                    wage,
-                    expires: contract_expiry(today, 1),
-                },
-            );
+            world.sign_player(p, club, Contract::new(wage, contract_expiry(today, 1)));
             if world.is_human_club(club) {
                 events.push(Event::PlayerSigned { player: p, club });
             }

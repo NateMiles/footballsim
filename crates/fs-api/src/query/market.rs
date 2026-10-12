@@ -19,6 +19,7 @@ pub fn offer(world: &World, o: &Offer) -> dto::Offer {
         kind: o.kind.into(),
         wage: o.wage,
         years: o.years,
+        sell_on: o.sell_on,
         status: o.status.into(),
         respond_by: date(o.respond_by),
     }

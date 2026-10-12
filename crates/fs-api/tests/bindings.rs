@@ -63,6 +63,8 @@ fn generate() -> String {
         // Instructions.
         PlayerRole, Duty, Marking, RoleInfo, MarkingInfo, SlotRoleView, MarkingView,
         InstructionsView, RoleChoice, MarkingChoice,
+        // Contracts.
+        ContractTerms, NegotiationView, TalksOutcome, TalksResult, SellOnView,
     ];
     decls.sort();
     let mut out = String::from(

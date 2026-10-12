@@ -97,6 +97,8 @@ pub struct Offer {
     /// The contract offered to the player (transfers).
     pub wage: u32,
     pub years: u8,
+    /// Percent of the player's next fee the seller would keep.
+    pub sell_on: u8,
     pub status: OfferStatus,
     pub respond_by: Date,
 }

@@ -72,6 +72,9 @@ pub struct Contract {
     /// Per week.
     pub wage: u32,
     pub expires: Date,
+    pub appearance_bonus: u32,
+    pub goal_bonus: u32,
+    pub release_clause: Option<i64>,
 }
 
 /// Everything about one player.
@@ -132,6 +135,8 @@ pub struct PlayerView {
     pub personality: Option<super::people::Personality>,
     /// Mood, status and promises, for the player's own manager.
     pub people: Option<super::people::PlayerPeople>,
+    /// A former club's share of their next fee.
+    pub sell_on: Option<super::contracts::SellOnView>,
 }
 
 /// A group of attributes, such as technical.

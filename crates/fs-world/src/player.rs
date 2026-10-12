@@ -77,13 +77,33 @@ pub struct Injury {
     pub until: GameDate,
 }
 
-/// A playing contract.
+/// A contract (players and staff).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Contract {
     /// Weekly wage.
     pub wage: u32,
     /// Last day of the contract (always 30 June).
     pub expires: GameDate,
+    /// Paid for each appearance, from the bench too.
+    pub appearance_bonus: u32,
+    /// Paid for each goal.
+    pub goal_bonus: u32,
+    /// A fee no club may refuse: an offer that meets it is accepted, and
+    /// the player decides.
+    pub release_clause: Option<crate::finance::Money>,
+}
+
+impl Contract {
+    /// A plain contract: a wage and an end date.
+    pub const fn new(wage: u32, expires: GameDate) -> Self {
+        Self {
+            wage,
+            expires,
+            appearance_bonus: 0,
+            goal_bonus: 0,
+            release_clause: None,
+        }
+    }
 }
 
 /// Whether a player is still playing.

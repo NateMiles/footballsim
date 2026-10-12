@@ -365,10 +365,10 @@ pub(crate) fn rollover(world: &mut World, events: &mut Vec<Event>) {
             let mut rng = seed.derive(Stream::Staff, year, key(RENEWAL, u64::from(s.raw())));
             let years = 2 + rng.below(2) as u8;
             let wage = st.wage_demand();
-            world.staff[s].contract = Some(Contract {
+            world.staff[s].contract = Some(Contract::new(
                 wage,
-                expires: crate::squad::contract_expiry(today, years),
-            });
+                crate::squad::contract_expiry(today, years),
+            ));
         } else {
             world.release_staff(s);
             if world.is_human_club(club) {
@@ -432,10 +432,10 @@ pub(crate) fn fill_vacancies(world: &mut World, events: &mut Vec<Event>) {
                     }
                 };
                 let mut rng = seed.derive(Stream::Staff, year, key(HIRE, u64::from(s.raw())));
-                let contract = Contract {
-                    wage: world.staff[s].wage_demand(),
-                    expires: crate::squad::contract_expiry(today, 2 + rng.below(2) as u8),
-                };
+                let contract = Contract::new(
+                    world.staff[s].wage_demand(),
+                    crate::squad::contract_expiry(today, 2 + rng.below(2) as u8),
+                );
                 world.hire_staff(s, club, contract);
                 if world.is_human_club(club) {
                     events.push(Event::StaffHired { staff: s, club });

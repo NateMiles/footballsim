@@ -162,6 +162,8 @@ fn searching_scouting_and_bidding() {
             kind: OfferKind::Transfer { fee },
             wage: 1_000_000,
             years: 2,
+            terms: None,
+            sell_on: None,
         },
     );
     if fee > budget {

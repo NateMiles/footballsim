@@ -222,19 +222,29 @@ fn sellers_answer(world: &mut World, events: &mut Vec<Event>) {
             );
             continue;
         }
+        let agrees = |w: &World| {
+            if transfer::player_agrees(w, &o) {
+                OfferStatus::Agreed
+            } else {
+                OfferStatus::Refused(Refusal::PlayerRefused)
+            }
+        };
         let status = match o.kind {
-            OfferKind::Transfer { fee } => match asking_price(world, o.seller, o.player) {
-                None => OfferStatus::Refused(Refusal::NotForSale),
-                Some(ask) if fee >= ask => {
-                    if accepts_terms(world, o.player, o.buyer, o.wage) {
-                        OfferStatus::Agreed
-                    } else {
-                        OfferStatus::Refused(Refusal::PlayerRefused)
-                    }
+            // A release clause cannot be refused; the player decides.
+            OfferKind::Transfer { .. } if transfer::clause_met(world, &o) => agrees(world),
+            OfferKind::Transfer { fee } => {
+                // A sell-on share makes a lower fee acceptable.
+                let worth = fee + transfer::sell_on_value(&o);
+                let sell_on = worth - fee;
+                match asking_price(world, o.seller, o.player) {
+                    None => OfferStatus::Refused(Refusal::NotForSale),
+                    Some(ask) if worth >= ask => agrees(world),
+                    Some(ask) if worth * 10 >= ask * 7 => OfferStatus::Countered {
+                        fee: (ask - sell_on).max(fee),
+                    },
+                    Some(_) => OfferStatus::Refused(Refusal::TooLow),
                 }
-                Some(ask) if fee * 10 >= ask * 7 => OfferStatus::Countered { fee: ask },
-                Some(_) => OfferStatus::Refused(Refusal::TooLow),
-            },
+            }
             OfferKind::Loan { wage_share } => {
                 let team = first_team(world, o.seller);
                 let rank = team.iter().position(|&p| p == o.player);
@@ -577,6 +587,12 @@ fn search(world: &World, index: &Index, club: ClubId) -> Option<Offer> {
             valuation(seen, f64::from(ps.potential(p)).max(seen), age, years) as f64
                 * rng.range_f64(0.85, 1.05),
         );
+        // A release clause within a fifth of their valuation is the
+        // surest way to get the player.
+        let fee = match ps.contract(p).and_then(|c| c.release_clause) {
+            Some(clause) if clause * 5 <= fee * 6 => clause,
+            _ => fee,
+        };
         if fee > f.transfer_budget {
             continue;
         }
@@ -595,6 +611,8 @@ fn search(world: &World, index: &Index, club: ClubId) -> Option<Offer> {
         kind: OfferKind::Transfer { fee },
         wage,
         years: years_for(age),
+        terms: None,
+        sell_on: 0,
         status: OfferStatus::Pending,
         respond_by: today.add_days(1),
         updated: today,
@@ -628,6 +646,8 @@ fn loan_search(world: &World, index: &Index, club: ClubId) -> Option<Offer> {
         kind: OfferKind::Loan { wage_share: 75 },
         wage: 0,
         years: 0,
+        terms: None,
+        sell_on: 0,
         status: OfferStatus::Pending,
         respond_by: today.add_days(1),
         updated: today,
@@ -665,6 +685,15 @@ fn make_offers(world: &mut World, events: &mut Vec<Event>) {
     }
     for offer in proposals.into_iter().flatten() {
         let id = world.market.add(offer);
+        if is_human(world, offer.seller) && transfer::clause_met(world, &offer) {
+            let status = if transfer::player_agrees(world, &offer) {
+                OfferStatus::Agreed
+            } else {
+                OfferStatus::Refused(Refusal::PlayerRefused)
+            };
+            set_status(world, events, id, status);
+            continue;
+        }
         if world.is_human_club(offer.seller) {
             let o = world.market.offer_mut(id).expect("added");
             o.respond_by = today.add_days(HUMAN_RESPONSE_DAYS);

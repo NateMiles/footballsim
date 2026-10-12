@@ -353,10 +353,10 @@ fn add_backroom(world: &mut World, cfg: &GenConfig) {
             for _ in 0..want + extra {
                 let s =
                     staff::new_staff(world.nations(), &mut rng, cfg.start, nation, role, quality);
-                let contract = Contract {
-                    wage: s.wage_demand(),
-                    expires: fs_world::squad::contract_expiry(cfg.start, rng.range_i32(1, 4) as u8),
-                };
+                let contract = Contract::new(
+                    s.wage_demand(),
+                    fs_world::squad::contract_expiry(cfg.start, rng.range_i32(1, 4) as u8),
+                );
                 world.add_staff_at(s, club, contract);
             }
         }

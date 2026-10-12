@@ -190,14 +190,12 @@ pub fn new_player(
             Age::Youth(_) => 3,
         };
         let demand = wage_demand(rating as u16, potential, age as u32);
-        Contract {
-            wage: if matches!(spec.age, Age::Youth(_)) {
-                (demand / 2).max(100)
-            } else {
-                demand
-            },
-            expires: season_end(season_year(today) + years - 1),
-        }
+        let wage = if matches!(spec.age, Age::Youth(_)) {
+            (demand / 2).max(100)
+        } else {
+            demand
+        };
+        Contract::new(wage, season_end(season_year(today) + years - 1))
     });
 
     PlayerInit {

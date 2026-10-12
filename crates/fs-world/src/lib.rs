@@ -11,6 +11,7 @@ pub mod board;
 pub mod club;
 pub mod command;
 pub mod competition;
+pub mod contract;
 pub mod cup;
 pub mod economy;
 pub mod finance;

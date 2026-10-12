@@ -4,9 +4,10 @@
   import ClubName from '../components/ClubName.svelte';
   import DevelopmentChart from '../components/DevelopmentChart.svelte';
   import Meter from '../components/Meter.svelte';
+  import Negotiation from '../components/Negotiation.svelte';
   import OfferForm from '../components/OfferForm.svelte';
   import PlayerMood from '../components/PlayerMood.svelte';
-  import type { Listing, OfferKind } from '../api';
+  import type { ContractTerms, Listing, OfferKind } from '../api';
   import { longDate, money, wage } from '../format';
   import { useGame } from '../state/game.svelte';
   import { load } from '../state/load.svelte';
@@ -15,20 +16,10 @@
   const game = useGame();
   const player = load(() => game.client.player(id));
   const p = $derived(player.data);
-  let offerWage = $state(0);
-  let offerYears = $state(2);
   let confirmRelease = $state(false);
-
-  $effect(() => {
-    if (p) offerWage = Math.ceil(p.wageDemand / 100) * 100;
-  });
 
   const positions = ['GK', 'DR', 'DC', 'DL', 'WBR', 'WBL', 'DM', 'MR', 'MC', 'ML', 'AMR', 'AMC', 'AML', 'ST'];
 
-  async function offer() {
-    const r = await game.run('Offering', () => game.client.offerContract(id, offerWage, offerYears));
-    if (r) await game.refresh();
-  }
 
   const own = $derived(p?.own ?? false);
   const mine = $derived(game.overview?.club ?? null);
@@ -36,15 +27,9 @@
     p ? [...p.career.map((c) => ({ label: c.season.slice(2), value: c.ability })), { label: 'now', value: p.ability }] : [],
   );
 
-  async function bid(kind: OfferKind, wage: number, years: number) {
+  async function bid(kind: OfferKind, wage: number, years: number, terms?: ContractTerms, sellOn?: number) {
     if (!p) return;
-    // A free agent is signed with a contract offer; anyone else is bid for.
-    if (!p.club) {
-      const r = await game.run('Offering', () => game.client.offerContract(id, wage, years));
-      if (r) game.changed();
-      return;
-    }
-    const r = await game.run('Making the offer', () => game.client.makeOffer(id, kind, wage, years));
+    const r = await game.run('Making the offer', () => game.client.makeOffer(id, kind, wage, years, terms, sellOn));
     if (r) game.changed();
   }
 
@@ -154,7 +139,9 @@
           </div>
           {#if p.offer}
             <p>Your offer: <strong>{p.offer.status.type === 'refused' ? p.offer.status.reason : p.offer.status.type}</strong> · <a href="#/transfers/offers">Transfers</a></p>
-          {:else if !p.loan && (game.overview?.windowOpen || !p.club)}
+          {:else if !p.club && !p.retired}
+            <Negotiation player={p.id} />
+          {:else if !p.loan && game.overview?.windowOpen}
             <OfferForm player={p} budget={game.overview?.transferBudget ?? 0} onsubmit={bid} />
           {:else if !p.loan}
             <p class="dim">The transfer window is closed.</p>
@@ -168,20 +155,21 @@
         <h3>Contract</h3>
         {#if p.contract}
           <p>{wage(p.contract.wage)} until {longDate(p.contract.expires)}</p>
+          {#if p.contract.appearanceBonus > 0 || p.contract.goalBonus > 0}
+            <p class="dim">
+              Bonuses: {money(p.contract.appearanceBonus)} an appearance, {money(p.contract.goalBonus)} a goal.
+            </p>
+          {/if}
+          {#if p.contract.releaseClause !== null}
+            <p class="dim">Release clause: {money(p.contract.releaseClause)}.</p>
+          {/if}
         {:else}
           <p class="dim">No contract.</p>
         {/if}
-        <p class="dim">Asks for {wage(p.wageDemand)}.</p>
-        {#if p.own}
-          <div class="row">
-            <label class="row">Wage <input type="number" step="100" min="0" bind:value={offerWage} /></label>
-            <label class="row">Years
-              <select bind:value={offerYears}>
-                {#each [1, 2, 3, 4, 5] as y (y)}<option value={y}>{y}</option>{/each}
-              </select>
-            </label>
-            <button class="primary" onclick={offer}>{p.own ? 'Offer new contract' : 'Offer contract'}</button>
-          </div>
+        {#if p.sellOn}<p class="dim">{p.sellOn.club.name} are owed {p.sellOn.percent}% of the next fee.</p>{/if}
+        <p class="dim">Worth about {wage(p.wageDemand)}.</p>
+        {#if p.own && !p.loan}
+          <Negotiation player={p.id} />
         {/if}
         {#if p.own}
           <div class="row gap">
@@ -329,9 +317,6 @@
     gap: 4px 16px;
   }
 
-  input[type='number'] {
-    width: 110px;
-  }
   .market .row button.active {
     border-color: var(--accent);
     color: var(--accent);
