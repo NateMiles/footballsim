@@ -22,6 +22,9 @@
   import Dynamics from './screens/Dynamics.svelte';
   import Analysis from './screens/Analysis.svelte';
   import Stats from './screens/Stats.svelte';
+  import News from './screens/News.svelte';
+  import Conversation from './screens/Conversation.svelte';
+  import Press from './screens/Press.svelte';
   import Transfers from './screens/Transfers.svelte';
   import { useGame } from './state/game.svelte';
 
@@ -53,6 +56,8 @@
       {#key route.club}<Squad club={route.club} />{/key}
     {:else if route.name === 'player'}
       {#key route.id}<Player id={route.id} />{/key}
+    {:else if route.name === 'talk'}
+      {#key route.id}<Conversation id={route.id} />{/key}
     {:else if route.name === 'tactics'}
       <Tactics />
     {:else if route.name === 'fixtures'}
@@ -71,6 +76,10 @@
       <Dynamics />
     {:else if route.name === 'stats'}
       <Stats />
+    {:else if route.name === 'news'}
+      <News />
+    {:else if route.name === 'press'}
+      <Press />
     {:else if route.name === 'analysis'}
       {#key `${route.kind}/${route.id}/${route.index}`}<Analysis kind={route.kind} id={route.id} index={route.index} />{/key}
     {:else if route.name === 'saves'}

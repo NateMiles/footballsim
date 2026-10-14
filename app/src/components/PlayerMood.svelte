@@ -1,13 +1,12 @@
 <!-- A player as a person: character, and for your own players their mood
      with its reasons, their role, promises, and a private word. -->
 <script lang="ts">
-  import type { PlayerView, SquadStatus, Talk, TalkResult } from '../api';
+  import type { PlayerView, SquadStatus } from '../api';
   import { longDate } from '../format';
   import { useGame } from '../state/game.svelte';
 
   let { p }: { p: PlayerView } = $props();
   const game = useGame();
-  let said = $state<TalkResult | null>(null);
 
   const STATUSES: { status: SquadStatus; name: string }[] = [
     { status: 'key', name: 'Key player' },
@@ -16,43 +15,16 @@
     { status: 'backup', name: 'Backup' },
     { status: 'prospect', name: 'Prospect' },
   ];
-  const TALKS: { talk: Talk; name: string; hint: string }[] = [
-    { talk: 'praise', name: 'Praise form', hint: 'Tell them they have been playing well.' },
-    { talk: 'criticise', name: 'Criticise form', hint: 'Tell them they must do better. Some respond, some sulk.' },
-    { talk: 'reassure', name: 'Reassure', hint: 'Tell them they are an important part of your plans.' },
-    { talk: 'promiseFootball', name: 'Promise football', hint: 'Promise more first-team football over two months.' },
-    { talk: 'promiseContract', name: 'Promise a contract', hint: 'Promise an improved contract within two months.' },
-  ];
-  const REACTIONS: Record<string, string> = {
-    delighted: 'good',
-    pleased: 'good',
-    determined: 'good',
-    indifferent: '',
-    sceptical: 'warn',
-    annoyed: 'bad',
-    angry: 'bad',
-  };
 
   const moodClass = (h: number) => (h >= 15 ? 'good' : h <= -15 ? 'bad' : h < 0 ? 'warn' : '');
   const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
-  async function talk(t: Talk) {
-    const r = await game.run('Talking', () => game.client.talkToPlayer(p.id, t));
-    if (r) {
-      said = r;
-      game.changed();
-    }
-  }
 
   async function act(label: string, f: () => Promise<unknown>) {
     const r = await game.run(label, f);
     if (r) game.changed();
   }
 
-  function promised(t: Talk): boolean {
-    const kind = t === 'promiseFootball' ? 'football' : t === 'promiseContract' ? 'contract' : null;
-    return kind !== null && (p.people?.promises.some((x) => x.kind === kind) ?? false);
-  }
 </script>
 
 {#if p.personality || p.people}
@@ -110,24 +82,12 @@
           <span class="pill {pr.onTrack ? 'good' : 'warn'}">{pr.onTrack ? 'On track' : 'Behind'}</span>
         </p>
       {/each}
-      <h3>Have a word</h3>
-      <div class="talks">
-        {#each TALKS as t (t.talk)}
-          <button
-            title={t.hint}
-            disabled={game.busy !== null || !pp.canTalk || promised(t.talk)}
-            onclick={() => talk(t.talk)}>{t.name}</button
-          >
-        {/each}
+      <div class="row wrap word">
+        <a class="talk-link" href="#/talk/{p.id}">Have a word with {p.firstName}</a>
+        {#if !pp.canTalk && pp.lastTalk}
+          <span class="dim small">Last proper talk {longDate(pp.lastTalk)}</span>
+        {/if}
       </div>
-      {#if said}
-        <p data-testid="reaction">
-          <span class="pill {REACTIONS[said.reaction]}">{said.reaction}</span>
-          {said.message}
-        </p>
-      {:else if !pp.canTalk}
-        <p class="dim">You spoke to them on {pp.lastTalk ? longDate(pp.lastTalk) : 'recently'}; give it a week.</p>
-      {/if}
     {/if}
   </section>
 {/if}
@@ -171,9 +131,19 @@
     border-left-color: var(--bad);
   }
 
-  .talks {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  .talk-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    padding: 0 18px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
+  }
+
+  .talk-link:hover {
+    color: var(--accent-ink);
+    background: #e2ff70;
   }
 </style>

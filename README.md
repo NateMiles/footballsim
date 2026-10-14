@@ -5,7 +5,7 @@ A football management game aiming to beat Football Manager on three fronts:
 more honestly), and **openness** (transparent stats, moddable data, scriptable
 scenarios).
 
-Status: **milestone 6 (gameplay depth) complete.** Pick a club in a generated
+Status: **milestone 7 (the story around the football) complete.** Pick a club in a generated
 world of up to 60 nations and manage it: squad, tactics and team
 selection, a transfer and loan market where every club judges players by
 its own scouting, backroom staff, club finances, and a board that sacks
@@ -20,7 +20,12 @@ a dressing room of personalities (talks, promises, transfer requests, a
 captain), set roles, duties, set-piece takers and marking, negotiate
 contracts with agents (bonuses, release clauses, sell-ons), study shot
 maps, xG timelines and pass networks, and answer to a board with cup and
-club-ethos objectives as well as a league target. It runs in the browser (the simulation compiled to
+club-ethos objectives as well as a league target. The world talks back:
+a daily paper with illustrated stories from every league, press
+conferences before and after each match where your answers move the
+squad, single players, the opposition and the board, and private
+conversations where players answer in their own words, every face drawn
+for them. It runs in the browser (the simulation compiled to
 WebAssembly), installs on iPad as a web app, and builds as a native macOS
 and iPad app with Tauri. Underneath, the world runs season after season
 (see [docs/WORLD.md](docs/WORLD.md)) on two calibrated match engines.

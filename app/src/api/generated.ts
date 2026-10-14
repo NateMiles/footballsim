@@ -1,13 +1,45 @@
 // Generated from crates/fs-api by tests/bindings.rs. Do not edit.
 // Regenerate: UPDATE_BINDINGS=1 cargo test -p fs-api --test bindings
 
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
+
+export type AnswerOption = { tone: Tone, 
+/**
+ * Such as `"Confident"`.
+ */
+label: string, 
+/**
+ * What the manager says.
+ */
+text: string, };
 
 export type ApiErrorBody = { code: ErrorCode, 
 /**
  * For people.
  */
 message: string, };
+
+export type Art = { "type": "score", home: ClubRef, away: ClubRef, goals: [number, number], competition: string, } | { "type": "portrait", figure: Figure, caption: string, } | { "type": "move", figure: Figure, from: ClubRef | null, to: ClubRef, fee: string, } | { "type": "trophy", club: ClubRef, competition: string, } | { "type": "microphone", figure: Figure, };
+
+export type Article = { id: number, date: string, kind: ArticleKind, headline: string, 
+/**
+ * One sentence under the headline.
+ */
+standfirst: string, body: Array<string>, byline: Byline, art: Art, 
+/**
+ * How big a story it is, 0-100.
+ */
+weight: number, 
+/**
+ * About the viewer's club.
+ */
+mine: boolean, 
+/**
+ * The player it is about, if any, to follow up.
+ */
+player: number | null, };
+
+export type ArticleKind = "result" | "transfer" | "rumour" | "manager" | "trophy" | "injury" | "unrest" | "youth" | "retirement" | "quote";
 
 export type Assignment = { player: PlayerRef, club: ClubRef | null, 
 /**
@@ -18,6 +50,8 @@ knowledge: number, };
 export type AttributeGroup = { name: string, attributes: Array<AttributeValue>, };
 
 export type AttributeValue = { name: string, value: number, low: number, high: number, };
+
+export type Beard = "none" | "stubble" | "short" | "full" | "moustache" | "goatee";
 
 export type BenchmarkStatus = { 
 /**
@@ -59,13 +93,15 @@ objectives: Array<ObjectiveView>,
  */
 ethos: string, };
 
+export type Byline = { name: string, outlet: string, look: Look | null, };
+
 export type CareerRow = { 
 /**
  * Such as `"2026/27"`.
  */
 season: string, club: ClubRef | null, ability: number, stats: SeasonStats, };
 
-export type Category = "match" | "injury" | "contract" | "transfer" | "youth" | "season" | "club" | "finance" | "board" | "staff" | "scouting" | "cup" | "people";
+export type Category = "match" | "injury" | "contract" | "transfer" | "youth" | "season" | "club" | "finance" | "board" | "staff" | "scouting" | "cup" | "people" | "press";
 
 export type ClubChoice = { club: ClubRef, league: LeagueRef, 
 /**
@@ -142,6 +178,12 @@ players: Array<PlayerLine>,
 matches: Array<Fixture>, };
 
 export type CompetitionsView = { nations: Array<NationCompetitions>, continents: Array<ContinentView>, };
+
+export type ConferenceView = { id: number, title: string, preMatch: boolean, club: ClubRef, opponent: ClubRef, 
+/**
+ * The last day it can be attended.
+ */
+closes: string, questions: Array<QuestionView>, };
 
 export type ContinentView = { name: string, cups: Array<CupRef>, 
 /**
@@ -240,13 +282,29 @@ happiness: number,
  */
 atmosphere: string, rows: Array<DynamicsRow>, promises: Array<PromiseView>, statuses: Array<StatusInfo>, talks: Array<TalkInfo>, };
 
+export type EffectView = { text: string, 
+/**
+ * Good for the viewer, bad, or neither.
+ */
+good: boolean | null, };
+
 export type ErrorCode = "badRequest" | "noGame" | "notFound" | "rejected" | "noMatch" | "badSave";
+
+export type Expression = "neutral" | "happy" | "delighted" | "determined" | "annoyed" | "angry" | "sad" | "sceptical" | "talking";
+
+export type EyeColor = "darkBrown" | "brown" | "green" | "blue";
 
 export type Facilities = { capacity: number, 
 /**
  * 1-20.
  */
 training: number, youth: number, };
+
+export type Figure = { name: string, look: Look, expression: Expression, 
+/**
+ * Whose shirt they wear.
+ */
+club: ClubRef | null, };
 
 export type FinancesView = { club: ClubRef, balance: number, transferBudget: number, 
 /**
@@ -331,6 +389,10 @@ export type GroupView = {
  */
 name: string, rows: Array<TableRow>, fixtures: Array<Fixture>, };
 
+export type HairColor = "black" | "darkBrown" | "brown" | "lightBrown" | "blond" | "ginger" | "grey" | "white";
+
+export type HairStyle = "bald" | "buzz" | "short" | "sidePart" | "curly" | "afro" | "long" | "bun" | "receding" | "mohawk";
+
 export type Honour = { competition: string, seasons: Array<string>, };
 
 export type InboxView = { messages: Array<Message>, unread: number, };
@@ -381,6 +443,12 @@ export type JobsView = {
  */
 reputation: number, employed: boolean, jobs: Array<Job>, };
 
+export type JournalistView = { name: string, outlet: string, 
+/**
+ * `"broadsheet"`, `"tabloid"`, `"broadcaster"` or `"fanSite"`.
+ */
+kind: string, look: Look, };
+
 export type KeyPlayer = { player: PlayerRef, reason: string, };
 
 export type Kick = { side: Side, taker: number, scored: boolean, };
@@ -407,7 +475,7 @@ export type Lineup = {
  */
 starters: Array<number>, bench: Array<number>, };
 
-export type Link = { "type": "player", player: number, } | { "type": "schedule" } | { "type": "table", league: number, } | { "type": "cup", cup: number, } | { "type": "squad" } | { "type": "tactics" } | { "type": "transfers" } | { "type": "staff" } | { "type": "jobs" } | { "type": "finances" } | { "type": "dynamics" };
+export type Link = { "type": "player", player: number, } | { "type": "schedule" } | { "type": "table", league: number, } | { "type": "cup", cup: number, } | { "type": "squad" } | { "type": "tactics" } | { "type": "transfers" } | { "type": "staff" } | { "type": "jobs" } | { "type": "finances" } | { "type": "dynamics" } | { "type": "press" };
 
 export type ListedPlayer = { player: PlayerRef, listing: Listing, };
 
@@ -451,7 +519,29 @@ players: Array<LivePlayerInfo>, lineups: [LiveLineup, LiveLineup], shouts: Array
 
 export type Loan = { player: PlayerRef, parent: ClubRef, borrower: ClubRef, until: string, wageShare: number, };
 
-export type ManagerInfo = { id: number, name: string, };
+export type Look = { 
+/**
+ * 0 (lightest) to 7.
+ */
+skin: number, 
+/**
+ * Head shape, 0-3: narrow, oval, round, square.
+ */
+face: number, hair: HairStyle, hairColor: HairColor, beard: Beard, eyes: EyeColor, 
+/**
+ * Brow weight, 0-2.
+ */
+brows: number, 
+/**
+ * Nose shape, 0-2.
+ */
+nose: number, 
+/**
+ * Mouth width, 0-2.
+ */
+mouth: number, };
+
+export type ManagerInfo = { id: number, name: string, look: Look, };
 
 export type Marking = "tight" | "closeDown";
 
@@ -560,6 +650,10 @@ band: number,
  */
 lane: number, involvements: number, };
 
+export type NewsScope = "club" | "nation" | "world";
+
+export type NewsView = { scope: NewsScope, articles: Array<Article>, };
+
 export type ObjectiveView = { text: string, 
 /**
  * Progress so far, such as `"12% so far"`.
@@ -658,7 +752,15 @@ matchDay: MatchDay | null, watchMatches: boolean, delegateSquad: boolean, board:
 /**
  * The club's cups this season.
  */
-cups: Array<CupStatus>, };
+cups: Array<CupStatus>, 
+/**
+ * Press conferences waiting for the manager.
+ */
+pressWaiting: number, 
+/**
+ * The week's biggest stories.
+ */
+headlines: Array<Article>, };
 
 export type Personality = { name: string, description: string, };
 
@@ -688,7 +790,11 @@ expected: number, mood: Mood, captain: boolean, influential: boolean, request: R
 /**
  * Whether a talk is possible today.
  */
-canTalk: boolean, };
+canTalk: boolean, 
+/**
+ * What can be said to them.
+ */
+talks: Array<TalkInfo>, };
 
 export type PlayerRating = { player: PlayerRef, minutes: number, goals: number, assists: number, rating: number, };
 
@@ -700,7 +806,7 @@ shortName: string, number: number | null,
 /**
  * Best position code, such as `"DC"`.
  */
-position: string, };
+position: string, look: Look, };
 
 export type PlayerRole = "goalkeeper" | "sweeperKeeper" | "centralDefender" | "ballPlayingDefender" | "fullBack" | "wingBack" | "defensiveMidfielder" | "ballWinner" | "deepPlaymaker" | "centralMidfielder" | "boxToBox" | "playmaker" | "wideMidfielder" | "winger" | "insideForward" | "wideForward" | "attackingMidfielder" | "shadowStriker" | "striker" | "targetMan" | "poacher" | "falseNine";
 
@@ -730,7 +836,7 @@ freeAgentsOnly: boolean,
  */
 name: string | null, };
 
-export type PlayerView = { id: number, name: string, firstName: string, lastName: string, age: number, birthDate: string, nation: string, club: ClubRef | null, number: number | null, 
+export type PlayerView = { id: number, name: string, look: Look, firstName: string, lastName: string, age: number, birthDate: string, nation: string, club: ClubRef | null, number: number | null, 
 /**
  * `"left"`, `"right"` or `"both"`.
  */
@@ -803,6 +909,24 @@ homeWin: number, draw: number, awayWin: number, goals: [number, number], xg: [nu
  */
 scores: Array<ScoreChance>, };
 
+export type PressView = { conferences: Array<ConferenceView>, 
+/**
+ * -100 (hostile) to 100 (adored).
+ */
+rapport: number, 
+/**
+ * Such as `"Friendly"`.
+ */
+rapportLabel: string, 
+/**
+ * The assistant goes to every conference.
+ */
+delegated: boolean, 
+/**
+ * The viewer's most recent quotes.
+ */
+quotes: Array<Article>, };
+
 export type ProjectionRow = { club: ClubRef, 
 /**
  * Position today.
@@ -848,6 +972,8 @@ kind: string, text: string, made: string, due: string,
  */
 onTrack: boolean, };
 
+export type QuestionView = { index: number, journalist: JournalistView, text: string, player: PlayerRef | null, options: Array<AnswerOption>, answer: AnswerOption | null, effects: Array<EffectView>, };
+
 export type Reaction = "delighted" | "pleased" | "determined" | "indifferent" | "sceptical" | "annoyed" | "angry";
 
 export type Record = { played: number, won: number, drawn: number, lost: number, scored: number, conceded: number, };
@@ -875,7 +1001,7 @@ terms?: ContractTerms,
 /**
  * Percent of the player's next fee the seller keeps.
  */
-sellOn?: number, } | { "type": "respondToOffer", offer: number, response: OfferResponse, } | { "type": "acceptCounter", offer: number, } | { "type": "withdrawOffer", offer: number, } | { "type": "setListing", player: number, listing: Listing | null, } | { "type": "scoutPlayer", player: number, } | { "type": "cancelScouting", player: number, } | { "type": "jobs" } | { "type": "applyForJob", club: number, } | { "type": "resign" } | { "type": "training" } | { "type": "setTraining", focus: TrainingFocus, intensity: TrainingIntensity, } | { "type": "setIndividualTraining", player: number, training: IndividualTraining | null, } | { "type": "dynamics" } | { "type": "talkToPlayer", player: number, talk: Talk, } | { "type": "answerTransferRequest", player: number, accept: boolean, } | { "type": "setCaptain", player: number, } | { "type": "setSquadStatus", player: number, status: SquadStatus, } | { "type": "matchAnalysis", fixture: FixtureKey, } | { "type": "seasonStats", club: number | null, } | { "type": "contractTalks", player: number, } | { "type": "negotiateContract", player: number, terms: ContractTerms, } | { "type": "setInstructions", roles: Array<RoleChoice>, penaltyTaker: number | null, freeKickTaker: number | null, cornerTaker: number | null, marking: Array<MarkingChoice>, } | { "type": "benchmarkStart", size: WorldSize, } | { "type": "benchmarkRun", days: number, } | { "type": "benchmarkEnd" };
+sellOn?: number, } | { "type": "respondToOffer", offer: number, response: OfferResponse, } | { "type": "acceptCounter", offer: number, } | { "type": "withdrawOffer", offer: number, } | { "type": "setListing", player: number, listing: Listing | null, } | { "type": "scoutPlayer", player: number, } | { "type": "cancelScouting", player: number, } | { "type": "jobs" } | { "type": "applyForJob", club: number, } | { "type": "resign" } | { "type": "training" } | { "type": "setTraining", focus: TrainingFocus, intensity: TrainingIntensity, } | { "type": "setIndividualTraining", player: number, training: IndividualTraining | null, } | { "type": "dynamics" } | { "type": "talkToPlayer", player: number, talk: Talk, } | { "type": "answerTransferRequest", player: number, accept: boolean, } | { "type": "setCaptain", player: number, } | { "type": "setSquadStatus", player: number, status: SquadStatus, } | { "type": "matchAnalysis", fixture: FixtureKey, } | { "type": "seasonStats", club: number | null, } | { "type": "contractTalks", player: number, } | { "type": "negotiateContract", player: number, terms: ContractTerms, } | { "type": "setInstructions", roles: Array<RoleChoice>, penaltyTaker: number | null, freeKickTaker: number | null, cornerTaker: number | null, marking: Array<MarkingChoice>, } | { "type": "news", scope: NewsScope, } | { "type": "press" } | { "type": "answerQuestion", conference: number, question: number, tone: Tone, } | { "type": "leaveConference", conference: number, } | { "type": "setPressDelegation", delegate: boolean, } | { "type": "benchmarkStart", size: WorldSize, } | { "type": "benchmarkRun", days: number, } | { "type": "benchmarkEnd" };
 
 export type RequestView = { date: string, 
 /**
@@ -887,7 +1013,7 @@ export type Response = { "type": "hello", protocol: number, version: string,
 /**
  * Whether a game is loaded.
  */
-inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "schedule", schedule: ScheduleView, } | { "type": "cup", cup: CupView, } | { "type": "competitions", competitions: CompetitionsView, } | { "type": "oppositionReport", report: OppositionReport, } | { "type": "prediction", prediction: Prediction, } | { "type": "projections", projections: ProjectionsView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "benchmark", benchmark: BenchmarkStatus, } | { "type": "training", training: TrainingView, } | { "type": "dynamics", dynamics: DynamicsView, } | { "type": "negotiation", negotiation: NegotiationView, } | { "type": "matchAnalysis", analysis: MatchAnalysisView, } | { "type": "seasonStats", stats: SeasonStatsView, } | { "type": "talks", result: TalksResult, } | { "type": "talk", result: TalkResult, } | { "type": "error", error: ApiErrorBody, };
+inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "schedule", schedule: ScheduleView, } | { "type": "cup", cup: CupView, } | { "type": "competitions", competitions: CompetitionsView, } | { "type": "oppositionReport", report: OppositionReport, } | { "type": "prediction", prediction: Prediction, } | { "type": "projections", projections: ProjectionsView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "benchmark", benchmark: BenchmarkStatus, } | { "type": "training", training: TrainingView, } | { "type": "dynamics", dynamics: DynamicsView, } | { "type": "negotiation", negotiation: NegotiationView, } | { "type": "matchAnalysis", analysis: MatchAnalysisView, } | { "type": "seasonStats", stats: SeasonStatsView, } | { "type": "talks", result: TalksResult, } | { "type": "talk", result: TalkResult, } | { "type": "news", news: NewsView, } | { "type": "press", press: PressView, } | { "type": "error", error: ApiErrorBody, };
 
 export type RoleChoice = { role: PlayerRole, duty: Duty, };
 
@@ -1020,7 +1146,7 @@ options: Array<RoleInfo>,
  */
 hasDuty: boolean, };
 
-export type SquadPlayer = { id: number, name: string, number: number | null, age: number, 
+export type SquadPlayer = { id: number, name: string, look: Look, number: number | null, age: number, 
 /**
  * Nation code, such as `"ENG"`.
  */
@@ -1139,11 +1265,35 @@ ownLineup: boolean,
  */
 starters: Array<number>, bench: Array<number>, players: Array<SelectablePlayer>, formations: Array<FormationInfo>, positions: Array<PositionInfo>, sliders: Array<SliderInfo>, benchSize: number, instructions: InstructionsView, };
 
-export type Talk = "praise" | "criticise" | "reassure" | "promiseFootball" | "promiseContract";
+export type Talk = "praise" | "criticise" | "reassure" | "promiseFootball" | "promiseContract" | "ask" | "ambitions" | "motivate" | "discipline";
 
-export type TalkInfo = { talk: Talk, name: string, description: string, };
+export type TalkInfo = { talk: Talk, name: string, description: string, 
+/**
+ * `"listen"`, `"encourage"`, `"challenge"` or `"promise"`.
+ */
+group: string, 
+/**
+ * What the manager says.
+ */
+line: string, 
+/**
+ * Questions can be asked any time; the rest once a week.
+ */
+listening: boolean, 
+/**
+ * Whether it can be said to this player today.
+ */
+available: boolean, };
 
-export type TalkResult = { reaction: Reaction, message: string, player: PlayerView, };
+export type TalkResult = { reaction: Reaction, message: string, 
+/**
+ * What the manager said.
+ */
+said: string, 
+/**
+ * The player's answer, in their words.
+ */
+reply: string, expression: Expression, player: PlayerView, };
 
 export type TalksOutcome = { "type": "agreed" } | { "type": "countered", counter: ContractTerms, } | { "type": "brokenOff", until: string, };
 
@@ -1169,6 +1319,8 @@ clubs: [ClubRef, ClubRef], legs: Array<Fixture>,
  * started.
  */
 aggregate: [number, number] | null, winner: number | null, };
+
+export type Tone = "confident" | "cautious" | "praise" | "criticise" | "deflect" | "defiant" | "humble" | "dismissive";
 
 export type TrainingFocus = "balanced" | "fitness" | "attacking" | "defending" | "tactics" | "recovery";
 

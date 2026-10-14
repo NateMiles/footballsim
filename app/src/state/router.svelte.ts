@@ -7,6 +7,7 @@ export type Route =
   | { name: 'inbox' }
   | { name: 'squad'; club?: number }
   | { name: 'player'; id: number }
+  | { name: 'talk'; id: number }
   | { name: 'tactics' }
   | { name: 'fixtures'; league?: number }
   | { name: 'table'; league?: number }
@@ -15,6 +16,8 @@ export type Route =
   | { name: 'prepare' }
   | { name: 'training' }
   | { name: 'dynamics' }
+  | { name: 'news' }
+  | { name: 'press' }
   | { name: 'stats' }
   | { name: 'analysis'; kind: 'league' | 'cup'; id: number; index: number }
   | { name: 'match' }
@@ -44,6 +47,8 @@ export function parse(hash: string): Route {
     case 'training':
     case 'dynamics':
     case 'stats':
+    case 'news':
+    case 'press':
       return { name };
     case 'analysis': {
       const [id, index] = rest.map(Number);
@@ -59,6 +64,7 @@ export function parse(hash: string): Route {
     case 'squad':
       return { name, club: id };
     case 'player':
+    case 'talk':
       return id === undefined ? { name: 'home' } : { name, id };
     case 'fixtures':
     case 'table':
@@ -71,7 +77,8 @@ export function parse(hash: string): Route {
 export function href(route: Route): string {
   switch (route.name) {
     case 'player':
-      return `#/player/${route.id}`;
+    case 'talk':
+      return `#/${route.name}/${route.id}`;
     case 'squad':
       return route.club === undefined ? '#/squad' : `#/squad/${route.club}`;
     case 'fixtures':

@@ -35,6 +35,10 @@ pub enum Talk {
     Reassure,
     PromiseFootball,
     PromiseContract,
+    Ask,
+    Ambitions,
+    Motivate,
+    Discipline,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -43,6 +47,14 @@ pub struct TalkInfo {
     pub talk: Talk,
     pub name: String,
     pub description: String,
+    /// `"listen"`, `"encourage"`, `"challenge"` or `"promise"`.
+    pub group: String,
+    /// What the manager says.
+    pub line: String,
+    /// Questions can be asked any time; the rest once a week.
+    pub listening: bool,
+    /// Whether it can be said to this player today.
+    pub available: bool,
 }
 
 /// How a player took a talk.
@@ -127,6 +139,8 @@ pub struct PlayerPeople {
     pub last_talk: Option<Date>,
     /// Whether a talk is possible today.
     pub can_talk: bool,
+    /// What can be said to them.
+    pub talks: Vec<TalkInfo>,
 }
 
 /// One row of the dressing-room screen.
@@ -172,5 +186,10 @@ pub struct DynamicsView {
 pub struct TalkResult {
     pub reaction: Reaction,
     pub message: String,
+    /// What the manager said.
+    pub said: String,
+    /// The player's answer, in their words.
+    pub reply: String,
+    pub expression: super::media::Expression,
     pub player: PlayerView,
 }

@@ -909,6 +909,7 @@ fn settle_stage(world: &mut World, cup: CupId, k: usize, events: &mut Vec<Event>
             let prize = world.cups[cup].format.winner_prize;
             world.clubs[w].finances.earn(|l| &mut l.prize_money, prize);
             crate::board::trophy(world, w, prestige);
+            crate::news::report(world, crate::news::StoryKind::CupWon { cup, club: w });
             events.push(Event::CupWon {
                 cup,
                 year,

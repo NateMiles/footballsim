@@ -72,10 +72,15 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await page.screenshot({ path: shots('dynamics', project), fullPage: true });
   await page.getByTestId('moods').locator('tbody tr a').first().click();
   await expect(page.getByTestId('mood')).toBeVisible();
-  await page.getByRole('button', { name: 'Reassure' }).click();
-  await expect(page.getByTestId('reaction')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Praise form' })).toBeDisabled();
   await page.screenshot({ path: shots('player-mood', project), fullPage: true });
+  // A private word: one proper talk a week, questions any time.
+  await page.getByRole('link', { name: /^Have a word with/ }).click();
+  await page.getByRole('button', { name: /^Reassure/ }).click();
+  await expect(page.getByTestId('reaction')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /^Praise form/ })).toBeDisabled();
+  await page.getByRole('button', { name: /^How are you/ }).click();
+  await expect(page.getByTestId('reaction')).toHaveCount(2);
+  await page.screenshot({ path: shots('conversation', project) });
 
   // The new club management screens.
   await page.goto('./#/finances');
@@ -156,6 +161,16 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   await page.screenshot({ path: shots('report', project) });
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByRole('heading', { name: 'Last match' })).toBeVisible();
+
+  // After the match: the post-match press conference and the papers.
+  await page.getByRole('link', { name: /Press room/ }).click();
+  await expect(page.getByTestId('conference')).toBeVisible();
+  await page.locator('.answer').first().click();
+  await expect(page.locator('.reply')).toHaveCount(1);
+  await page.screenshot({ path: shots('press', project) });
+  await page.getByRole('link', { name: /^News/ }).click();
+  await expect(page.getByTestId('lead-story')).toBeVisible();
+  await page.screenshot({ path: shots('news', project) });
 
   // The season so far, and the match just played analysed.
   await page.goto('./#/stats');

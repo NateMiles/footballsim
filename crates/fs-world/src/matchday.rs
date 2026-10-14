@@ -376,6 +376,7 @@ fn apply_result(
             _ => None,
         })
         .collect();
+    let reported_scorers = scorers.clone();
     let record = FixtureResult {
         goals: r.goals,
         xg: [r.stats[0].xg, r.stats[1].xg],
@@ -410,6 +411,12 @@ fn apply_result(
             away,
             goals: r.goals,
         });
+    }
+    crate::news::result(world, fixture, home, away, r.goals, &reported_scorers);
+    for (side, &club) in clubs.iter().enumerate() {
+        if world.is_human_club(club) {
+            crate::press::after_match(world, fixture, club, clubs[1 - side], events);
+        }
     }
 
     if let FixtureRef::League { .. } = fixture {

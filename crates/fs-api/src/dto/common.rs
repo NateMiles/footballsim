@@ -50,6 +50,75 @@ pub struct PlayerRef {
     pub number: Option<u8>,
     /// Best position code, such as `"DC"`.
     pub position: String,
+    pub look: Look,
+}
+
+/// A face to draw: what the UI's portraits are made from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct Look {
+    /// 0 (lightest) to 7.
+    pub skin: u8,
+    /// Head shape, 0-3: narrow, oval, round, square.
+    pub face: u8,
+    pub hair: HairStyle,
+    pub hair_color: HairColor,
+    pub beard: Beard,
+    pub eyes: EyeColor,
+    /// Brow weight, 0-2.
+    pub brows: u8,
+    /// Nose shape, 0-2.
+    pub nose: u8,
+    /// Mouth width, 0-2.
+    pub mouth: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum HairStyle {
+    Bald,
+    Buzz,
+    Short,
+    SidePart,
+    Curly,
+    Afro,
+    Long,
+    Bun,
+    Receding,
+    Mohawk,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum HairColor {
+    Black,
+    DarkBrown,
+    Brown,
+    LightBrown,
+    Blond,
+    Ginger,
+    Grey,
+    White,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum Beard {
+    None,
+    Stubble,
+    Short,
+    Full,
+    Moustache,
+    Goatee,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum EyeColor {
+    DarkBrown,
+    Brown,
+    Green,
+    Blue,
 }
 
 /// Home or away.

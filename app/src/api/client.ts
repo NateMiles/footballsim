@@ -1,5 +1,9 @@
 import type {
   ApiErrorBody,
+  NewsScope,
+  NewsView,
+  PressView,
+  Tone,
   BenchmarkStatus,
   ClubChoices,
   CompetitionsView,
@@ -212,6 +216,26 @@ export class Client {
         'tactics',
       )
     ).tactics;
+  }
+
+  async news(scope: NewsScope): Promise<NewsView> {
+    return (await this.send({ type: 'news', scope }, 'news')).news;
+  }
+
+  async press(): Promise<PressView> {
+    return (await this.send({ type: 'press' }, 'press')).press;
+  }
+
+  async answerQuestion(conference: number, question: number, tone: Tone): Promise<PressView> {
+    return (await this.send({ type: 'answerQuestion', conference, question, tone }, 'press')).press;
+  }
+
+  async leaveConference(conference: number): Promise<PressView> {
+    return (await this.send({ type: 'leaveConference', conference }, 'press')).press;
+  }
+
+  async setPressDelegation(delegate: boolean): Promise<PressView> {
+    return (await this.send({ type: 'setPressDelegation', delegate }, 'press')).press;
   }
 
   async dynamics(): Promise<DynamicsView> {

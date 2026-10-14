@@ -1,6 +1,6 @@
 //! Starting, saving and moving through a game.
 
-use super::common::{ClubRef, Date, Id, LeagueRef, Side};
+use super::common::{ClubRef, Date, Id, LeagueRef, Look, Side};
 use super::competition::Fixture;
 use super::management::BoardView;
 use serde::{Deserialize, Serialize};
@@ -66,6 +66,10 @@ pub struct Overview {
     pub window_open: bool,
     /// The club's cups this season.
     pub cups: Vec<super::competition::CupStatus>,
+    /// Press conferences waiting for the manager.
+    pub press_waiting: u32,
+    /// The week's biggest stories.
+    pub headlines: Vec<super::media::Article>,
 }
 
 /// The viewer.
@@ -74,6 +78,7 @@ pub struct Overview {
 pub struct ManagerInfo {
     pub id: Id,
     pub name: String,
+    pub look: Look,
 }
 
 /// A match waiting to be watched.

@@ -59,6 +59,10 @@ pub enum Stream {
     Forecast = 15,
     /// Players' moods: talks with the manager, transfer requests.
     People = 16,
+    /// How people look; presentation only, never changes the world.
+    Looks = 17,
+    /// The press: news stories, journalists and press conferences.
+    Media = 18,
 }
 
 impl Seed {

@@ -125,6 +125,7 @@ fn complete_agreed(world: &mut World, events: &mut Vec<Event>) {
     for id in agreed {
         match transfer::complete(world, id) {
             Ok(r) => {
+                crate::news::transfer(world, r.player, Some(r.from), r.to, r.fee, r.loan);
                 if world.is_human_club(r.from) || world.is_human_club(r.to) {
                     events.push(Event::TransferCompleted {
                         player: r.player,
@@ -685,6 +686,16 @@ fn make_offers(world: &mut World, events: &mut Vec<Event>) {
     }
     for offer in proposals.into_iter().flatten() {
         let id = world.market.add(offer);
+        if let crate::transfer::OfferKind::Transfer { .. } = offer.kind {
+            crate::news::report(
+                world,
+                crate::news::StoryKind::Rumour {
+                    player: offer.player,
+                    club: offer.buyer,
+                    owner: offer.seller,
+                },
+            );
+        }
         if is_human(world, offer.seller) && transfer::clause_met(world, &offer) {
             let status = if transfer::player_agrees(world, &offer) {
                 OfferStatus::Agreed

@@ -56,6 +56,7 @@ pub(crate) fn morning(world: &mut World, events: &mut Vec<Event>) {
     crate::profile::time("emergency signings", || {
         crate::squad::emergency_signings(world, events);
     });
+    crate::profile::time("press", || crate::press::morning(world, events));
 }
 
 /// The rest of the day: the matches (with any live instructions), then
@@ -73,6 +74,7 @@ pub(crate) fn afternoon(
     time("training", || crate::training::daily(world));
     time("recovery", || recovery(world));
     time("injuries", || injuries(world, events));
+    time("news", || crate::news::daily(world));
     time("scouting", || crate::scouting::daily(world, events));
     if !world.leagues.is_empty() {
         time("market", || crate::market::daily(world, events));

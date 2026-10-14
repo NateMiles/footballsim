@@ -101,6 +101,55 @@ pub fn player_ref(world: &World, id: PlayerId) -> dto::PlayerRef {
         short_name: format!("{initial}{last}"),
         number: world.players().squad_number(id),
         position: world.players().positions(id).best().code().into(),
+        look: look(fs_world::looks::player(world, id)),
+    }
+}
+
+/// A look as the UI draws it.
+pub fn look(l: fs_world::looks::Look) -> dto::Look {
+    use fs_world::looks::{Beard, EyeColour, Hair, HairColour};
+    dto::Look {
+        skin: l.skin,
+        face: l.face,
+        hair: match l.hair {
+            Hair::Bald => dto::HairStyle::Bald,
+            Hair::Buzz => dto::HairStyle::Buzz,
+            Hair::Short => dto::HairStyle::Short,
+            Hair::SidePart => dto::HairStyle::SidePart,
+            Hair::Curly => dto::HairStyle::Curly,
+            Hair::Afro => dto::HairStyle::Afro,
+            Hair::Long => dto::HairStyle::Long,
+            Hair::Bun => dto::HairStyle::Bun,
+            Hair::Receding => dto::HairStyle::Receding,
+            Hair::Mohawk => dto::HairStyle::Mohawk,
+        },
+        hair_color: match l.hair_colour {
+            HairColour::Black => dto::HairColor::Black,
+            HairColour::DarkBrown => dto::HairColor::DarkBrown,
+            HairColour::Brown => dto::HairColor::Brown,
+            HairColour::LightBrown => dto::HairColor::LightBrown,
+            HairColour::Blond => dto::HairColor::Blond,
+            HairColour::Ginger => dto::HairColor::Ginger,
+            HairColour::Grey => dto::HairColor::Grey,
+            HairColour::White => dto::HairColor::White,
+        },
+        beard: match l.beard {
+            Beard::None => dto::Beard::None,
+            Beard::Stubble => dto::Beard::Stubble,
+            Beard::Short => dto::Beard::Short,
+            Beard::Full => dto::Beard::Full,
+            Beard::Moustache => dto::Beard::Moustache,
+            Beard::Goatee => dto::Beard::Goatee,
+        },
+        eyes: match l.eyes {
+            EyeColour::DarkBrown => dto::EyeColor::DarkBrown,
+            EyeColour::Brown => dto::EyeColor::Brown,
+            EyeColour::Green => dto::EyeColor::Green,
+            EyeColour::Blue => dto::EyeColor::Blue,
+        },
+        brows: l.brows,
+        nose: l.nose,
+        mouth: l.mouth,
     }
 }
 

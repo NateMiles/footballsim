@@ -32,16 +32,34 @@ pub enum Talk {
     PromiseFootball,
     /// Promise an improved contract.
     PromiseContract,
+    /// Ask how they are, and listen.
+    Ask,
+    /// Ask about their ambitions and future.
+    Ambitions,
+    /// Fire them up for the next match.
+    Motivate,
+    /// Have a word about their attitude in training.
+    Discipline,
 }
 
 impl Talk {
-    pub const ALL: [Talk; 5] = [
+    pub const ALL: [Talk; 9] = [
+        Talk::Ask,
+        Talk::Ambitions,
         Talk::Praise,
-        Talk::Criticise,
         Talk::Reassure,
+        Talk::Motivate,
+        Talk::Criticise,
+        Talk::Discipline,
         Talk::PromiseFootball,
         Talk::PromiseContract,
     ];
+
+    /// Questions rather than messages: they can be asked any time and only
+    /// listening counts.
+    pub fn listening(self) -> bool {
+        matches!(self, Talk::Ask | Talk::Ambitions)
+    }
 }
 
 /// How the player took it.
@@ -122,7 +140,8 @@ pub(crate) fn talk(
     talk: Talk,
 ) -> Result<Vec<Event>, CommandError> {
     let today = world.date();
-    if let Some(last) = world.relations.last_talk(player)
+    if !talk.listening()
+        && let Some(last) = world.relations.last_talk(player)
         && today.days_since(last) < TALK_INTERVAL
     {
         return Err(CommandError::TalkedRecently(player));
@@ -154,6 +173,63 @@ pub(crate) fn talk(
     let form = form(world, player);
 
     let reaction = match talk {
+        Talk::Ask => {
+            // Being asked counts for something, once in a while; not after
+            // a broken promise.
+            if distrust {
+                Reaction::Sceptical
+            } else if world.relations.remembers(player, Feeling::Listened) {
+                Reaction::Indifferent
+            } else {
+                happiness::remember(world, player, Feeling::Listened, 3, 30);
+                Reaction::Pleased
+            }
+        }
+        Talk::Ambitions => {
+            let wants_more = happiness::assess(world, player).is_some_and(|a| {
+                a.factors
+                    .iter()
+                    .any(|f| f.reason == happiness::Reason::Ambition)
+            }) || world.relations.request(player).is_some();
+            if wants_more {
+                Reaction::Sceptical
+            } else {
+                Reaction::Pleased
+            }
+        }
+        Talk::Motivate => {
+            let big_games = trait_of(world, player, HiddenAttr::ImportantMatches);
+            let pressure = trait_of(world, player, HiddenAttr::Pressure);
+            if world.relations.remembers(player, Feeling::FiredUp) {
+                Reaction::Indifferent
+            } else if pressure < 0.3 && rng.chance(0.6) {
+                // Too much: they tighten up.
+                shift_morale(world, player, -300);
+                Reaction::Annoyed
+            } else if rng.chance(0.35 + 0.5 * big_games) {
+                happiness::remember(world, player, Feeling::FiredUp, 3, 10);
+                shift_morale(world, player, 700);
+                Reaction::Determined
+            } else {
+                shift_morale(world, player, 250);
+                Reaction::Pleased
+            }
+        }
+        Talk::Discipline => {
+            if professionalism > 0.7 {
+                let hurt = if volatile { -12 } else { -9 };
+                happiness::remember(world, player, Feeling::UnfairCriticism, hurt, 60);
+                shift_morale(world, player, -800);
+                Reaction::Angry
+            } else if rng.chance(0.3 + 0.4 * temperament) {
+                happiness::remember(world, player, Feeling::FiredUp, 4, 45);
+                Reaction::Determined
+            } else {
+                happiness::remember(world, player, Feeling::Criticised, -5, 45);
+                shift_morale(world, player, -400);
+                Reaction::Annoyed
+            }
+        }
         Talk::Praise => {
             if world.relations.remembers(player, Feeling::Praised) {
                 Reaction::Indifferent
@@ -282,7 +358,9 @@ pub(crate) fn talk(
             }
         }
     };
-    world.relations.talks.insert(player, today);
+    if !talk.listening() {
+        world.relations.talks.insert(player, today);
+    }
     happiness::refresh(world, player);
     Ok(vec![Event::PlayerReacted {
         player,

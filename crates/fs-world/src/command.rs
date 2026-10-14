@@ -164,6 +164,16 @@ pub enum Command {
         sell_on: u8,
         terms: Terms,
     },
+    /// Answer a question at one of your press conferences.
+    AnswerQuestion {
+        conference: u32,
+        question: u8,
+        tone: crate::press::Tone,
+    },
+    /// Leave the rest of a press conference to the assistant.
+    LeaveConference { conference: u32 },
+    /// Send the assistant to every press conference, or go yourself.
+    SetPressDelegation { delegate: bool },
 }
 
 /// A selling club's answer to an offer.
@@ -358,6 +368,18 @@ pub enum Event {
     },
     /// The board judged a human-managed club's season objectives.
     ObjectivesJudged { club: ClubId, met: u8, total: u8 },
+    /// The press is waiting for a human manager.
+    PressConference {
+        manager: ManagerId,
+        club: ClubId,
+        conference: u32,
+    },
+    /// A question was answered.
+    PressAnswered {
+        club: ClubId,
+        conference: u32,
+        question: u8,
+    },
 }
 
 /// Why a command was rejected.
@@ -461,6 +483,12 @@ pub enum CommandError {
     WantsToLeave(PlayerId),
     #[error("invalid terms: {0}")]
     InvalidTerms(&'static str),
+    #[error("no press conference {0}")]
+    NoSuchConference(u32),
+    #[error("that question at press conference {0} has been answered")]
+    AlreadyAnswered(u32),
+    #[error("that is not an answer to the question at press conference {0}")]
+    UnsuitableAnswer(u32),
 }
 
 /// Checks a contract package is well formed.
@@ -819,6 +847,26 @@ impl World {
                 self.require_own_player(actor, club, player)?;
                 crate::talk::talk(self, club, player, talk)
             }
+            Command::AnswerQuestion {
+                conference,
+                question,
+                tone,
+            } => {
+                let club = self.managed_club(actor)?;
+                self.require_unlocked(club)?;
+                crate::press::answer(self, club, conference, question, tone)
+            }
+            Command::LeaveConference { conference } => {
+                let club = self.managed_club(actor)?;
+                crate::press::leave(self, club, conference)
+            }
+            Command::SetPressDelegation { delegate } => {
+                self.managed_club(actor)?;
+                if let Actor::Manager(m) = actor {
+                    crate::press::delegate(self, m, delegate);
+                }
+                Ok(Vec::new())
+            }
             Command::AnswerTransferRequest { player, accept } => {
                 let club = self.managed_club(actor)?;
                 self.require_own_player(actor, club, player)?;
@@ -981,6 +1029,7 @@ impl World {
                     unreachable!("managed_club rejects the system")
                 };
                 crate::board::leave(self, m);
+                crate::press::manager_left(self, m);
                 Ok(vec![Event::ManagerLeft { manager: m, club }])
             }
         }

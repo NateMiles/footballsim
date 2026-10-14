@@ -13,6 +13,7 @@ pub mod game;
 pub mod instructions;
 pub mod management;
 pub mod market;
+pub mod media;
 pub mod people;
 pub mod preparation;
 pub mod refs;

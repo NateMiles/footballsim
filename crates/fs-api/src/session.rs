@@ -539,6 +539,9 @@ impl Session {
                     result: dto::TalkResult {
                         reaction: reaction.into(),
                         message: query::people::reaction_text(talk, reaction).into(),
+                        said: query::people::talk_line(talk).into(),
+                        reply: query::people::reply_text(c.world(), player, talk, reaction),
+                        expression: query::people::reaction_expression(reaction),
                         player: query::club::player(c.world(), player, c.club().ok()),
                     },
                 })
@@ -620,6 +623,36 @@ impl Session {
                 )
                 .ok_or_else(|| ApiError::new(ErrorCode::NotFound, "no analysis for that match"))?;
                 Ok(Response::MatchAnalysis { analysis })
+            }
+            Request::News { scope } => {
+                let c = self.career()?;
+                Ok(Response::News {
+                    news: query::media::news(c.world(), c.club().ok(), scope),
+                })
+            }
+            Request::Press => self.press_view(),
+            Request::AnswerQuestion {
+                conference,
+                question,
+                tone,
+            } => {
+                let c = self.career()?;
+                c.submit_quiet(Command::AnswerQuestion {
+                    conference,
+                    question,
+                    tone: query::media::tone_from(tone),
+                })?;
+                self.press_view()
+            }
+            Request::LeaveConference { conference } => {
+                let c = self.career()?;
+                c.submit_quiet(Command::LeaveConference { conference })?;
+                self.press_view()
+            }
+            Request::SetPressDelegation { delegate } => {
+                let c = self.career()?;
+                c.submit_quiet(Command::SetPressDelegation { delegate })?;
+                self.press_view()
             }
             Request::SeasonStats { club } => {
                 let c = self.career()?;
@@ -738,6 +771,13 @@ impl Session {
         let c = self.career()?;
         Ok(Response::Overview {
             overview: query::game::overview(c.world(), c.manager, c.club().ok(), c.inbox.unread()),
+        })
+    }
+
+    fn press_view(&mut self) -> Result<Response> {
+        let c = self.career()?;
+        Ok(Response::Press {
+            press: query::media::press(c.world(), c.manager, c.club().ok()),
         })
     }
 

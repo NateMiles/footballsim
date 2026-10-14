@@ -563,6 +563,31 @@ impl Inbox {
                     "Look for a new job.".to_owned(),
                     Some(Link::Jobs),
                 ),
+                Event::PressConference {
+                    manager: m,
+                    club: c,
+                    conference,
+                } if *m == manager && *c == club => {
+                    let title = world
+                        .press()
+                        .conference(*conference)
+                        .map(|conf| match conf.occasion {
+                            fs_world::press::Occasion::PreMatch { opponent, .. } => {
+                                format!("Press conference before {}", club_name(opponent))
+                            }
+                            fs_world::press::Occasion::PostMatch { opponent, .. } => {
+                                format!("Press conference after {}", club_name(opponent))
+                            }
+                        })
+                        .unwrap_or_else(|| "Press conference".to_owned());
+                    self.push(
+                        world,
+                        Category::Press,
+                        title,
+                        "The press want to hear from you. Answer their questions, or leave it to your assistant.".to_owned(),
+                        Some(Link::Press),
+                    );
+                }
                 _ => {}
             }
         }

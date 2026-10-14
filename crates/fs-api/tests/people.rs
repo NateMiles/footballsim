@@ -51,7 +51,7 @@ fn the_dressing_room_can_be_managed() {
     assert!(d.captain.is_some());
     assert_eq!(d.leaders.len(), 3);
     assert!(d.rows.len() > 20);
-    assert_eq!(d.talks.len(), 5);
+    assert_eq!(d.talks.len(), 9);
     assert!(d.rows.windows(2).all(|w| w[0].happiness <= w[1].happiness));
 
     // Own players show their mood and character; the captain can change.
@@ -79,7 +79,7 @@ fn the_dressing_room_can_be_managed() {
         Talk { result }
     );
     assert!(!r.message.is_empty());
-    assert!(!r.player.people.unwrap().can_talk);
+    assert!(!r.player.people.as_ref().unwrap().can_talk);
     let err = expect!(
         call(
             &mut s,
@@ -91,6 +91,27 @@ fn the_dressing_room_can_be_managed() {
         Error { error }
     );
     assert_eq!(err.code, ErrorCode::Rejected);
+    assert!(!r.said.is_empty() && !r.reply.is_empty());
+
+    // Questions can still be asked, and the player answers in their words.
+    let people = r.player.people.unwrap();
+    let ask = people.talks.iter().find(|t| t.talk == Talk::Ask).unwrap();
+    assert!(ask.available && ask.listening);
+    assert!(
+        !people
+            .talks
+            .iter()
+            .find(|t| t.talk == Talk::Praise)
+            .unwrap()
+            .available
+    );
+    for talk in [Talk::Ask, Talk::Ambitions] {
+        let r = expect!(
+            call(&mut s, Request::TalkToPlayer { player, talk }),
+            Talk { result }
+        );
+        assert!(r.reply.len() > 10, "{talk:?}: {}", r.reply);
+    }
 
     // A demotion shows up as a reason.
     let d = expect!(

@@ -100,6 +100,15 @@ pub(crate) fn after_match(world: &mut World, club: ClubId, points: u8, events: &
     let before = board.confidence;
     adjust(board, delta);
     let after = board.confidence;
+    if before >= WARNING_CONFIDENCE
+        && after < WARNING_CONFIDENCE
+        && let Some(manager) = world.clubs[club].manager
+    {
+        crate::news::report(
+            world,
+            crate::news::StoryKind::UnderPressure { manager, club },
+        );
+    }
     if let Some(m) = world.clubs[club].manager
         && world.managers[m].control == Control::Human
         && before >= WARNING_CONFIDENCE
@@ -167,6 +176,11 @@ fn check_sacking(world: &mut World, club: ClubId, events: &mut Vec<Event>) {
     world.managers[m].reputation = world.managers[m].reputation.saturating_sub(600);
     world.clubs[club].board.vacant_since = Some(world.date);
     world.clubs[club].board.confidence = NEUTRAL_CONFIDENCE;
+    crate::press::manager_left(world, m);
+    crate::news::report(
+        world,
+        crate::news::StoryKind::ManagerSacked { manager: m, club },
+    );
     events.push(Event::ManagerSacked { manager: m, club });
 }
 
@@ -333,6 +347,10 @@ pub(crate) fn fill_vacancies(world: &mut World, events: &mut Vec<Event>) {
             }
         };
         appoint(world, manager, club);
+        crate::news::report(
+            world,
+            crate::news::StoryKind::ManagerAppointed { manager, club },
+        );
         events.push(Event::ManagerAppointed { manager, club });
     }
 }

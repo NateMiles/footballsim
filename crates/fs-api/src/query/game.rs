@@ -86,6 +86,7 @@ pub fn overview(
                 world.names().get(m.first_name),
                 world.names().get(m.last_name)
             ),
+            look: crate::query::refs::look(fs_world::looks::manager(world, manager)),
         },
         club: club.map(|c| club_ref(world, c)),
         league: league.map(|l| league_ref(world, l)),
@@ -104,5 +105,7 @@ pub fn overview(
         cups: club
             .map(|c| super::cup::statuses(world, c))
             .unwrap_or_default(),
+        press_waiting: super::media::waiting(world, manager),
+        headlines: super::media::headlines(world, club, 4),
     }
 }

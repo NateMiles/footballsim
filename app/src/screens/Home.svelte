@@ -1,11 +1,13 @@
 <!-- The manager's desk: the club in its colours, the next match, news,
      the board and the money. -->
 <script lang="ts">
+  import ArticleCard from '../components/ArticleCard.svelte';
   import Crest from '../components/Crest.svelte';
   import Form from '../components/Form.svelte';
   import Gauge from '../components/Gauge.svelte';
   import Icon from '../components/Icon.svelte';
   import MatchTicket from '../components/MatchTicket.svelte';
+  import Portrait from '../components/Portrait.svelte';
   import { money, ordinal } from '../format';
   import { useGame } from '../state/game.svelte';
   import { load } from '../state/load.svelte';
@@ -68,7 +70,10 @@
       <div class="hero-text">
         <span class="eyebrow">{o.league?.name ?? 'No league'} · {o.season}</span>
         <h1>{club.name}</h1>
-        <p class="sub">Managed by {o.manager.name}</p>
+        <p class="sub manager">
+          <Portrait look={o.manager.look} size={26} ring shirt="#1f2a3a" trim={club.colors.primary} />
+          Managed by {o.manager.name}
+        </p>
       </div>
       {#if o.position}
         <div class="standing">
@@ -86,6 +91,20 @@
           <MatchTicket fixture={o.matchDay.fixture} mine={club.id} today={o.date} live>
             <button class="primary" onclick={() => game.router.go({ name: 'match' })}>Go to the match</button>
           </MatchTicket>
+        </section>
+      {/if}
+
+      {#if o.pressWaiting > 0}
+        <section class="card wide press-call">
+          <span class="mic"><Icon name="mic" size={22} /></span>
+          <div>
+            <strong>The press are waiting</strong>
+            <span class="dim small">
+              {o.pressWaiting === 1 ? 'A press conference wants' : `${o.pressWaiting} press conferences want`} to hear from you.
+            </span>
+          </div>
+          <span class="spacer"></span>
+          <button class="primary" onclick={() => game.router.go({ name: 'press' })}>Face the press</button>
         </section>
       {/if}
 
@@ -145,6 +164,20 @@
           </section>
         {/if}
       </div>
+
+      {#if o.headlines.length > 0}
+        <section class="wide headlines" data-testid="headlines">
+          <div class="head">
+            <h3>Headlines</h3>
+            <a class="more" href="#/news">All news <Icon name="arrow" size={14} /></a>
+          </div>
+          <div class="stories">
+            {#each o.headlines as a (a.id)}
+              <ArticleCard article={a} compact onclick={() => game.router.go({ name: 'news' })} />
+            {/each}
+          </div>
+        </section>
+      {/if}
 
       {#if o.board}
         <section class="card board">
@@ -309,6 +342,13 @@
     text-shadow: 0 2px 20px rgba(0, 0, 0, 0.35);
   }
 
+  .sub.manager {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
   .sub {
     margin: 0;
     color: rgba(238, 242, 247, 0.75);
@@ -364,6 +404,38 @@
     .money {
       grid-column: span 5;
     }
+  }
+
+  .press-call {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background:
+      linear-gradient(100deg, var(--accent-soft), transparent 60%),
+      var(--bg-raised);
+  }
+
+  .press-call > div {
+    display: grid;
+  }
+
+  .mic {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    box-shadow: 0 0 24px -6px var(--accent-glow);
+  }
+
+  .headlines .stories {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: var(--gap);
   }
 
   .side {
@@ -562,49 +634,6 @@
     cursor: pointer;
   }
 
-  /* A switch drawn over the checkbox. */
-  .toggle input {
-    appearance: none;
-    flex: none;
-    position: relative;
-    width: 44px;
-    height: 26px;
-    margin: 0;
-    border-radius: 999px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--line-strong);
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .toggle input::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--text-dim);
-    transition:
-      transform 0.2s var(--ease),
-      background 0.2s;
-  }
-
-  .toggle input:checked {
-    background: var(--accent);
-    border-color: var(--accent);
-  }
-
-  .toggle input:checked::after {
-    transform: translateX(18px);
-    background: var(--accent-ink);
-  }
-
-  .toggle input:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
 
   @media (max-width: 700px) {
     .hero {

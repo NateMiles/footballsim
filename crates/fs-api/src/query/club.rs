@@ -34,6 +34,7 @@ pub fn squad(world: &World, club: ClubId) -> dto::SquadView {
             dto::SquadPlayer {
                 id: id.raw(),
                 name: player_ref(world, id).name,
+                look: look(fs_world::looks::player(world, id)),
                 number: p.squad_number(id),
                 age,
                 nation: world.nations()[p.bio(id).nation].code.clone(),
@@ -127,6 +128,7 @@ pub fn player(world: &World, id: PlayerId, viewer: Option<ClubId>) -> dto::Playe
     dto::PlayerView {
         id: id.raw(),
         name: format!("{first_name} {last_name}"),
+        look: look(fs_world::looks::player(world, id)),
         first_name,
         last_name,
         age,

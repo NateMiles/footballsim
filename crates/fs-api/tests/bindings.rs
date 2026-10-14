@@ -26,7 +26,8 @@ fn generate() -> String {
         // Protocol.
         Request, Response, ApiError, ErrorCode,
         // Common.
-        ClubRef, Colors, LeagueRef, PlayerRef, Side, Formation, Tactic, SeasonStats,
+        ClubRef, Colors, LeagueRef, PlayerRef, Look, HairStyle, HairColor, Beard, EyeColor, Side,
+        Formation, Tactic, SeasonStats,
         // Game.
         WorldSize, ClubChoice, ClubChoices, Overview, ManagerInfo, MatchDay, StopReason,
         Continued, SaveGame, SaveSummary, BenchmarkStatus,
@@ -57,6 +58,9 @@ fn generate() -> String {
         // Training.
         TrainingFocus, TrainingIntensity, IndividualTraining, FocusInfo, IntensityInfo,
         FormationFamiliarity, TrainingPlayer, TrainingView,
+        // Media.
+        NewsScope, ArticleKind, Expression, Figure, Art, Byline, Article, NewsView, Tone,
+        JournalistView, AnswerOption, EffectView, QuestionView, ConferenceView, PressView,
         // People.
         SquadStatus, StatusInfo, Talk, TalkInfo, Reaction, Personality, MoodReason, Mood,
         PromiseView, RequestView, PlayerPeople, DynamicsRow, DynamicsView, TalkResult,

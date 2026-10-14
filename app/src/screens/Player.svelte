@@ -7,6 +7,7 @@
   import Negotiation from '../components/Negotiation.svelte';
   import OfferForm from '../components/OfferForm.svelte';
   import PlayerMood from '../components/PlayerMood.svelte';
+  import Portrait from '../components/Portrait.svelte';
   import type { ContractTerms, Listing, OfferKind } from '../api';
   import { longDate, money, wage } from '../format';
   import { useGame } from '../state/game.svelte';
@@ -54,9 +55,22 @@
 
 {#if p}
   <div class="screen grid">
-    <section class="card head">
-      <div class="num-badge">{p.number ?? '–'}</div>
-      <div>
+    <section
+      class="card head"
+      style:--club={p.club?.colors.primary ?? '#2a3a52'}
+    >
+      <div class="face">
+        <Portrait
+          look={p.look}
+          size={112}
+          ring
+          shirt={p.club?.colors.primary}
+          trim={p.club?.colors.secondary}
+          title={p.name}
+        />
+        <span class="num-badge">{p.number ?? '–'}</span>
+      </div>
+      <div class="who">
         <h1>{p.name}</h1>
         <p class="dim">
           {p.position} · {p.age} years ({longDate(p.birthDate)}) · {p.nation} · {p.heightCm} cm · {p.foot} foot
@@ -230,20 +244,39 @@
 <style>
   .head {
     display: flex;
-    gap: 16px;
+    gap: 22px;
     align-items: center;
     flex-wrap: wrap;
+    overflow: hidden;
+    background:
+      linear-gradient(110deg, color-mix(in srgb, var(--club) 30%, transparent), transparent 55%),
+      var(--bg-raised);
+  }
+
+  .face {
+    position: relative;
   }
 
   .num-badge {
-    width: 56px;
-    height: 56px;
-    border-radius: 12px;
+    position: absolute;
+    right: -4px;
+    bottom: 2px;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 6px;
+    border-radius: 10px;
     display: grid;
     place-items: center;
-    background: var(--bg-sunken);
-    font-size: 1.5rem;
+    background: var(--bg);
+    border: 1px solid var(--line-strong);
+    font-family: var(--display);
+    font-size: 1.05rem;
     font-weight: 800;
+  }
+
+  .who h1 {
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    margin-bottom: 4px;
   }
 
   .abil {
@@ -255,7 +288,9 @@
   }
 
   .abil strong {
-    font-size: 1.3rem;
+    font-family: var(--display);
+    font-size: 1.6rem;
+    font-weight: 800;
   }
 
   .attrs {

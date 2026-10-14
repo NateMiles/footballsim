@@ -22,6 +22,8 @@ pub enum Category {
     Cup,
     /// Players' moods, requests and promises.
     People,
+    /// Press conferences.
+    Press,
 }
 
 /// Where a message leads in the UI.
@@ -51,6 +53,8 @@ pub enum Link {
     Finances,
     /// The dressing room.
     Dynamics,
+    /// The press room.
+    Press,
 }
 
 /// One message.

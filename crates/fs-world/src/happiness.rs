@@ -97,6 +97,20 @@ pub enum Feeling {
     Promoted,
     /// Contract talks broke down.
     TalksFailed,
+    /// Praised by the manager in front of the press.
+    PraisedPublicly,
+    /// Criticised by the manager in front of the press.
+    CriticisedPublicly,
+    /// Backed by the manager in public.
+    BackedPublicly,
+    /// Told in public they are not for sale, when they would like to go.
+    BlockedMove,
+    /// Heard the manager say they could be sold.
+    Unsettled,
+    /// Told in public to keep their feet on the ground.
+    KeptGrounded,
+    /// The manager asked how they were and listened.
+    Listened,
 }
 
 /// A remembered feeling and its weight on happiness until it fades.
@@ -709,6 +723,10 @@ fn maybe_request(world: &mut World, events: &mut Vec<Event>, club: ClubId, playe
         return;
     }
     world.relations.requests_made += 1;
+    crate::news::report(
+        world,
+        crate::news::StoryKind::TransferRequest { player, club },
+    );
     world.relations.requests.insert(
         player,
         Request {

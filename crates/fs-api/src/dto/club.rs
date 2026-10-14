@@ -1,6 +1,6 @@
 //! Squad, player and tactics screens.
 
-use super::common::{ClubRef, Date, Formation, Id, SeasonStats, Tactic};
+use super::common::{ClubRef, Date, Formation, Id, Look, SeasonStats, Tactic};
 use super::market::{Listing, Loan, Offer};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -30,6 +30,7 @@ pub enum Selection {
 pub struct SquadPlayer {
     pub id: Id,
     pub name: String,
+    pub look: Look,
     pub number: Option<u8>,
     pub age: u8,
     /// Nation code, such as `"ENG"`.
@@ -83,6 +84,7 @@ pub struct Contract {
 pub struct PlayerView {
     pub id: Id,
     pub name: String,
+    pub look: Look,
     pub first_name: String,
     pub last_name: String,
     pub age: u8,

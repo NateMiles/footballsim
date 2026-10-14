@@ -169,7 +169,16 @@ fn close_season(world: &mut World, events: &mut Vec<Event>) {
         } else {
             Event::Relegated { club, from, to }
         });
+        crate::news::report(
+            world,
+            if up {
+                crate::news::StoryKind::Promoted { club, to }
+            } else {
+                crate::news::StoryKind::Relegated { club, to }
+            },
+        );
     }
+    let mut champions = Vec::new();
     for (k, (league, summary)) in world
         .leagues
         .as_mut_slice()
@@ -184,10 +193,14 @@ fn close_season(world: &mut World, events: &mut Vec<Event>) {
                     year: s.year,
                     champion,
                 });
+                champions.push((LeagueId::new(k as u32), champion));
             }
             league.history.push(s);
             league.season = None;
         }
+    }
+    for (league, club) in champions {
+        crate::news::report(world, crate::news::StoryKind::Champions { league, club });
     }
 }
 
@@ -276,6 +289,7 @@ fn retirements(world: &mut World, events: &mut Vec<Event>) {
         }
     }
     for (p, club) in retiring {
+        crate::news::report(world, crate::news::StoryKind::Retired { player: p, club });
         world.retire_player(p);
         if let Some(club) = club.filter(|&c| world.is_human_club(c)) {
             events.push(Event::PlayerRetired { player: p, club });
@@ -367,6 +381,16 @@ fn youth_intake(world: &mut World, events: &mut Vec<Event>) {
             );
             player.squad_number = lowest_free_number(world, club, 30 + k as u8);
             joined.push(world.add_player(player));
+        }
+        if let Some(&best) = joined
+            .iter()
+            .max_by_key(|&&p| (world.players.potential(p), std::cmp::Reverse(p)))
+            && world.players.potential(best) >= 780
+        {
+            crate::news::report(
+                world,
+                crate::news::StoryKind::Wonderkid { player: best, club },
+            );
         }
         if world.is_human_club(club) {
             events.push(Event::YouthIntake {

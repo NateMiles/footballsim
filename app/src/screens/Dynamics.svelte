@@ -2,6 +2,7 @@
      reason for it, squad status, open promises and transfer requests. -->
 <script lang="ts">
   import type { DynamicsView, SquadStatus } from '../api';
+  import Portrait from '../components/Portrait.svelte';
   import { longDate } from '../format';
   import { useGame } from '../state/game.svelte';
   import { load } from '../state/load.svelte';
@@ -96,6 +97,7 @@
               <th>Playing time</th>
               <th>Mood</th>
               <th>Main reason</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -103,6 +105,11 @@
               <tr>
                 <td>
                   <span class="dim pos">{r.player.position}</span>
+                  <Portrait
+                    look={r.player.look}
+                    size={30}
+                    expression={r.happiness >= 30 ? 'happy' : r.happiness <= -30 ? 'angry' : r.happiness <= -12 ? 'annoyed' : 'neutral'}
+                  />
                   <a href="#/player/{r.player.id}">{r.player.name}</a>
                   {#if r.captain}<span class="pill" title="Captain">C</span>{/if}
                   {#if r.influential}<span class="pill" title="Influential">★</span>{/if}
@@ -131,6 +138,7 @@
                 <td class="dim">
                   {#if r.reason}{r.reason.text} <small>({signed(r.reason.effect)})</small>{/if}
                 </td>
+                <td><a class="talk" href="#/talk/{r.player.id}" aria-label="Talk to {r.player.name}">Talk</a></td>
               </tr>
             {/each}
           </tbody>
@@ -141,6 +149,22 @@
 </div>
 
 <style>
+  .talk {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .talk:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
   .cols {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

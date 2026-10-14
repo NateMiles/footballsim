@@ -67,7 +67,13 @@ components keep their own styles and use the tokens.
   small uppercase labels (`h3`, `.eyebrow`, table headers).
 - **Shared pieces.** `Icon` (line icons on a 24px grid), `Crest` (a
   shield with a pattern picked from the club's id), `MatchTicket` (a
-  fixture with both crests and a countdown), `Gauge` (a 0-100 dial).
+  fixture with both crests and a countdown), `Gauge` (a 0-100 dial),
+  `Portrait` (a face drawn from a `Look`, in a club shirt, with nine
+  expressions), `NewsArt` (a story's picture: scoreboard, portrait,
+  transfer, trophy or press-room microphones) and `ArticleCard`.
+- **People screens.** News is laid out like a paper (a lead story, then
+  cards); the press room and the conversation screen are chats, with the
+  other side's face reacting to what you say.
 - **Layout.** A navigation rail on wide screens; below 900px a bottom tab
   bar with the first four sections and a More sheet. Home uses a
   container query, so it lays out by the space it has rather than the

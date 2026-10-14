@@ -51,7 +51,8 @@ npm run build && npm run e2e                    # Playwright career test
   (`format`), cups and coefficients (`cup`), fixtures in any competition
   (`fixture`), level of detail (`importance`), stage timing (`profile`),
   training and tactical familiarity (`training`), players as people
-  (`personality`, `happiness`, `talk`), forecasts (`forecast`).
+  (`personality`, `happiness`, `talk`), forecasts (`forecast`), faces
+  (`looks`), the news (`news`) and press conferences (`press`).
   Rules are described in `docs/WORLD.md`.
 - `fs-save`: save container (header, deflated sections, checksums,
   migrations).

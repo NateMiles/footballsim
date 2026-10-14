@@ -6,6 +6,7 @@
   import { href, type Route } from '../state/router.svelte';
   import Crest from './Crest.svelte';
   import Icon, { type IconName } from './Icon.svelte';
+  import Portrait from './Portrait.svelte';
 
   let { children }: { children: Snippet } = $props();
   const game = useGame();
@@ -23,11 +24,13 @@
         { route: { name: 'tactics' }, label: 'Tactics', icon: 'tactics' },
         { route: { name: 'training' }, label: 'Training', icon: 'training' },
         { route: { name: 'dynamics' }, label: 'Dressing room', icon: 'dressing' },
+        { route: { name: 'press' }, label: 'Press room', icon: 'mic' },
       ],
     },
     {
       title: 'Football',
       items: [
+        { route: { name: 'news' }, label: 'News', icon: 'news' },
         { route: { name: 'fixtures' }, label: 'Fixtures', icon: 'fixtures' },
         { route: { name: 'table' }, label: 'Table', icon: 'table' },
         { route: { name: 'stats' }, label: 'Stats', icon: 'stats' },
@@ -52,6 +55,7 @@
         { route: { name: 'home' }, label: 'Home', icon: 'home' },
         { route: { name: 'inbox' }, label: 'Inbox', icon: 'inbox' },
         { route: { name: 'jobs' }, label: 'Jobs', icon: 'jobs' },
+        { route: { name: 'news' }, label: 'News', icon: 'news' },
         { route: { name: 'competitions' }, label: 'Competitions', icon: 'competitions' },
         { route: { name: 'saves' }, label: 'Saves', icon: 'saves' },
       ],
@@ -66,6 +70,7 @@
   const active = (item: Item) =>
     current === item.route.name ||
     (item.route.name === 'squad' && current === 'player') ||
+    (item.route.name === 'dynamics' && current === 'talk') ||
     (item.route.name === 'stats' && current === 'analysis') ||
     (item.route.name === 'fixtures' && current === 'prepare');
 
@@ -93,6 +98,8 @@
     <span class="label">{item.label}</span>
     {#if item.route.name === 'inbox' && o && o.unread > 0}
       <span class="badge">{o.unread}</span>
+    {:else if item.route.name === 'press' && o && o.pressWaiting > 0}
+      <span class="badge">{o.pressWaiting}</span>
     {/if}
   </a>
 {/snippet}
@@ -115,7 +122,7 @@
     </nav>
     {#if o}
       <div class="manager">
-        <span class="avatar">{o.manager.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}</span>
+        <span class="avatar"><Portrait look={o.manager.look} size={38} ring shirt="#1f2a3a" trim="#d4ff3f" /></span>
         <span class="who">
           <strong>{o.manager.name}</strong>
           <span class="dim">{o.season}</span>
@@ -334,14 +341,8 @@
   .avatar {
     display: grid;
     place-items: center;
-    width: 34px;
-    height: 34px;
     border-radius: 50%;
-    background: var(--bg-elevated);
-    border: 1px solid var(--line-strong);
-    font-family: var(--display);
-    font-weight: 800;
-    font-size: 0.8rem;
+    box-shadow: 0 0 0 1px var(--line-strong);
   }
 
   .who {

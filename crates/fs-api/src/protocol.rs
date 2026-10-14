@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Protocol version. Bump when a request or response changes shape.
-pub const PROTOCOL_VERSION: u32 = 10;
+pub const PROTOCOL_VERSION: u32 = 11;
 
 /// Something the UI asks for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -216,6 +216,23 @@ pub enum Request {
         corner_taker: Option<Id>,
         marking: Vec<MarkingChoice>,
     },
+    /// The news. Answered with [`Response::News`].
+    News { scope: NewsScope },
+    /// The press room. Answered with [`Response::Press`].
+    Press,
+    /// Answer a question at a press conference. Answered with
+    /// [`Response::Press`].
+    AnswerQuestion {
+        conference: Id,
+        question: u8,
+        tone: Tone,
+    },
+    /// Leave the rest of a press conference to the assistant. Answered with
+    /// [`Response::Press`].
+    LeaveConference { conference: Id },
+    /// Send the assistant to every press conference, or go yourself.
+    /// Answered with [`Response::Press`].
+    SetPressDelegation { delegate: bool },
 
     /// Performance test: generate a world of this size beside any game.
     /// Answered with [`Response::Benchmark`]; time the call to measure.
@@ -338,6 +355,12 @@ pub enum Response {
     },
     Talk {
         result: TalkResult,
+    },
+    News {
+        news: NewsView,
+    },
+    Press {
+        press: PressView,
     },
     Error {
         error: ApiError,

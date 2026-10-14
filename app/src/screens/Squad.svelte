@@ -1,6 +1,7 @@
 <!-- A club's players, sortable. -->
 <script lang="ts">
   import type { SquadPlayer } from '../api';
+  import Portrait from '../components/Portrait.svelte';
   import ClubName from '../components/ClubName.svelte';
   import Meter from '../components/Meter.svelte';
   import { shortDate } from '../format';
@@ -102,7 +103,12 @@
         {#each rows as p (p.id)}
           <tr class="clickable" onclick={() => game.router.go({ name: 'player', id: p.id })}>
             <td class="num dim">{p.number ?? ''}</td>
-            <td><a href="#/player/{p.id}">{p.name}</a></td>
+            <td>
+              <span class="who">
+                <Portrait look={p.look} size={30} shirt={squad.data?.club.colors.primary} trim={squad.data?.club.colors.secondary} />
+                <a href="#/player/{p.id}">{p.name}</a>
+              </span>
+            </td>
             <td>{p.position}</td>
             <td class="num">{p.age}</td>
             <td class="num">{p.ability}</td>
@@ -137,6 +143,12 @@
 </div>
 
 <style>
+  .who {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
   .honours {
     margin-top: var(--gap);
   }

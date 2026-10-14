@@ -55,6 +55,8 @@ pub struct World {
     pub(crate) scouting: Scouting,
     pub(crate) market: Market,
     pub(crate) relations: Relations,
+    pub(crate) news: crate::news::Newsroom,
+    pub(crate) press: crate::press::Press,
     /// Full records of human-managed clubs' recent matches.
     pub(crate) records:
         std::collections::BTreeMap<crate::fixture::FixtureRef, crate::records::MatchRecord>,
@@ -81,6 +83,8 @@ impl World {
             scouting: Scouting::default(),
             market: Market::default(),
             relations: Relations::default(),
+            news: Default::default(),
+            press: Default::default(),
             records: Default::default(),
             rules: Rules::default(),
             pending: None,
@@ -95,6 +99,16 @@ impl World {
     /// Today's date.
     pub fn date(&self) -> GameDate {
         self.date
+    }
+
+    /// Stories from the last few months.
+    pub fn news(&self) -> &crate::news::Newsroom {
+        &self.news
+    }
+
+    /// Journalists, press conferences and how the press takes to managers.
+    pub fn press(&self) -> &crate::press::Press {
+        &self.press
     }
 
     /// Interned names.

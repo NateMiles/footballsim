@@ -203,20 +203,35 @@ manager can see.
 7. Board objectives beyond the table: cup targets and longer-term aims
    such as youth and style.
 
-### M7: Native polish and distribution
+### M7: The story around the football (done)
+The world talks back.
+1. Faces: every player, manager and journalist has a portrait drawn from
+   their look, with expressions.
+2. News: stories from across the world (results with an angle, transfers
+   and rumours, sackings, trophies, injuries, unrest, youth), written up
+   with headlines, bylines and illustrated pictures.
+3. Press conferences before and after every match: questions from what is
+   true, answers with consequences for the squad, single players, the
+   opposition, the board and the manager's press relations, and quotes in
+   the papers.
+4. Conversations: questions (how are you, ambitions) alongside motivating,
+   discipline, praise, criticism and promises, with players answering in
+   their own words and their faces reacting.
+
+### M8: Native polish and distribution
 - Release-quality Tauri 2 builds for macOS, Windows and iPadOS, with the
   core running natively on all cores.
 - iPad-first touch layout pass on every screen.
 - TestFlight builds for your own devices. App Store and Steam readiness
   checks if a release is on the table by then.
 
-### M8: Beyond FM
+### M9: Beyond FM
 - Tactic lab: batch-test a tactic against many opponent styles.
 - Replays with branching "what if" from any moment.
 - Scenario editor and data-pack modding.
 - Director of football and owner careers.
 
-### M9+: Later
+### M10+: Later
 - **Online leagues.** Already designed for: see ARCHITECTURE.md section 11.
 - **3D match view.** Already designed for: see MATCH_ENGINE.md section 7.
 - Scripting for mods, women's football world data, more nations.
@@ -239,4 +254,4 @@ manager can see.
 | Personal or release? | Personal for now, possible release later. | Build for fun and speed first, but never take shortcuts that block a release: keep the world fictional, keep third-party assets properly licensed, keep saves versioned. |
 | Online leagues? | Not now, but keep the door open. | No online code until M9 or later. Determinism and the command log from M0 make it a later add-on instead of a rewrite. |
 | Match view | 2D now, 3D possible later. | The engine already simulates ball height. The renderer reads a neutral frame stream, so a 3D renderer can plug in alongside the 2D one. |
-| Mac available? | Yes. | Native iPad dev builds move up from M6 to M3. Polish and distribution are now M7. |
+| Mac available? | Yes. | Native iPad dev builds move up from M6 to M3. Polish and distribution are now M8. |

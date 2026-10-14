@@ -169,10 +169,16 @@ Happiness sets where morale drifts back to each day (5000 plus 15 per
 point), so it reaches matches through morale. Clubs without a captain
 name the leader among their best and most experienced players.
 
-**Talks and promises** (`talk.rs`). A manager can speak to each player
-once a week: praise or criticise form, reassure, promise more football (a
-status's share of the minutes within two months) or promise a better
-contract (within two months). Reactions follow the truth (form over at
+**Talks and promises** (`talk.rs`). A manager can have a proper talk with
+each player once a week: praise or criticise form, reassure, motivate them
+for the next match (players who rise to big games are fired up; those who
+crumble under pressure tighten up), a word about their attitude
+(professionals take it as an insult, others as a challenge or a sulk),
+promise more football (a status's share of the minutes within two months)
+or promise a better contract (within two months). Questions (how are you,
+what are your ambitions) can be asked any time: they change nothing but a
+small lift, once a month, from being listened to, and the player answers
+from what is on their mind. Reactions follow the truth (form over at
 least three matches, playing time, the contract) and the personality:
 criticising a player in form always angers; professional players take
 criticism of poor form as a challenge, volatile players react strongly.
@@ -542,3 +548,47 @@ the slowest day at about 1 s in the medium world; quiet days take about
 22 ms. `cargo run --release -p fs-lab --example profile_season
 --features fs-world/profile [small|medium]` breaks a season down by stage;
 `docs/ARCHITECTURE.md` section 6 compares everything with the budgets.
+
+## 15. News and the press
+
+**News** (`news.rs`). Stories are filed where things happen: results with
+an angle (an upset, a thrashing, a top-two meeting, seven goals or more),
+hat-tricks, transfers and loans (the world record is noted), bids
+(rumours), sackings, appointments and boards losing patience, trophies,
+promotion and relegation, long injuries to good players, transfer
+requests, retirements, outstanding youth intakes and what managers say to
+the press. Each has a weight (0-100) from the competition, the clubs'
+standing and the players involved; stories under 45 are dropped unless
+they concern a human manager's club, and stories are kept for 120 days.
+A small world files about 750 in four months. Stories are facts only; the
+API writes the headline, the article and the picture, so news never
+changes the world and uses no randomness.
+
+**Press conferences** (`press.rs`). A human manager's club faces the
+press the day before each match and for two days after it. Each nation
+has four journalists (a broadsheet, a tabloid, a broadcaster and a fan
+site), named from the nation's own names. Questions come from what is
+true, most pressing first: a transfer request, a rival's bid, a nervous
+board, the title race or a relegation fight, a player in fine or poor
+form, a key injury, a new signing, a youngster, then the season's hopes
+and the player to watch. An AI opponent's manager sometimes speaks first
+(confident, dismissive or respectful by the clubs' standing), and the
+press asks for a response.
+
+Each question offers three or four answers. Their effects are small:
+squad morale (2.5% of the scale at most), one player's happiness (praised,
+backed or criticised in public; "not for sale" pleases the loyal and
+frustrates the ambitious; "everyone has a price" unsettles all but the
+ambitious), the opponents' morale (a dismissive answer fires them up),
+the board's confidence (a point or two) and rapport with the press
+(-100 to 100: tabloids like rows, broadsheets measured answers, fan sites
+praise). Quotable answers become news. The pre-match conference closes
+before the match day begins, so nothing said can change a match being
+watched. A manager can leave a conference to the assistant or send the
+assistant to all of them (`SetPressDelegation`); ignoring one entirely
+costs rapport and makes the papers.
+
+**Looks** (`looks.rs`). Faces are derived from the seed, the person's id,
+nation and age: each nation has its own mix of skin tones and hair, and
+age brings grey hair and receding hairlines. They are never stored and
+never change the world.
