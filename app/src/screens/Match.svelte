@@ -4,6 +4,7 @@
   import type { Formation, Instruction, LivePlayerInfo, LiveStart, MatchReport } from '../api';
   import Crest from '../components/Crest.svelte';
   import FixtureLine from '../components/FixtureLine.svelte';
+  import DressingRoom from '../match/DressingRoom.svelte';
   import { kits } from '../match/canvas2d';
   import PitchView from '../match/PitchView.svelte';
   import { Playback } from '../match/playback.svelte';
@@ -187,6 +188,20 @@
     <div class="pitch-area">
       <PitchView playback={p} {scene} {selected} />
       {#if p.error}<p class="overlay error">{p.error}</p>{/if}
+      {#if p.dressingRoom && !p.over}
+        {#key p.dressingRoom + (p.latest?.elapsed ?? 0)}
+          <DressingRoom
+            {start}
+            lineup={p.latest?.lineups[mySide] ?? start.lineups[mySide]}
+            {players}
+            reactions={p.latest?.reactions ?? []}
+            phase={p.dressingRoom}
+            score={p.score}
+            ontalk={(talk) => instruct({ type: 'teamTalk', talk })}
+            ondone={() => p.resume()}
+          />
+        {/key}
+      {/if}
     </div>
     <aside class="side">
       <div class="tabs" role="tablist">

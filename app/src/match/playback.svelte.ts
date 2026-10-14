@@ -35,6 +35,13 @@ export class Playback {
   /** The clock has reached the final whistle. */
   over = $state(false);
   error = $state<string | null>(null);
+  /**
+   * In the dressing room: before kick-off, or at a break the clock has
+   * reached. Play waits for a team talk (or for the manager to skip it).
+   */
+  dressingRoom = $state<'pre' | 'half' | null>('pre');
+  /** Match seconds of a break the core has stopped at, until talked. */
+  private breakAt: number | null = null;
 
   private queued: Commentary[] = [];
   private finalT = Infinity;
@@ -45,6 +52,14 @@ export class Playback {
     private readonly client: Client,
     readonly start: LiveStart,
   ) {
+    this.playing = false;
+  }
+
+  /** Leaves the dressing room and plays on. */
+  resume(): void {
+    this.dressingRoom = null;
+    this.breakAt = null;
+    this.playing = true;
     void this.fetch();
   }
 
@@ -58,7 +73,14 @@ export class Playback {
       this.stalled = target >= end && !this.engineDone;
       this.t = Math.max(this.t, target);
     }
-    if (!this.engineDone && this.timeline.end - this.t < LOOKAHEAD) void this.fetch();
+    // Frames end on the 5 Hz grid, a moment before the break itself.
+    if (this.dressingRoom === null && this.breakAt !== null && this.t >= Math.min(this.breakAt, this.timeline.end) - 0.01) {
+      this.playing = false;
+      this.dressingRoom = 'half';
+    }
+    if (!this.engineDone && this.breakAt === null && this.dressingRoom === null && this.timeline.end - this.t < LOOKAHEAD) {
+      void this.fetch();
+    }
     this.reveal();
     this.timeline.trim(this.t - 1);
     if (this.engineDone && this.t >= this.finalT) this.over = true;
@@ -96,6 +118,8 @@ export class Playback {
     this.queued.push(...chunk.commentary);
     this.queued.sort((a, b) => a.t - b.t);
     this.latest = chunk;
+    // The core stops at a break so a team talk can be given there.
+    if (chunk.atBreak && !chunk.finished && chunk.elapsed > 0) this.breakAt = chunk.elapsed;
     if (chunk.finished) {
       this.engineDone = true;
       // A shootout's kicks come a second apart after the whistle.

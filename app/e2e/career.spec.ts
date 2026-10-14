@@ -145,7 +145,18 @@ test('a season can be started, managed and saved', async ({ page }, info) => {
   }
   await expect(page.getByRole('heading', { name: 'Match day' })).toBeVisible();
   await page.getByRole('button', { name: /Kick off/ }).click();
+  // The team talk in the dressing room, before anything is played.
+  await expect(page.getByTestId('dressing-room')).toBeVisible();
+  await page.getByRole('button', { name: /^Fire them up/ }).click();
+  await expect(page.getByTestId('talk-summary')).not.toBeEmpty();
+  await page.screenshot({ path: shots('team-talk', project) });
+  await page.getByRole('button', { name: /Out they go/ }).click();
   await page.getByLabel('Speed').selectOption('32');
+  // Play stops at half-time for another talk.
+  await expect(page.getByText('Half-time', { exact: true })).toBeVisible({ timeout: 90_000 });
+  await page.getByRole('button', { name: /^Stay focused/ }).click();
+  await expect(page.getByTestId('talk-summary')).not.toBeEmpty();
+  await page.getByRole('button', { name: /Second half/ }).click();
   await expect(page.getByTestId('clock')).toHaveText(/^(1[0-9]|[2-9][0-9])'$/, { timeout: 60_000 });
   await page.getByRole('tab', { name: 'Team' }).click();
   await page.locator('.panel .p').nth(9).click();

@@ -217,6 +217,10 @@ The world talks back.
 4. Conversations: questions (how are you, ambitions) alongside motivating,
    discipline, praise, criticism and promises, with players answering in
    their own words and their faces reacting.
+5. Team talks before kick-off and at half-time, in the dressing room,
+   each player reacting by character and the score.
+6. Rival managers who answer back, comment after meetings, needle title
+   rivals and mock slumps; feuds that heat up into grudge matches.
 
 ### M8: Native polish and distribution
 - Release-quality Tauri 2 builds for macOS, Windows and iPadOS, with the

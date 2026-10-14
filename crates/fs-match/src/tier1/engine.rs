@@ -75,6 +75,8 @@ pub(super) struct Engine {
     pub(super) shootout: Option<Shootout>,
     /// Engine steps completed.
     pub(super) steps: u32,
+    /// The step at which the latest half began (0 before kick-off).
+    pub(super) break_step: u32,
     pub(super) finished: bool,
     /// Instructions to apply at given steps (a replayed live match).
     pub(super) scheduled: Vec<TimedInstruction>,
@@ -134,6 +136,7 @@ impl Engine {
             extra_subs: 0,
             shootout: None,
             steps: 0,
+            break_step: 0,
             finished: false,
             scheduled: input.instructions.clone(),
             next_scheduled: 0,
@@ -178,11 +181,15 @@ impl Engine {
                 self.half_time_recovery();
                 self.kickoff(1);
                 self.steps += 1;
+                self.break_step = self.steps;
+                self.end_talks();
                 return true;
             }
             if self.half == 2 || (self.half == 1 && self.extra_time_due()) {
                 self.start_extra_half();
                 self.steps += 1;
+                self.break_step = self.steps;
+                self.end_talks();
                 return true;
             }
             self.finished = true;
@@ -412,6 +419,20 @@ impl Engine {
                 self.bring_on(s, slot, k);
             }
             Instruction::ChangeTactic(tactic) => self.change_tactic(s, tactic),
+            Instruction::TeamTalk(talk) => {
+                if !self.at_break() {
+                    return Err(InstructionError::NotAtBreak);
+                }
+                let at = crate::team_talk::Situation {
+                    lead: self.goals[s] as i8 - self.goals[1 - s] as i8,
+                    half_time: self.half > 0,
+                };
+                for pl in &mut self.teams[s].players {
+                    let r = crate::team_talk::reaction(&pl.snap.hidden, pl.snap.morale, talk, at);
+                    pl.talk = r.boost();
+                    pl.reaction = Some(r);
+                }
+            }
             Instruction::Shout(shout) => {
                 let until = self.elapsed() + 15.0 * 60.0;
                 let team = &mut self.teams[s];
@@ -433,6 +454,21 @@ impl Engine {
             instruction,
         });
         Ok(())
+    }
+
+    /// Before kick-off, or at the start of a half before any play.
+    pub(super) fn at_break(&self) -> bool {
+        self.steps == self.break_step && !self.finished
+    }
+
+    /// A break ends the last team talk's effect.
+    fn end_talks(&mut self) {
+        for team in &mut self.teams {
+            for pl in &mut team.players {
+                pl.talk = 1.0;
+                pl.reaction = None;
+            }
+        }
     }
 
     fn expire_shouts(&mut self) {

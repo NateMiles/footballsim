@@ -199,7 +199,25 @@ fn a_watched_match_is_the_match_the_world_records() {
     assert_eq!(start.lineups[0].on_pitch.len(), 11);
     assert!(start.players.len() >= 22);
 
-    // Watch in 30-second steps, with a substitution and a shout.
+    assert_eq!(start.team_talks.len(), 6);
+    // A team talk before kick-off: every player reacts.
+    let talked = expect!(
+        call(
+            &mut s,
+            Request::LiveInstruct {
+                instruction: Instruction::TeamTalk {
+                    talk: dto::TeamTalk::Motivate
+                }
+            }
+        ),
+        LiveChunk { chunk }
+    );
+    assert!(talked.at_break);
+    assert!(talked.reactions.len() >= 11);
+
+    // Watch in 30-second steps, with a substitution and a shout, and a
+    // half-time team talk when play stops for the break.
+    let mut half_time_talk = false;
     let mut t = 0.0;
     let mut last;
     let mut frames = 0;
@@ -213,6 +231,22 @@ fn a_watched_match_is_the_match_the_world_records() {
         );
         frames += chunk.frames.len();
         lines += chunk.commentary.len();
+        if chunk.at_break && !chunk.finished && !half_time_talk {
+            assert!(chunk.elapsed >= 45.0 * 60.0 && chunk.elapsed < t);
+            let after = expect!(
+                call(
+                    &mut s,
+                    Request::LiveInstruct {
+                        instruction: Instruction::TeamTalk {
+                            talk: dto::TeamTalk::Demand
+                        }
+                    }
+                ),
+                LiveChunk { chunk }
+            );
+            assert!(!after.reactions.is_empty());
+            half_time_talk = true;
+        }
         if (3600.0..3630.0).contains(&t) {
             let l = &chunk.lineups[side];
             let off = l.on_pitch[9].as_ref().unwrap().id;
@@ -249,6 +283,7 @@ fn a_watched_match_is_the_match_the_world_records() {
             break;
         }
     }
+    assert!(half_time_talk);
     let last = last.unwrap();
     assert!(frames > 5 * 90 * 60 / 2, "{frames} frames");
     assert!(lines > 20, "{lines} commentary lines");

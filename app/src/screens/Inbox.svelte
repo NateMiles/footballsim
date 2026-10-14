@@ -50,6 +50,8 @@
         return { name: 'dynamics' };
       case 'press':
         return { name: 'press' };
+      case 'news':
+        return { name: 'news' };
     }
   }
 
@@ -66,6 +68,7 @@
     finances: 'Go to finances',
     dynamics: 'Go to the dressing room',
     press: 'Face the press',
+    news: 'Read the news',
   };
 </script>
 

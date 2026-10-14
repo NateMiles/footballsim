@@ -7,8 +7,9 @@
 use super::refs::{club_ref, competition_ref, date, fixture, look, ordinal, player_ref};
 use crate::dto::{self, Art, ArticleKind, Expression, Figure};
 use crate::inbox::money;
-use fs_world::news::{Angle, Story, StoryKind, clubs_of};
+use fs_world::news::{Angle as ResultAngle, Story, StoryKind, clubs_of};
 use fs_world::press::{Conference, Effect, Occasion, Outlet, Quote, Tone, Topic, options};
+use fs_world::rivals::Angle;
 use fs_world::{ClubId, ManagerId, PlayerId, World};
 
 /// One of `items`, the same every time for the same story and use.
@@ -180,7 +181,7 @@ pub fn article(world: &World, story: &Story, viewer: Option<ClubId>) -> dto::Art
             let wl = format!("{ws}-{ls}");
             let draw = goals[0] == goals[1];
             let headline = match angle {
-                Angle::Upset => fill(
+                ResultAngle::Upset => fill(
                     pick(
                         id,
                         1,
@@ -193,7 +194,7 @@ pub fn article(world: &World, story: &Story, viewer: Option<ClubId>) -> dto::Art
                     ),
                     &[&w, &l],
                 ),
-                Angle::Thrashing => fill(
+                ResultAngle::Thrashing => fill(
                     pick(
                         id,
                         1,
@@ -205,7 +206,7 @@ pub fn article(world: &World, story: &Story, viewer: Option<ClubId>) -> dto::Art
                     ),
                     &[&w, &l, &ws.to_string()],
                 ),
-                Angle::Summit if draw => fill(
+                ResultAngle::Summit if draw => fill(
                     pick(
                         id,
                         1,
@@ -216,7 +217,7 @@ pub fn article(world: &World, story: &Story, viewer: Option<ClubId>) -> dto::Art
                     ),
                     &[&h, &a],
                 ),
-                Angle::Summit => fill(
+                ResultAngle::Summit => fill(
                     pick(
                         id,
                         1,
@@ -228,7 +229,7 @@ pub fn article(world: &World, story: &Story, viewer: Option<ClubId>) -> dto::Art
                     ),
                     &[&w, &l],
                 ),
-                Angle::GoalFest => fill(
+                ResultAngle::GoalFest => fill(
                     pick(
                         id,
                         1,
@@ -239,7 +240,7 @@ pub fn article(world: &World, story: &Story, viewer: Option<ClubId>) -> dto::Art
                     ),
                     &[&h, &a, &score, &(goals[0] + goals[1]).to_string()],
                 ),
-                Angle::Report if draw => fill(
+                ResultAngle::Report if draw => fill(
                     pick(
                         id,
                         1,
@@ -251,7 +252,7 @@ pub fn article(world: &World, story: &Story, viewer: Option<ClubId>) -> dto::Art
                     ),
                     &[&h, &a],
                 ),
-                Angle::Report => fill(
+                ResultAngle::Report => fill(
                     pick(
                         id,
                         1,
@@ -285,7 +286,7 @@ pub fn article(world: &World, story: &Story, viewer: Option<ClubId>) -> dto::Art
                     .collect();
                 body.push(format!("Goals: {}.", names.join(", ")));
             }
-            if angle == Angle::Upset {
+            if angle == ResultAngle::Upset {
                 body.push(fill(
                     pick(id, 2, &[
                         "Few gave {0} a chance against a club of {1}'s standing, but they were the better side on the day.",
@@ -852,6 +853,98 @@ fn quote_story(
         .to_owned();
     let p = |pl: PlayerId| player_name(world, pl);
     let headline = match (quote.topic, quote.tone) {
+        (Topic::AboutRival { rival, angle }, tone) => {
+            let r = club_name(world, rival);
+            match (angle, tone) {
+                (Angle::Reply, Tone::Dismissive) => fill(
+                    pick(
+                        id,
+                        1,
+                        &[
+                            "{0} hits back at {1}",
+                            "War of words: {0} fires back at {1}",
+                        ],
+                    ),
+                    &[&m, &r],
+                ),
+                (Angle::AfterMeeting { .. }, Tone::Praise) => fill(
+                    pick(
+                        id,
+                        1,
+                        &[
+                            "{0} hails {1} after defeat",
+                            "\"Too good for us\" - {0} on {1}",
+                        ],
+                    ),
+                    &[&m, &r],
+                ),
+                (Angle::AfterMeeting { .. }, Tone::Defiant) => fill(
+                    pick(
+                        id,
+                        1,
+                        &[
+                            "{0}: {1} were lucky",
+                            "Sour grapes? {0} says {1} were lucky",
+                        ],
+                    ),
+                    &[&m, &r],
+                ),
+                (Angle::AfterMeeting { .. }, Tone::Dismissive) => fill(
+                    pick(
+                        id,
+                        1,
+                        &["{0} rubs it in after beating {1}", "{0} twists the knife"],
+                    ),
+                    &[&m, &r],
+                ),
+                (Angle::Race, Tone::Dismissive) => fill(
+                    pick(
+                        id,
+                        1,
+                        &[
+                            "{0}: {1} will crack",
+                            "Mind games: {0} predicts {1} collapse",
+                        ],
+                    ),
+                    &[&m, &r],
+                ),
+                (Angle::Race, _) => fill(
+                    pick(
+                        id,
+                        1,
+                        &[
+                            "{0} lays down a marker for {1}",
+                            "Title talk: {0} sends message to {1}",
+                        ],
+                    ),
+                    &[&m, &r],
+                ),
+                (Angle::Slump, _) => fill(
+                    pick(
+                        id,
+                        1,
+                        &[
+                            "{0} mocks struggling {1}",
+                            "{0} kicks {1} while they are down",
+                        ],
+                    ),
+                    &[&m, &r],
+                ),
+                _ => fill(
+                    pick(id, 1, &["\"{1}\" - {0}", "{0}: \"{1}\""]),
+                    &[&m, &short],
+                ),
+            }
+        }
+        (Topic::RivalComment { rival, .. }, Tone::Dismissive)
+        | (Topic::Grudge { opponent: rival }, Tone::Dismissive) => fill(
+            pick(
+                id,
+                1,
+                &["{0} fires back at {1}", "No love lost: {0} hits out at {1}"],
+            ),
+            &[&m, &rival_boss(world, rival)],
+        ),
         (Topic::Snub, _) => fill(
             pick(
                 id,
@@ -1003,11 +1096,17 @@ fn quote_story(
             },
             club_name(world, opponent)
         ),
-        Topic::Preview { opponent } | Topic::RivalManager { opponent, .. } => {
+        Topic::Preview { opponent }
+        | Topic::RivalManager { opponent, .. }
+        | Topic::Grudge { opponent } => {
             format!(
                 "Speaking ahead of the game against {}",
                 club_name(world, opponent)
             )
+        }
+        Topic::AboutRival { rival, .. } => format!("Asked about {}", club_name(world, rival)),
+        Topic::RivalComment { rival, .. } => {
+            format!("Responding to {}", rival_boss(world, rival))
         }
         _ => format!("Speaking at {c}'s press conference"),
     };
@@ -1225,6 +1324,26 @@ fn question_text(world: &World, club: ClubId, topic: Topic, salt: u32) -> String
         Topic::KeyPlayer { player } => {
             format!("Who's the player to watch at {c}? {} perhaps?", p(player))
         }
+        Topic::AboutRival { .. } => String::new(),
+        Topic::RivalComment { rival, tone, angle } => {
+            let said = answer_text(world, rival, Topic::AboutRival { rival: club, angle }, tone);
+            let who = rival_boss(world, rival);
+            format!("{who} says: \"{said}\" Your response?")
+        }
+        Topic::Grudge { opponent } => format!(
+            "There's no love lost between you and {}. Is this a grudge match?",
+            world.clubs()[opponent]
+                .manager
+                .map_or_else(|| club_name(world, opponent), |m| manager_name(world, m))
+        ),
+    }
+}
+
+/// "Gusella's Pori Gaucci", or the club alone without a manager.
+fn rival_boss(world: &World, club: ClubId) -> String {
+    match world.clubs()[club].manager {
+        Some(m) => format!("{}'s {}", club_name(world, club), manager_name(world, m)),
+        None => club_name(world, club),
     }
 }
 
@@ -1347,6 +1466,56 @@ pub fn answer_text(world: &World, club: ClubId, topic: Topic, tone: Tone) -> Str
             Cautious => "It's a team game. Everyone has a part to play.".into(),
             _ => "You'll have to wait and see.".into(),
         },
+        // A rival manager (of `club`) on a human manager's club.
+        (Topic::AboutRival { rival, angle }, t) => {
+            let r = club_name(world, rival);
+            match (angle, t) {
+                (Angle::Reply, Dismissive) => {
+                    format!("Talk is cheap. {r} should worry about their own team.")
+                }
+                (Angle::Reply, _) => {
+                    format!("We'll do our talking on the pitch. {r} can say what they like.")
+                }
+                (Angle::AfterMeeting { goals }, Confident) if goals[0] > goals[1] => {
+                    "We were the better side and the result shows it.".into()
+                }
+                (Angle::AfterMeeting { .. }, Confident) => {
+                    "We'll take the point, but we came for three.".into()
+                }
+                (Angle::AfterMeeting { .. }, Dismissive) => {
+                    format!("{r} got what they deserved. Nothing more, nothing less.")
+                }
+                (Angle::AfterMeeting { .. }, Defiant) => {
+                    format!("We deserved more. {r} know they were lucky.")
+                }
+                (Angle::AfterMeeting { .. }, _) => {
+                    format!("Credit to {r}. They were too good for us.")
+                }
+                (Angle::Race, Confident) => {
+                    format!("We're in control of our own destiny. {r} can worry about us.")
+                }
+                (Angle::Race, _) => format!("{r} will crack. They always do when it matters."),
+                (Angle::Slump, _) => format!("{r} are in freefall. I can't say I'm surprised."),
+            }
+        }
+        (Topic::RivalComment { .. }, t) => match t {
+            Dismissive => "Funny, I don't remember asking for their opinion.".into(),
+            Humble => "Everyone's entitled to an opinion. I respect what they've done.".into(),
+            Defiant => "Let them talk. We'll answer on the pitch.".into(),
+            _ => "I'm not getting into a war of words.".into(),
+        },
+        (Topic::Grudge { opponent }, t) => {
+            let o = club_name(world, opponent);
+            match t {
+                Dismissive => {
+                    format!("Grudge? I don't think about {o} at all. We'll win and move on.")
+                }
+                Humble => {
+                    "There's respect there, whatever's been said. It's just another game.".into()
+                }
+                _ => "It's three points like any other.".into(),
+            }
+        }
     };
     s
 }
@@ -1460,7 +1629,41 @@ pub fn press(world: &World, manager: ManagerId, club: Option<ClubId>) -> dto::Pr
         .take(6)
         .map(|s| article(world, s, club))
         .collect();
+    let rivalries = fs_world::rivals::rivalries(world, manager)
+        .into_iter()
+        .take(6)
+        .map(|(rival, heat)| {
+            let rival_club = world.managers()[rival].club;
+            let last = club.and_then(|c| {
+                world.news().stories().iter().rev().find_map(|s| match s.kind {
+                    StoryKind::Quote {
+                        manager: m,
+                        club: from,
+                        quote,
+                    } if m == rival && matches!(quote.topic, Topic::AboutRival { rival: r, .. } if r == c) => {
+                        Some(answer_text(world, from, quote.topic, quote.tone))
+                    }
+                    _ => None,
+                })
+            });
+            dto::RivalryView {
+                name: manager_name(world, rival),
+                look: look(fs_world::looks::manager(world, rival)),
+                club: rival_club.map(|c| club_ref(world, c)),
+                heat,
+                label: match heat {
+                    fs_world::rivals::FEUD.. => "Feud",
+                    15.. => "Needle",
+                    ..=-15 => "Respect",
+                    _ => "Cordial",
+                }
+                .into(),
+                last,
+            }
+        })
+        .collect();
     dto::PressView {
+        rivalries,
         conferences: world
             .press()
             .conferences()

@@ -41,7 +41,8 @@ npm run build && npm run e2e                    # Playwright career test
 - `fs-core`: IDs, attributes, deterministic RNG, portable maths, calendar,
   state hashing, parallel helpers.
 - `fs-match`: match engines (tier 1 event, tier 2 statistical), team
-  selection, formations, roles and opposition instructions (`roles`).
+  selection, formations, roles and opposition instructions (`roles`), team
+  talks (`team_talk`).
 - `fs-world`: world state, players (column storage), commands, daily tick,
   snapshots, leagues and calendar (`league`, `competition`, `season`),
   matchdays (`matchday`), player factory and development (`people`), AI
@@ -52,7 +53,8 @@ npm run build && npm run e2e                    # Playwright career test
   (`fixture`), level of detail (`importance`), stage timing (`profile`),
   training and tactical familiarity (`training`), players as people
   (`personality`, `happiness`, `talk`), forecasts (`forecast`), faces
-  (`looks`), the news (`news`) and press conferences (`press`).
+  (`looks`), the news (`news`), press conferences (`press`) and rival
+  managers (`rivals`).
   Rules are described in `docs/WORLD.md`.
 - `fs-save`: save container (header, deflated sections, checksums,
   migrations).

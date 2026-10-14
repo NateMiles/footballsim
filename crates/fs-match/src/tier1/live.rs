@@ -99,8 +99,30 @@ impl LiveMatch {
     }
 
     /// Plays until the clock reaches `elapsed` seconds or the match ends.
+    /// Stops at a break (half-time, the start of extra time), so the
+    /// manager can give a team talk there.
     pub fn advance_until(&mut self, elapsed: f64) {
-        while self.engine.elapsed() < elapsed && self.engine.advance() {}
+        while self.engine.elapsed() < elapsed && self.engine.advance() {
+            if self.engine.at_break() {
+                break;
+            }
+        }
+    }
+
+    /// Before kick-off, or at a break before play resumes: when a team
+    /// talk can be given.
+    pub fn at_break(&self) -> bool {
+        self.engine.at_break()
+    }
+
+    /// How one side's players took their last team talk, until the next
+    /// break.
+    pub fn reactions(&self, side: Side) -> Vec<(PlayerId, crate::team_talk::TalkReaction)> {
+        self.engine.teams[side.index()]
+            .players
+            .iter()
+            .filter_map(|p| p.reaction.map(|r| (p.snap.id, r)))
+            .collect()
     }
 
     /// Actions recorded since the last call.

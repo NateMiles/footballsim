@@ -96,6 +96,19 @@ pub enum Topic {
     Expectations,
     /// The player to watch.
     KeyPlayer { player: PlayerId },
+    /// An AI manager on a human manager's club (news only).
+    AboutRival {
+        rival: ClubId,
+        angle: crate::rivals::Angle,
+    },
+    /// What a rival manager said about the club: a response?
+    RivalComment {
+        rival: ClubId,
+        tone: Tone,
+        angle: crate::rivals::Angle,
+    },
+    /// A meeting with a manager there is a feud with.
+    Grudge { opponent: ClubId },
 }
 
 impl Topic {
@@ -162,6 +175,9 @@ pub fn options(topic: Topic) -> &'static [Tone] {
         Topic::Snub => &[Deflect],
         Topic::Expectations => &[Confident, Cautious, Humble],
         Topic::KeyPlayer { .. } => &[Praise, Cautious, Deflect],
+        Topic::AboutRival { .. } => &[Deflect],
+        Topic::RivalComment { .. } => &[Dismissive, Humble, Defiant, Deflect],
+        Topic::Grudge { .. } => &[Dismissive, Humble, Deflect],
     }
 }
 
@@ -246,6 +262,8 @@ pub struct Press {
     rapport: BTreeMap<ManagerId, i16>,
     /// Managers who leave conferences to their assistant.
     pub(crate) delegated: BTreeSet<ManagerId>,
+    /// Heat between a human manager and a rival manager (see `rivals`).
+    pub(crate) heat: BTreeMap<(ManagerId, ManagerId), i16>,
 }
 
 impl Press {
@@ -361,6 +379,9 @@ pub(crate) fn morning(world: &mut World, events: &mut Vec<Event>) {
         }
     }
 
+    // Rivals speak first, so today's conferences can ask about it.
+    crate::rivals::daily(world, events);
+
     let tomorrow = today.add_days(1);
     let clubs: Vec<(ClubId, ManagerId)> = world
         .clubs()
@@ -438,6 +459,11 @@ fn open(
     let mut topics = match occasion {
         Occasion::PreMatch { opponent, .. } => {
             let mut t = vec![Topic::Preview { opponent }];
+            if let Some(rival) = world.clubs()[opponent].manager
+                && crate::rivals::heat(world, manager, rival) >= crate::rivals::FEUD
+            {
+                t.push(Topic::Grudge { opponent });
+            }
             if let Some(rival) = rival_says(world, &mut rng, club, opponent) {
                 t.push(rival);
             }
@@ -556,6 +582,10 @@ fn context(world: &World, club: ClubId) -> Vec<Topic> {
     let squad = c.squad();
     let mut out = Vec::new();
 
+    // What a rival manager has just said about the club.
+    if let Some((rival, tone, angle)) = crate::rivals::recent_comment(world, club, 2) {
+        out.push(Topic::RivalComment { rival, tone, angle });
+    }
     // Unrest: a transfer request waiting.
     if let Some(&p) = squad.iter().find(|&&p| {
         world
@@ -673,7 +703,7 @@ fn shift_morale(world: &mut World, player: PlayerId, by: i32) {
 }
 
 /// Morale for a whole squad, in per mille of the scale.
-fn squad_morale(world: &mut World, club: ClubId, per_mille: i16) {
+pub(crate) fn squad_morale(world: &mut World, club: ClubId, per_mille: i16) {
     let by = i32::from(per_mille) * i32::from(CONDITION_MAX) / 1000;
     let squad = world.clubs()[club].squad().to_vec();
     for p in squad {
@@ -748,7 +778,14 @@ pub(crate) fn answer(
             });
         }
         (Topic::Preview { opponent }, Dismissive)
-        | (Topic::RivalManager { opponent, .. }, Dismissive) => {
+        | (Topic::RivalManager { opponent, .. }, Dismissive)
+        | (
+            Topic::RivalComment {
+                rival: opponent, ..
+            },
+            Dismissive,
+        )
+        | (Topic::Grudge { opponent }, Dismissive) => {
             squad_morale(world, club, 20);
             squad_morale(world, opponent, 30);
             effects.push(Effect::Squad(20));
@@ -756,6 +793,19 @@ pub(crate) fn answer(
                 club: opponent,
                 by: 30,
             });
+            crate::rivals::warm(world, manager, opponent, 15);
+            quotable = true;
+        }
+        (Topic::RivalComment { rival, .. }, Humble)
+        | (Topic::Grudge { opponent: rival }, Humble) => {
+            squad_morale(world, club, 5);
+            effects.push(Effect::Squad(5));
+            crate::rivals::warm(world, manager, rival, -15);
+        }
+        (Topic::RivalComment { rival, .. }, Defiant) => {
+            squad_morale(world, club, 20);
+            effects.push(Effect::Squad(20));
+            crate::rivals::warm(world, manager, rival, 5);
             quotable = true;
         }
         (Topic::RivalManager { .. }, Humble) => {

@@ -26,6 +26,7 @@ pub mod selection;
 pub mod shootout;
 pub mod skills;
 pub mod strength;
+pub mod team_talk;
 pub mod tier1;
 pub mod tier2;
 pub mod view;
@@ -39,6 +40,7 @@ pub use roles::{Duty, Instructions, Marking, Role, SlotRole};
 pub use selection::pick_team;
 pub use shootout::Shootout;
 pub use strength::TeamStrength;
+pub use team_talk::{TalkReaction, TeamTalk};
 
 /// Which engine to run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

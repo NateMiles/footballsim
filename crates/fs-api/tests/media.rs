@@ -165,3 +165,27 @@ fn the_news_has_something_for_every_scope() {
         assert!(news.articles.windows(2).all(|w| w[0].date >= w[1].date));
     }
 }
+
+#[test]
+fn a_dismissive_word_starts_a_rivalry() {
+    let mut s = career();
+    until_press(&mut s);
+    let press = expect!(call(&mut s, Request::Press), Press { press });
+    assert!(press.rivalries.is_empty());
+    let c = &press.conferences[0];
+    let press = expect!(
+        call(
+            &mut s,
+            Request::AnswerQuestion {
+                conference: c.id,
+                question: 0,
+                tone: Tone::Dismissive,
+            }
+        ),
+        Press { press }
+    );
+    let r = &press.rivalries[0];
+    assert_eq!(r.label, "Needle");
+    assert_eq!(r.heat, 15);
+    assert_eq!(r.club.as_ref().unwrap().id, c.opponent.id);
+}

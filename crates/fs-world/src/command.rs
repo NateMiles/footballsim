@@ -380,6 +380,13 @@ pub enum Event {
         conference: u32,
         question: u8,
     },
+    /// A rival manager said something about a human manager's club.
+    RivalSpoke {
+        manager: ManagerId,
+        club: ClubId,
+        rival: ManagerId,
+        story: u32,
+    },
 }
 
 /// Why a command was rejected.

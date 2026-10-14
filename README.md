@@ -23,7 +23,9 @@ maps, xG timelines and pass networks, and answer to a board with cup and
 club-ethos objectives as well as a league target. The world talks back:
 a daily paper with illustrated stories from every league, press
 conferences before and after each match where your answers move the
-squad, single players, the opposition and the board, and private
+squad, single players, the opposition and the board, rival managers who
+answer back and feuds that turn into grudge matches, team talks in the
+dressing room before kick-off and at half-time, and private
 conversations where players answer in their own words, every face drawn
 for them. It runs in the browser (the simulation compiled to
 WebAssembly), installs on iPad as a web app, and builds as a native macOS

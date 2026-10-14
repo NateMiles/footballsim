@@ -55,6 +55,8 @@ pub enum Link {
     Dynamics,
     /// The press room.
     Press,
+    /// The news.
+    News,
 }
 
 /// One message.

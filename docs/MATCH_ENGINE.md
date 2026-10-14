@@ -279,11 +279,23 @@ touching the engine, so the engine never draws anything. It emits a
   frames at 5 Hz: formation anchors shifted with the ball, the actors
   moving to the play, ball arcs with height, celebrations and kick-offs.
   `view::LiveView` combines engine and director.
-- **Instructions** (substitutions, tactic changes, touchline shouts) are
-  keyed to the engine step at which they were given
+- **Instructions** (substitutions, tactic changes, touchline shouts,
+  team talks) are keyed to the engine step at which they were given
   (`fs_match::TimedInstruction`). Replaying a match input with the same
   instructions reproduces the watched match exactly, which is how the
   world records it (see WORLD.md section 5).
+- **Team talks** (`fs_match::team_talk`) are given before kick-off and at
+  a break: live playback (`LiveMatch::advance_until`) stops at half-time
+  and the start of extra time so there is a moment to give one. Each
+  player's reaction follows from their pressure, big-match temperament,
+  professionalism, temper and morale and the score, with no randomness:
+  fired up (x1.03), focused (x1.015), unmoved, nervous or complacent
+  (x0.985) or sulking (x0.975), on their play until the next break. Calm
+  steadies the nervous; a rousing talk lifts big-game players and
+  overwhelms nervous ones; demanding more lifts professionals and makes
+  hot heads sulk, and is resented when winning; praise for a losing side
+  breeds complacency. A test over generated squads checks that no talk is
+  best for every squad. The AI gives none, so calibration is unchanged.
 - Commentary is generated from the action log and match events in
   `fs-api` (`commentary.rs`), so any future engine that emits the log
   gets it for free.

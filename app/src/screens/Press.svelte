@@ -139,6 +139,29 @@
       </section>
     {/each}
 
+    {#if press.rivalries.length > 0}
+      <section class="card grid" data-testid="rivalries">
+        <h3>Rival managers</h3>
+        <ul class="rivals">
+          {#each press.rivalries as r (r.name)}
+            <li class={r.label.toLowerCase()}>
+              <Portrait look={r.look} size={52} ring shirt={r.club?.colors.primary} trim={r.club?.colors.secondary}
+                expression={r.heat >= 40 ? 'angry' : r.heat >= 15 ? 'sceptical' : r.heat <= -15 ? 'happy' : 'neutral'} />
+              <div class="rival-who">
+                <strong>{r.name}</strong>
+                <span class="dim small">{r.club?.name ?? 'Out of work'}</span>
+                {#if r.last}<span class="last">“{r.last}”</span>{/if}
+              </div>
+              <div class="heat">
+                <span class="pill">{r.label}</span>
+                <span class="bar"><span style:width="{Math.max(0, Math.min(100, r.heat))}%"></span></span>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+
     <section class="card">
       <label class="toggle">
         <input type="checkbox" role="switch" checked={press.delegated} onchange={() => delegate(!press.delegated)} />
@@ -368,6 +391,73 @@
 
   .empty h3 {
     justify-content: center;
+  }
+
+  .rivals {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+  }
+
+  .rivals li {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+  }
+
+  .rivals .rival-who {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .rivals .last {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  .rivals .heat {
+    display: grid;
+    justify-items: end;
+    gap: 6px;
+  }
+
+  .rivals .bar {
+    width: 90px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .rivals .bar span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--warn), var(--bad));
+  }
+
+  .rivals li.feud {
+    border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  }
+
+  .rivals li.feud .pill {
+    color: var(--bad);
+    background: var(--bad-soft);
+    border-color: transparent;
+  }
+
+  .rivals li.respect .pill {
+    color: var(--good);
+    background: var(--good-soft);
+    border-color: transparent;
   }
 
   .quotes {

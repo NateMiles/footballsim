@@ -223,6 +223,40 @@ mod live {
     }
 
     #[test]
+    fn team_talks_come_at_breaks_and_replay_exactly() {
+        use crate::team_talk::TeamTalk;
+        for k in 0..6 {
+            let i = input(600, 600, 300 + k);
+            let mut live = LiveMatch::new(&i);
+            assert!(live.at_break());
+            live.instruct(Side::Home, Instruction::TeamTalk(TeamTalk::Motivate))
+                .unwrap();
+            live.advance_until(20.0 * 60.0);
+            assert!(!live.at_break());
+            assert_eq!(
+                live.instruct(Side::Home, Instruction::TeamTalk(TeamTalk::Calm)),
+                Err(InstructionError::NotAtBreak)
+            );
+            // Playback stops at half-time, whatever time was asked for.
+            live.advance_until(80.0 * 60.0);
+            assert!(live.at_break());
+            assert_eq!(live.half(), 1);
+            live.instruct(Side::Home, Instruction::TeamTalk(TeamTalk::Demand))
+                .unwrap();
+            live.instruct(Side::Away, Instruction::TeamTalk(TeamTalk::Praise))
+                .unwrap();
+            live.advance_until(80.0 * 60.0);
+            assert!(live.minute() >= 70);
+            let mut replay = i.clone();
+            replay.instructions = live.instructions().to_vec();
+            assert_eq!(replay.instructions.len(), 3);
+            let watched = live.finish();
+            assert_eq!(play(&replay), watched, "match {k}");
+            assert_ne!(watched, play(&i), "match {k}");
+        }
+    }
+
+    #[test]
     fn instructions_change_the_match() {
         let i = input(600, 600, 7);
         let mut live = LiveMatch::new(&i);

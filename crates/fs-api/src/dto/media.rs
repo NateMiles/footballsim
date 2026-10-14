@@ -211,4 +211,21 @@ pub struct PressView {
     pub delegated: bool,
     /// The viewer's most recent quotes.
     pub quotes: Vec<Article>,
+    /// Rival managers, hottest first.
+    pub rivalries: Vec<RivalryView>,
+}
+
+/// A rival manager and the state of things with them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct RivalryView {
+    pub name: String,
+    pub look: Look,
+    pub club: Option<ClubRef>,
+    /// -50 (respect) to 100 (open feud).
+    pub heat: i16,
+    /// Such as `"Feud"`.
+    pub label: String,
+    /// The last thing they said about the viewer's club.
+    pub last: Option<String>,
 }

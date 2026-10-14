@@ -19,6 +19,80 @@ pub struct LiveStart {
     pub players: Vec<LivePlayerInfo>,
     pub lineups: [LiveLineup; 2],
     pub shouts: Vec<Shout>,
+    pub team_talks: Vec<TeamTalkInfo>,
+}
+
+/// What a manager can say in the dressing room.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum TeamTalk {
+    Calm,
+    Motivate,
+    Demand,
+    Praise,
+    Focus,
+    Faith,
+}
+
+/// A team talk on offer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamTalkInfo {
+    pub talk: TeamTalk,
+    pub name: String,
+    /// What the manager says.
+    pub line: String,
+    /// Before kick-off, at half-time, or both.
+    pub pre_match: bool,
+    pub half_time: bool,
+}
+
+/// How a player took a team talk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum TalkReaction {
+    FiredUp,
+    Focused,
+    Unmoved,
+    Nervous,
+    Complacent,
+    Sulking,
+}
+
+/// One player's reaction.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerReaction {
+    pub player: Id,
+    pub reaction: TalkReaction,
+}
+
+impl From<fs_match::TalkReaction> for TalkReaction {
+    fn from(r: fs_match::TalkReaction) -> Self {
+        use fs_match::TalkReaction as R;
+        match r {
+            R::FiredUp => TalkReaction::FiredUp,
+            R::Focused => TalkReaction::Focused,
+            R::Unmoved => TalkReaction::Unmoved,
+            R::Nervous => TalkReaction::Nervous,
+            R::Complacent => TalkReaction::Complacent,
+            R::Sulking => TalkReaction::Sulking,
+        }
+    }
+}
+
+impl From<TeamTalk> for fs_match::TeamTalk {
+    fn from(t: TeamTalk) -> Self {
+        use fs_match::TeamTalk as T;
+        match t {
+            TeamTalk::Calm => T::Calm,
+            TeamTalk::Motivate => T::Motivate,
+            TeamTalk::Demand => T::Demand,
+            TeamTalk::Praise => T::Praise,
+            TeamTalk::Focus => T::Focus,
+            TeamTalk::Faith => T::Faith,
+        }
+    }
 }
 
 /// Pitch size in metres. Frames use x along the length (0 at the home
@@ -109,6 +183,7 @@ pub enum Instruction {
     Substitute { off: Id, on: Id },
     ChangeTactic { tactic: Tactic },
     Shout { shout: Shout },
+    TeamTalk { talk: TeamTalk },
 }
 
 /// The match's progress since the last chunk.
@@ -128,6 +203,11 @@ pub struct LiveChunk {
     pub lineups: [LiveLineup; 2],
     /// The shootout, in the chunk that ends a match with one.
     pub shootout: Option<Shootout>,
+    /// Before kick-off or at a break: a team talk can be given now.
+    pub at_break: bool,
+    /// How the viewer's players took the last team talk, until the next
+    /// break.
+    pub reactions: Vec<PlayerReaction>,
 }
 
 /// Where everything is at one instant.

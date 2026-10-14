@@ -43,7 +43,7 @@ fn generate() -> String {
         // Inbox.
         Category, Link, Message, InboxView,
         // Live.
-        LiveStart, Pitch, LivePlayerInfo, LiveLineup, OnPitch, Shout, Instruction, LiveChunk,
+        LiveStart, TeamTalk, TeamTalkInfo, TalkReaction, PlayerReaction, Pitch, LivePlayerInfo, LiveLineup, OnPitch, Shout, Instruction, LiveChunk,
         Frame, PlayerFrame, Pose, CommentaryKind, Commentary, MatchEvent, TeamStats,
         MatchReport, PlayerRating, Shootout, Kick,
         // Management.
@@ -61,6 +61,7 @@ fn generate() -> String {
         // Media.
         NewsScope, ArticleKind, Expression, Figure, Art, Byline, Article, NewsView, Tone,
         JournalistView, AnswerOption, EffectView, QuestionView, ConferenceView, PressView,
+        RivalryView,
         // People.
         SquadStatus, StatusInfo, Talk, TalkInfo, Reaction, Personality, MoodReason, Mood,
         PromiseView, RequestView, PlayerPeople, DynamicsRow, DynamicsView, TalkResult,

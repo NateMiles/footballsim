@@ -47,6 +47,8 @@ pub enum Instruction {
     /// Change formation and sliders. Players keep their slots.
     ChangeTactic(Tactic),
     Shout(Shout),
+    /// A team talk: before kick-off or at half-time only.
+    TeamTalk(crate::team_talk::TeamTalk),
 }
 
 /// An instruction pinned to the engine step it takes effect at.
@@ -69,6 +71,8 @@ pub enum InstructionError {
     NotOnBench(PlayerId),
     /// All substitutions or substitution windows are used.
     NoSubstitutionsLeft,
+    /// Team talks are given before kick-off and at half-time.
+    NotAtBreak,
 }
 
 impl core::fmt::Display for InstructionError {
@@ -78,6 +82,9 @@ impl core::fmt::Display for InstructionError {
             InstructionError::NotOnPitch(p) => write!(f, "{p} is not on the pitch"),
             InstructionError::NotOnBench(p) => write!(f, "{p} is not an unused substitute"),
             InstructionError::NoSubstitutionsLeft => write!(f, "no substitutions left"),
+            InstructionError::NotAtBreak => {
+                write!(f, "team talks are given before kick-off and at half-time")
+            }
         }
     }
 }

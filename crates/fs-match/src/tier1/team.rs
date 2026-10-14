@@ -24,12 +24,16 @@ pub(super) struct Player {
     pub(super) stats: PlayerMatchStats,
     /// Multiplier from a touchline shout (1.0 when none is active).
     pub(super) boost: f64,
+    /// Multiplier from the last team talk, until the next break.
+    pub(super) talk: f64,
+    /// How they took the last team talk, until the next break.
+    pub(super) reaction: Option<crate::team_talk::TalkReaction>,
 }
 
 impl Player {
-    /// Multiplier from in-match fatigue.
+    /// Multiplier from in-match fatigue, shouts and team talks.
     pub(super) fn fat(&self) -> f64 {
-        (0.82 + 0.18 * self.energy) * self.boost
+        (0.82 + 0.18 * self.energy) * self.boost * self.talk
     }
 }
 
@@ -88,6 +92,8 @@ impl Team {
                 defensive: is_defensive(position),
                 stats: PlayerMatchStats::new(snap.id, true),
                 boost: 1.0,
+                talk: 1.0,
+                reaction: None,
             });
             on[i] = Some(i);
         }
@@ -104,6 +110,8 @@ impl Team {
                 defensive: false,
                 stats: PlayerMatchStats::new(snap.id, false),
                 boost: 1.0,
+                talk: 1.0,
+                reaction: None,
             });
         }
         let mut team = Self {

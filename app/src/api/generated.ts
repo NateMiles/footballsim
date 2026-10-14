@@ -1,7 +1,7 @@
 // Generated from crates/fs-api by tests/bindings.rs. Do not edit.
 // Regenerate: UPDATE_BINDINGS=1 cargo test -p fs-api --test bindings
 
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 export type AnswerOption = { tone: Tone, 
 /**
@@ -405,7 +405,7 @@ export type Injury = {
  */
 severity: string, until: string, };
 
-export type Instruction = { "type": "substitute", off: number, on: number, } | { "type": "changeTactic", tactic: Tactic, } | { "type": "shout", shout: Shout, };
+export type Instruction = { "type": "substitute", off: number, on: number, } | { "type": "changeTactic", tactic: Tactic, } | { "type": "shout", shout: Shout, } | { "type": "teamTalk", talk: TeamTalk, };
 
 export type InstructionsView = { 
 /**
@@ -475,7 +475,7 @@ export type Lineup = {
  */
 starters: Array<number>, bench: Array<number>, };
 
-export type Link = { "type": "player", player: number, } | { "type": "schedule" } | { "type": "table", league: number, } | { "type": "cup", cup: number, } | { "type": "squad" } | { "type": "tactics" } | { "type": "transfers" } | { "type": "staff" } | { "type": "jobs" } | { "type": "finances" } | { "type": "dynamics" } | { "type": "press" };
+export type Link = { "type": "player", player: number, } | { "type": "schedule" } | { "type": "table", league: number, } | { "type": "cup", cup: number, } | { "type": "squad" } | { "type": "tactics" } | { "type": "transfers" } | { "type": "staff" } | { "type": "jobs" } | { "type": "finances" } | { "type": "dynamics" } | { "type": "press" } | { "type": "news" };
 
 export type ListedPlayer = { player: PlayerRef, listing: Listing, };
 
@@ -493,7 +493,16 @@ elapsed: number, finished: boolean, stats: [TeamStats, TeamStats], lineups: [Liv
 /**
  * The shootout, in the chunk that ends a match with one.
  */
-shootout: Shootout | null, };
+shootout: Shootout | null, 
+/**
+ * Before kick-off or at a break: a team talk can be given now.
+ */
+atBreak: boolean, 
+/**
+ * How the viewer's players took the last team talk, until the next
+ * break.
+ */
+reactions: Array<PlayerReaction>, };
 
 export type LiveLineup = { tactic: Tactic, 
 /**
@@ -515,7 +524,7 @@ frameHz: number,
 /**
  * Everyone in either squad today.
  */
-players: Array<LivePlayerInfo>, lineups: [LiveLineup, LiveLineup], shouts: Array<Shout>, };
+players: Array<LivePlayerInfo>, lineups: [LiveLineup, LiveLineup], shouts: Array<Shout>, teamTalks: Array<TeamTalkInfo>, };
 
 export type Loan = { player: PlayerRef, parent: ClubRef, borrower: ClubRef, until: string, wageShare: number, };
 
@@ -798,6 +807,8 @@ talks: Array<TalkInfo>, };
 
 export type PlayerRating = { player: PlayerRef, minutes: number, goals: number, assists: number, rating: number, };
 
+export type PlayerReaction = { player: number, reaction: TalkReaction, };
+
 export type PlayerRef = { id: number, name: string, 
 /**
  * Initial and surname, for tight spaces.
@@ -925,7 +936,11 @@ delegated: boolean,
 /**
  * The viewer's most recent quotes.
  */
-quotes: Array<Article>, };
+quotes: Array<Article>, 
+/**
+ * Rival managers, hottest first.
+ */
+rivalries: Array<RivalryView>, };
 
 export type ProjectionRow = { club: ClubRef, 
 /**
@@ -1014,6 +1029,20 @@ export type Response = { "type": "hello", protocol: number, version: string,
  * Whether a game is loaded.
  */
 inGame: boolean, } | { "type": "clubChoices", choices: ClubChoices, } | { "type": "saved", save: SaveGame, } | { "type": "overview", overview: Overview, } | { "type": "inbox", inbox: InboxView, } | { "type": "squad", squad: SquadView, } | { "type": "player", player: PlayerView, } | { "type": "tactics", tactics: TacticsView, } | { "type": "fixtures", fixtures: FixturesView, } | { "type": "table", table: TableView, } | { "type": "schedule", schedule: ScheduleView, } | { "type": "cup", cup: CupView, } | { "type": "competitions", competitions: CompetitionsView, } | { "type": "oppositionReport", report: OppositionReport, } | { "type": "prediction", prediction: Prediction, } | { "type": "projections", projections: ProjectionsView, } | { "type": "continued", continued: Continued, } | { "type": "liveStart", start: LiveStart, } | { "type": "liveChunk", chunk: LiveChunk, } | { "type": "matchReport", report: MatchReport, } | { "type": "finances", finances: FinancesView, } | { "type": "staff", staff: StaffView, } | { "type": "transfers", transfers: TransfersView, } | { "type": "search", search: SearchView, } | { "type": "jobs", jobs: JobsView, } | { "type": "benchmark", benchmark: BenchmarkStatus, } | { "type": "training", training: TrainingView, } | { "type": "dynamics", dynamics: DynamicsView, } | { "type": "negotiation", negotiation: NegotiationView, } | { "type": "matchAnalysis", analysis: MatchAnalysisView, } | { "type": "seasonStats", stats: SeasonStatsView, } | { "type": "talks", result: TalksResult, } | { "type": "talk", result: TalkResult, } | { "type": "news", news: NewsView, } | { "type": "press", press: PressView, } | { "type": "error", error: ApiErrorBody, };
+
+export type RivalryView = { name: string, look: Look, club: ClubRef | null, 
+/**
+ * -50 (respect) to 100 (open feud).
+ */
+heat: number, 
+/**
+ * Such as `"Feud"`.
+ */
+label: string, 
+/**
+ * The last thing they said about the viewer's club.
+ */
+last: string | null, };
 
 export type RoleChoice = { role: PlayerRole, duty: Duty, };
 
@@ -1285,6 +1314,8 @@ listening: boolean,
  */
 available: boolean, };
 
+export type TalkReaction = "firedUp" | "focused" | "unmoved" | "nervous" | "complacent" | "sulking";
+
 export type TalkResult = { reaction: Reaction, message: string, 
 /**
  * What the manager said.
@@ -1308,6 +1339,18 @@ export type TeamStats = {
  * 0-1.
  */
 possession: number, shots: number, shotsOnTarget: number, xg: number, passes: number, passesCompleted: number, crosses: number, tackles: number, fouls: number, yellows: number, reds: number, corners: number, offsides: number, saves: number, };
+
+export type TeamTalk = "calm" | "motivate" | "demand" | "praise" | "focus" | "faith";
+
+export type TeamTalkInfo = { talk: TeamTalk, name: string, 
+/**
+ * What the manager says.
+ */
+line: string, 
+/**
+ * Before kick-off, at half-time, or both.
+ */
+preMatch: boolean, halfTime: boolean, };
 
 export type Tie = { 
 /**

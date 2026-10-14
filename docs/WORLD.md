@@ -588,6 +588,21 @@ watched. A manager can leave a conference to the assistant or send the
 assistant to all of them (`SetPressDelegation`); ignoring one entirely
 costs rapport and makes the papers.
 
+**Rival managers** (`rivals.rs`). AI managers speak about human
+managers' clubs when they have a reason: answering a dismissive remark
+from the day before (most of the time), the day after the clubs met
+(praise after a heavy defeat, "lucky" after a narrow one, a barb after a
+win if there is bad blood), on Mondays when the clubs are close in the
+top three, and on Thursdays to mock a club that has lost three of its
+last four, if they have a score to settle. At most one rival speaks
+about a club a day. What they say makes the news, reaches the manager's
+inbox, and is put to them at their next press conference. Each pair of
+managers has a heat (-50 respect to 100): dismissive words either way
+add 10 to 15, respectful answers take 15 off, and it drifts back to zero
+by a point every three days. At 40 a rivalry is a feud: the press calls
+the next meeting a grudge match. A barb about a club fires its players
+up a little (1% of the morale scale).
+
 **Looks** (`looks.rs`). Faces are derived from the seed, the person's id,
 nation and age: each nation has its own mix of skin tones and hair, and
 age brings grey hair and receding hairlines. They are never stored and

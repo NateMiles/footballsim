@@ -212,3 +212,57 @@ fn ignored_conferences_are_noticed_and_delegated_ones_are_not_held() {
     }
     assert!(game.world().press().conferences().is_empty());
 }
+
+#[test]
+fn rival_managers_answer_back_and_feuds_grow() {
+    let (mut game, m, club) = one_human(Size::Tiny, 12, 3);
+    let me = Actor::Manager(m);
+    let mut spoke = 0;
+    let mut asked_back = false;
+    for _ in 0..90 {
+        for e in day(&mut game) {
+            match e {
+                Event::RivalSpoke {
+                    manager, club: c, ..
+                } => {
+                    assert_eq!((manager, c), (m, club));
+                    spoke += 1;
+                }
+                Event::PressConference { conference, .. } => {
+                    // Wave every opponent away.
+                    let c = game.world().press().conference(conference).unwrap().clone();
+                    for (k, q) in c.questions.iter().enumerate() {
+                        if matches!(q.topic, fs_world::press::Topic::RivalComment { .. }) {
+                            asked_back = true;
+                        }
+                        let tone = if options(q.topic).contains(&Tone::Dismissive) {
+                            Tone::Dismissive
+                        } else {
+                            options(q.topic)[0]
+                        };
+                        game.submit(
+                            me,
+                            Command::AnswerQuestion {
+                                conference,
+                                question: k as u8,
+                                tone,
+                            },
+                        )
+                        .unwrap();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    assert!(spoke >= 2, "{spoke} rival comments");
+    assert!(asked_back, "the press never asked about a rival's words");
+    let rivals = fs_world::rivals::rivalries(game.world(), m);
+    assert!(rivals.first().is_some_and(|&(_, h)| h > 0), "{rivals:?}");
+    // Rivals' words are in the news, about this club.
+    assert!(game.world().news().stories().iter().any(|s| matches!(
+        s.kind,
+        StoryKind::Quote { quote, .. }
+            if matches!(quote.topic, fs_world::press::Topic::AboutRival { rival, .. } if rival == club)
+    )));
+}

@@ -563,6 +563,43 @@ impl Inbox {
                     "Look for a new job.".to_owned(),
                     Some(Link::Jobs),
                 ),
+                Event::RivalSpoke {
+                    manager: m,
+                    club: c,
+                    rival,
+                    story,
+                } if *m == manager && *c == club => {
+                    if let Some(s) = world.news().get(*story)
+                        && let fs_world::news::StoryKind::Quote {
+                            club: from, quote, ..
+                        } = s.kind
+                    {
+                        let rival_name = {
+                            let r = &world.managers()[*rival];
+                            format!(
+                                "{} {}",
+                                world.names().get(r.first_name),
+                                world.names().get(r.last_name)
+                            )
+                        };
+                        self.push(
+                            world,
+                            Category::Press,
+                            format!("{} on {}", rival_name, club_name(club)),
+                            format!(
+                                "{} manager {rival_name}: \"{}\"",
+                                club_name(from),
+                                crate::query::media::answer_text(
+                                    world,
+                                    from,
+                                    quote.topic,
+                                    quote.tone
+                                )
+                            ),
+                            Some(Link::News),
+                        );
+                    }
+                }
                 Event::PressConference {
                     manager: m,
                     club: c,

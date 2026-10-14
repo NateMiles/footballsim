@@ -39,6 +39,7 @@ pub mod player;
 pub mod press;
 pub mod profile;
 pub mod records;
+pub mod rivals;
 pub mod scouting;
 pub mod season;
 pub mod snapshot;

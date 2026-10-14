@@ -105,6 +105,7 @@ impl LiveSession {
             players,
             lineups: session.lineups(),
             shouts: fs_match::Shout::ALL.iter().map(|&s| s.into()).collect(),
+            team_talks: team_talks(),
         };
         Ok((session, start))
     }
@@ -208,6 +209,17 @@ impl LiveSession {
             stats: [team_stats(&chunk.stats[0]), team_stats(&chunk.stats[1])],
             lineups: self.lineups(),
             shootout: chunk.shootout.as_ref().map(shootout),
+            at_break: self.view.engine().at_break(),
+            reactions: self
+                .view
+                .engine()
+                .reactions(self.side)
+                .into_iter()
+                .map(|(p, r)| dto::PlayerReaction {
+                    player: p.raw(),
+                    reaction: r.into(),
+                })
+                .collect(),
         }
     }
 
@@ -222,6 +234,7 @@ impl LiveSession {
                 fs_match::Instruction::ChangeTactic(tactic.into())
             }
             dto::Instruction::Shout { shout } => fs_match::Instruction::Shout(shout.into()),
+            dto::Instruction::TeamTalk { talk } => fs_match::Instruction::TeamTalk(talk.into()),
         };
         self.view
             .instruct(self.side, ins)
@@ -240,6 +253,66 @@ impl LiveSession {
         let instructions = self.instructions();
         (instructions, self.view.finish())
     }
+}
+
+/// Team talks on offer.
+fn team_talks() -> Vec<dto::TeamTalkInfo> {
+    use dto::TeamTalk::*;
+    [
+        (
+            Calm,
+            "Calm",
+            "No pressure. Go out there and enjoy it.",
+            true,
+            true,
+        ),
+        (
+            Motivate,
+            "Fire them up",
+            "This is a big one. Go out and win it.",
+            true,
+            false,
+        ),
+        (
+            Demand,
+            "Demand more",
+            "Not good enough. I want more from every one of you.",
+            true,
+            true,
+        ),
+        (
+            Praise,
+            "Praise",
+            "Brilliant. Keep doing exactly what you're doing.",
+            false,
+            true,
+        ),
+        (
+            Focus,
+            "Stay focused",
+            "Stay switched on. The job isn't done yet.",
+            true,
+            true,
+        ),
+        (
+            Faith,
+            "Show faith",
+            "I believe in you. Go out and turn this around.",
+            true,
+            true,
+        ),
+    ]
+    .into_iter()
+    .map(
+        |(talk, name, line, pre_match, half_time)| dto::TeamTalkInfo {
+            talk,
+            name: name.into(),
+            line: line.into(),
+            pre_match,
+            half_time,
+        },
+    )
+    .collect()
 }
 
 fn lineup(l: &LiveLineup) -> dto::LiveLineup {
